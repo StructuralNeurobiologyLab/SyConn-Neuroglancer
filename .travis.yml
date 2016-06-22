@@ -1,0 +1,15 @@
+language: node_js
+sudo: false
+node_js:
+  - "5.9.0"
+
+before_script:
+  - export DISPLAY=:99.0
+  - export CHROME_BIN=chromium-browser
+  - sh -e /etc/init.d/xvfb start
+  - sleep 3 # give xvfb some time to start
+
+script:
+  - gulp check-format
+  - gulp tslint
+  - npm run test
