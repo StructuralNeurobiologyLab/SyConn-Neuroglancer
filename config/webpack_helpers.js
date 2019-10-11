@@ -41,26 +41,26 @@ const DEFAULT_DATA_SOURCES = exports.DEFAULT_DATA_SOURCES = [
       'neuroglancer/async_computation/decode_jpeg',
     ],
   },
-  {
-    source: 'neuroglancer/datasource/boss',
-    registerCredentials: 'neuroglancer/datasource/boss/register_credentials_provider',
-    asyncComputation: [
-      'neuroglancer/async_computation/decode_jpeg',
-      'neuroglancer/async_computation/decode_gzip',
-    ],
-  },
-  {
-    source: 'neuroglancer/datasource/dvid',
-    asyncComputation: [
-      'neuroglancer/async_computation/decode_jpeg',
-    ],
-  },
-  {
-    source: 'neuroglancer/datasource/render',
-    asyncComputation: [
-      'neuroglancer/async_computation/decode_jpeg',
-    ],
-  },
+  // {
+  //   source: 'neuroglancer/datasource/boss',
+  //   registerCredentials: 'neuroglancer/datasource/boss/register_credentials_provider',
+  //   asyncComputation: [
+  //     'neuroglancer/async_computation/decode_jpeg',
+  //     'neuroglancer/async_computation/decode_gzip',
+  //   ],
+  // },
+  // {
+  //   source: 'neuroglancer/datasource/dvid',
+  //   asyncComputation: [
+  //     'neuroglancer/async_computation/decode_jpeg',
+  //   ],
+  // },
+  // {
+  //   source: 'neuroglancer/datasource/render',
+  //   asyncComputation: [
+  //     'neuroglancer/async_computation/decode_jpeg',
+  //   ],
+  // },
   {
     source: 'neuroglancer/datasource/precomputed',
     asyncComputation: [
@@ -68,43 +68,43 @@ const DEFAULT_DATA_SOURCES = exports.DEFAULT_DATA_SOURCES = [
       'neuroglancer/async_computation/decode_gzip',
     ],
   },
-  {
-    source: 'neuroglancer/datasource/nifti',
-    asyncComputation: [
-      'neuroglancer/async_computation/decode_gzip',
-    ],
-  },
+  // {
+  //   source: 'neuroglancer/datasource/nifti',
+  //   asyncComputation: [
+  //     'neuroglancer/async_computation/decode_gzip',
+  //   ],
+  // },
   {
     source: 'neuroglancer/datasource/n5',
     asyncComputation: [
       'neuroglancer/async_computation/decode_gzip',
     ],
   },
-  'neuroglancer/datasource/computed',
-  'neuroglancer/datasource/computed/example',
-  'neuroglancer/datasource/computed/tensorflow',
-  {
-    source: 'neuroglancer/datasource/vtk',
-    register: null,
-    asyncComputation: [
-      'neuroglancer/async_computation/vtk_mesh',
-    ],
-  },
-  {
-    source: 'neuroglancer/datasource/csv',
-    register: null,
-    asyncComputation: [
-      'neuroglancer/async_computation/csv_vertex_attributes',
-    ],
-  },
+  // 'neuroglancer/datasource/computed',
+  // 'neuroglancer/datasource/computed/example',
+  // 'neuroglancer/datasource/computed/tensorflow',
+  // {
+  //   source: 'neuroglancer/datasource/vtk',
+  //   register: null,
+  //   asyncComputation: [
+  //     'neuroglancer/async_computation/vtk_mesh',
+  //   ],
+  // },
+  // {
+  //   source: 'neuroglancer/datasource/csv',
+  //   register: null,
+  //   asyncComputation: [
+  //     'neuroglancer/async_computation/csv_vertex_attributes',
+  //   ],
+  // },
 ];
 
 const DEFAULT_SUPPORTED_LAYERS = exports.DEFAULT_SUPPORTED_LAYERS = [
   'neuroglancer/image_user_layer',
-  'neuroglancer/vector_graphics_user_layer',
+  // 'neuroglancer/vector_graphics_user_layer',
   'neuroglancer/segmentation_user_layer',
-  'neuroglancer/single_mesh_user_layer',
-  'neuroglancer/annotation/user_layer',
+  // 'neuroglancer/single_mesh_user_layer',
+  // 'neuroglancer/annotation/user_layer',
 ];
 
 /**
