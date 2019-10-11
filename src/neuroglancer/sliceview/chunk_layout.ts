@@ -14,28 +14,38 @@
  * limitations under the License.
  */
 
-import {identityMat4, mat4, transformVectorByMat4, vec3} from 'neuroglancer/util/geom';
+import {identityMat4, mat4, transformVectorByMat4, transformVectorByMat4Transpose, vec3} from 'neuroglancer/util/geom';
 
 export class ChunkLayout {
   /**
-   * Size of each chunk in local spatial coordinates.
+   * Size of each chunk in "chunk" coordinates.
    */
   size: vec3;
 
   /**
-   * Transform from local spatial coordinates to global coordinates (nm).
+   * Transform from local "chunk" coordinates to global voxel coordinates.
    */
   transform: mat4;
 
   /**
-   * Inverse of transform.  Transform from global spatial coordinates to local spatial coordinates.
+   * Inverse of transform.  Transform from global voxel coordinates to "chunk" coordinates.
    */
   invTransform: mat4;
+
+  /**
+   * Determinant of `transform`.
+   */
+  detTransform: number;
 
   constructor(size: vec3, transform: mat4 = identityMat4) {
     this.size = vec3.clone(size);
     this.transform = mat4.clone(transform);
-    this.invTransform = mat4.invert(mat4.create(), transform)!;
+    const invTransform = mat4.invert(mat4.create(), transform);
+    if (invTransform === null) {
+      throw new Error('Transform is singular');
+    }
+    this.invTransform = invTransform;
+    this.detTransform = mat4.determinant(transform);
   }
   static cache = new Map<string, ChunkLayout>();
   toObject(msg: any) {
@@ -59,13 +69,6 @@ export class ChunkLayout {
   }
 
   /**
-   * Transform local spatial coordinates to global spatial coordinates.
-   */
-  localSpatialToGlobal(out: vec3, localSpatial: vec3): vec3 {
-    return vec3.transformMat4(out, localSpatial, this.transform);
-  }
-
-  /**
    * Transform global spatial coordinates to local spatial coordinates.
    */
   globalToLocalSpatial(out: vec3, globalSpatial: vec3): vec3 {
@@ -82,11 +85,10 @@ export class ChunkLayout {
     return transformVectorByMat4(out, localVector, this.transform);
   }
 
-  globalToLocalSpatialVector(out: vec3, globalVector: vec3): vec3 {
-    return transformVectorByMat4(out, globalVector, this.invTransform);
-  }
-
-  assignLocalSpatialToGlobalMat4(out: mat4): mat4 {
-    return mat4.copy(out, this.transform);
+  /**
+   * Returns the unnormalized normal vector.
+   */
+  globalToLocalNormal(globalNormal: vec3, localNormal: vec3) {
+    return transformVectorByMat4Transpose(globalNormal, localNormal, this.transform);
   }
 }

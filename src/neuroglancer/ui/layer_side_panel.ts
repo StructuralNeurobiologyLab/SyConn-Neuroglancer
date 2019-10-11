@@ -26,6 +26,7 @@ import {removeFromParent} from 'neuroglancer/util/dom';
 import {WatchableVisibilityPriority} from 'neuroglancer/visibility_priority/frontend';
 import {makeCloseButton} from 'neuroglancer/widget/close_button';
 import {StackView, Tab, TabView} from 'neuroglancer/widget/tab_view';
+import { animationFrameDebounce } from '../util/animation_frame_debounce';
 
 class UserLayerInfoPanel extends Tab {
   tabView = new TabView(this.layer.tabs.addRef(), this.visibility);
@@ -54,14 +55,29 @@ class ManagedUserLayerInfoPanel extends Tab {
   element = document.createElement('div');
   private title = document.createElement('div');
   private layerName = document.createElement('input');
+  // private userLayerElement = document.createElement('div');
+  // private prevLayer: UserLayer|null|undefined;
+  // private prevLayerPanel: UserLayerInfoPanel|EmptyUserLayerInfoPanel|undefined;
+
   private stack = this.registerDisposer(
-      new StackView<UserLayer|null, UserLayerInfoPanel|EmptyUserLayerInfoPanel>(userLayer => {
-        if (userLayer === null) {
-          return new EmptyUserLayerInfoPanel();
-        } else {
-          return new UserLayerInfoPanel(userLayer);
-        }
-      }, this.visibility));
+      new StackView<UserLayer|null, UserLayerInfoPanel|EmptyUserLayerInfoPanel>(
+          userLayer => {
+            if (userLayer === null) {
+              return new EmptyUserLayerInfoPanel();
+            } else {
+              return new UserLayerInfoPanel(userLayer);
+            }
+          },
+          (() => {
+            const {layer} = this;
+            return {
+              changed: layer.layerChanged,
+              get value() {
+                return layer.layer;
+              },
+            };
+          })(),
+          this.visibility, /*invalidateByDefault=*/ true));
 
   constructor(
       public layer: Borrowed<ManagedUserLayer>, public layerManager: Borrowed<LayerManager>,
@@ -86,15 +102,7 @@ class ManagedUserLayerInfoPanel extends Tab {
     layerName.addEventListener('change', () => this.handleLayerNameViewChanged());
     layerName.addEventListener('blur', () => this.handleLayerNameViewChanged());
     this.registerDisposer(layer.layerChanged.add(() => this.handleLayerNameModelChanged()));
-    this.handleUserLayerChanged();
     this.handleLayerNameModelChanged();
-  }
-
-  private handleUserLayerChanged() {
-    if (this.stack.selected !== this.layer.layer) {
-      this.stack.invalidateAll();
-      this.stack.selected = this.layer.layer;
-    }
   }
 
   private handleLayerNameModelChanged() {
@@ -118,8 +126,19 @@ class ManagedUserLayerInfoPanel extends Tab {
 export class LayerInfoPanelContainer extends RefCounted {
   element = document.createElement('div');
   private stack = this.registerDisposer(new StackView<ManagedUserLayer, ManagedUserLayerInfoPanel>(
-      layer =>
-          new ManagedUserLayerInfoPanel(layer, this.state.layerManager, this.collapse.bind(this))));
+      (layer: ManagedUserLayer) =>
+          new ManagedUserLayerInfoPanel(layer, this.state.layerManager, this.collapse.bind(this)),
+      (() => {
+        const {state} = this;
+        return {
+          changed: state.changed,
+          get value() {
+            return state.layer;
+          },
+        };
+      })()));
+  private debouncedUpdateView = this.registerCancellable(animationFrameDebounce(() => this.handleStateChanged()));
+  private debouncedUpdateLayers = this.registerCancellable(animationFrameDebounce(() => this.handleLayersChanged()));
   constructor(public state: SelectedLayerState) {
     super();
     const {element, stack} = this;
@@ -127,8 +146,8 @@ export class LayerInfoPanelContainer extends RefCounted {
     stack.element.classList.add('neuroglancer-layer-info-panel-container');
     element.appendChild(stack.element);
     this.registerDisposer(state.changed.add(() => this.handleStateChanged()));
-    this.registerDisposer(state.layerManager.layersChanged.add(() => this.handleLayersChanged()));
-    this.handleStateChanged();
+    this.registerDisposer(state.layerManager.layersChanged.add(this.debouncedUpdateLayers));
+    this.debouncedUpdateView();
   }
 
   private handleLayersChanged() {
@@ -155,7 +174,6 @@ export class LayerInfoPanelContainer extends RefCounted {
     this.element.style.display = visible ? null : 'none';
     this.stack.visibility.value =
         visible ? WatchableVisibilityPriority.VISIBLE : WatchableVisibilityPriority.IGNORED;
-    this.stack.selected = state.layer;
   }
 
   disposed() {

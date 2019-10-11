@@ -20,19 +20,22 @@
  */
 
 import {ChunkManager, ChunkSource, ChunkSourceConstructor, WithParameters} from 'neuroglancer/chunk_manager/frontend';
-import {DataSource} from 'neuroglancer/datasource';
+import {DataSourceProvider} from 'neuroglancer/datasource';
 import {MeshSourceParameters, PythonSourceParameters, SkeletonSourceParameters, VolumeChunkEncoding, VolumeChunkSourceParameters} from 'neuroglancer/datasource/python/base';
 import {MeshSource} from 'neuroglancer/mesh/frontend';
+import {getCoordinateSpaceFromJson} from 'neuroglancer/navigation_state';
 import {VertexAttributeInfo} from 'neuroglancer/skeleton/base';
 import {SkeletonSource} from 'neuroglancer/skeleton/frontend';
-import {DataType, DEFAULT_MAX_VOXELS_PER_CHUNK_LOG2, getNearIsotropicBlockSize, getTwoDimensionalBlockSize} from 'neuroglancer/sliceview/base';
+import {DataType, DEFAULT_MAX_VOXELS_PER_CHUNK_LOG2, getNearIsotropicBlockSize} from 'neuroglancer/sliceview/base';
 import {VolumeChunkSpecification, VolumeSourceOptions, VolumeType} from 'neuroglancer/sliceview/volume/base';
 import {MultiscaleVolumeChunkSource as GenericMultiscaleVolumeChunkSource, VolumeChunkSource} from 'neuroglancer/sliceview/volume/frontend';
 import {Borrowed, Owned} from 'neuroglancer/util/disposable';
-import {mat4, vec3} from 'neuroglancer/util/geom';
+import {BoundingBox, CoordinateSpace} from 'neuroglancer/util/geom';
 import {fetchOk} from 'neuroglancer/util/http_request';
-import {parseArray, parseFixedLengthArray, verify3dDimensions, verify3dScale, verify3dVec, verifyEnumString, verifyObject, verifyObjectAsMap, verifyObjectProperty, verifyPositiveInt, verifyString} from 'neuroglancer/util/json';
+import {parseArray, parseFixedLengthArray, verifyEnumString, verifyFiniteFloat, verifyFinitePositiveFloat, verifyObject, verifyObjectAsMap, verifyObjectProperty, verifyPositiveInt, verifyString} from 'neuroglancer/util/json';
+import * as matrix from 'neuroglancer/util/matrix';
 import {getObjectId} from 'neuroglancer/util/object_id';
+import * as vector from 'neuroglancer/util/vector';
 
 interface PythonChunkSource extends ChunkSource {
   dataSource: PythonDataSource;
@@ -75,21 +78,28 @@ class PythonMeshSource extends
 
 interface ScaleInfo {
   key: string;
-  offset: vec3;
-  sizeInVoxels: vec3;
-  chunkDataSize?: vec3;
-  voxelSize: vec3;
+  offset: Float32Array;
+  sizeInVoxels: Float32Array;
+  chunkDataSize?: Uint32Array;
+  voxelSize: Float32Array;
 }
 
-function parseScaleInfo(obj: any): ScaleInfo {
+function parseScaleInfo(obj: any, rank: number): ScaleInfo {
   verifyObject(obj);
   return {
     key: verifyObjectProperty(obj, 'key', verifyString),
-    offset: verifyObjectProperty(obj, 'offset', verify3dVec),
-    sizeInVoxels: verifyObjectProperty(obj, 'sizeInVoxels', verify3dDimensions),
-    voxelSize: verifyObjectProperty(obj, 'voxelSize', verify3dScale),
+    offset: verifyObjectProperty(
+        obj, 'offset', x => parseFixedLengthArray(new Float32Array(rank), x, verifyFiniteFloat)),
+    sizeInVoxels: verifyObjectProperty(
+        obj, 'sizeInVoxels',
+        x => parseFixedLengthArray(new Float32Array(rank), x, verifyPositiveInt)),
+    voxelSize: verifyObjectProperty(
+        obj, 'voxelSize',
+        x => parseFixedLengthArray(new Float32Array(rank), x, verifyFinitePositiveFloat)),
     chunkDataSize: verifyObjectProperty(
-        obj, 'chunkDataSize', x => x === undefined ? undefined : verify3dDimensions(x)),
+        obj, 'chunkDataSize',
+        x => x === undefined ? undefined :
+                               parseFixedLengthArray(new Uint32Array(rank), x, verifyPositiveInt)),
   };
 }
 
@@ -100,6 +110,9 @@ export class MultiscaleVolumeChunkSource implements GenericMultiscaleVolumeChunk
   encoding: VolumeChunkEncoding;
   scales: ScaleInfo[][];
   generation: number;
+  modelSpace: CoordinateSpace;
+  chunkToModelTransform: Float32Array;
+  boundingBox: BoundingBox;
   skeletonVertexAttributes: Map<string, VertexAttributeInfo>|undefined;
 
   // TODO(jbms): Properly handle reference counting of `dataSource`.
@@ -110,7 +123,11 @@ export class MultiscaleVolumeChunkSource implements GenericMultiscaleVolumeChunk
         verifyObjectProperty(response, 'volumeType', x => verifyEnumString(x, VolumeType));
     this.numChannels = verifyObjectProperty(response, 'numChannels', verifyPositiveInt);
     this.encoding =
-      verifyObjectProperty(response, 'encoding', x => verifyEnumString(x, VolumeChunkEncoding));
+        verifyObjectProperty(response, 'encoding', x => verifyEnumString(x, VolumeChunkEncoding));
+    this.modelSpace = getCoordinateSpaceFromJson(response, /*allowMissing=*/ false);
+    const rank = this.modelSpace.dimensions.length;
+    this.chunkToModelTransform =
+      matrix.identity(new Float32Array((rank + 1) * (rank + 1)), rank + 1, rank + 1);
     this.generation = verifyObjectProperty(response, 'generation', x => x);
     this.skeletonVertexAttributes = verifyObjectProperty(
         response, 'skeletonVertexAttributes',
@@ -126,80 +143,90 @@ export class MultiscaleVolumeChunkSource implements GenericMultiscaleVolumeChunk
      */
     let threeDimensionalScales = verifyObjectProperty(
         response, 'threeDimensionalScales',
-        x => x === undefined ? undefined : parseArray(x, parseScaleInfo));
+        x => x === undefined ? undefined : parseArray(x, y => parseScaleInfo(y, rank)));
 
-    /**
-     * Separate scales used for XY, XZ, YZ slice views, respectively.  The chunks should be flat or
-     * nearly flat in Z, Y, X respectively.  The inner arrays must have length 3.
-     */
-    let twoDimensionalScales = verifyObjectProperty(
-        response, 'twoDimensionalScales',
-        x => x === undefined ?
-            undefined :
-            parseArray(x, y => parseFixedLengthArray(new Array<ScaleInfo>(3), y, parseScaleInfo)));
-    if ((twoDimensionalScales === undefined) === (threeDimensionalScales === undefined)) {
-      throw new Error(
-          `Exactly one of "threeDimensionalScales" and "twoDimensionalScales" must be specified.`);
-    }
-    if (twoDimensionalScales !== undefined) {
-      if (twoDimensionalScales.length === 0) {
-        throw new Error(`At least one scale must be specified.`);
-      }
-      this.scales = twoDimensionalScales.map(levelScales => levelScales.map((scale, index) => {
-        const {voxelSize, sizeInVoxels} = scale;
-        const flatDimension = 2 - index;
-        let {chunkDataSize = getTwoDimensionalBlockSize({
-               voxelSize,
-               upperVoxelBound: sizeInVoxels,
-               flatDimension,
-               maxVoxelsPerChunkLog2,
-               numChannels: this.numChannels
-             })} = scale;
-        return {
-          key: scale.key,
-          offset: scale.offset,
-          sizeInVoxels,
-          voxelSize,
-          chunkDataSize,
-        };
-      }));
-      if (!vec3.equals(this.scales[0][0].voxelSize, this.scales[0][1].voxelSize) ||
-          !vec3.equals(this.scales[0][0].voxelSize, this.scales[0][2].voxelSize)) {
-        throw new Error(`Lowest scale must have uniform voxel size.`);
-      }
-    }
+    // /**
+    //  * Separate scales used for XY, XZ, YZ slice views, respectively.  The chunks should be flat or
+    //  * nearly flat in Z, Y, X respectively.  The inner arrays must have length 3.
+    //  */
+    // let twoDimensionalScales = verifyObjectProperty(
+    //     response, 'twoDimensionalScales',
+    //     x => x === undefined ? undefined :
+    //                            parseArray(
+    //                                x,
+    //                                y => parseFixedLengthArray(
+    //                                    new Array<ScaleInfo>(3), y, z => parseScaleInfo(z, rank))));
+    // if ((twoDimensionalScales === undefined) === (threeDimensionalScales === undefined)) {
+    //   throw new Error(
+    //       `Exactly one of "threeDimensionalScales" and "twoDimensionalScales" must be specified.`);
+    // }
+    // if (twoDimensionalScales !== undefined) {
+    //   if (twoDimensionalScales.length === 0) {
+    //     throw new Error(`At least one scale must be specified.`);
+    //   }
+    //   this.scales = twoDimensionalScales.map(levelScales => levelScales.map((scale, index) => {
+    //     const {voxelSize, sizeInVoxels} = scale;
+    //     let {chunkDataSize = getNearIsotropicBlockSize({
+    //            voxelSize,
+    //            upperVoxelBound: sizeInVoxels,
+    //            spatialLayerDimensions: [0, 1],
+    //            maxVoxelsPerChunkLog2,
+    //            numChannels: this.numChannels
+    //          })} = scale;
+    //     return {
+    //       key: scale.key,
+    //       offset: scale.offset,
+    //       sizeInVoxels,
+    //       voxelSize,
+    //       chunkDataSize,
+    //     };
+    //   }));
+    //   if (!vector.equal(this.scales[0][0].voxelSize, this.scales[0][1].voxelSize) ||
+    //       !vector.equal(this.scales[0][0].voxelSize, this.scales[0][2].voxelSize)) {
+    //     throw new Error(`Lowest scale must have uniform voxel size.`);
+    //   }
+    // }
     if (threeDimensionalScales !== undefined) {
       if (threeDimensionalScales.length === 0) {
         throw new Error(`At least one scale must be specified.`);
       }
-      this.scales = threeDimensionalScales.map(scale => {
-        let {voxelSize, sizeInVoxels} = scale;
-        let {chunkDataSize = getNearIsotropicBlockSize({
-               voxelSize,
-               upperVoxelBound: sizeInVoxels,
-               maxVoxelsPerChunkLog2,
-               numChannels: this.numChannels
-             })} = scale;
-        return [{key: scale.key, offset: scale.offset, sizeInVoxels, voxelSize, chunkDataSize}];
-      });
+      this.scales = threeDimensionalScales.map(scale => [scale]);
     }
+    const baseScale = this.scales[0][0];
+    const lowerBound = baseScale.offset;
+    const upperBound = new Float32Array(rank);
+    vector.multiply(upperBound, baseScale.voxelSize, baseScale.sizeInVoxels);
+    vector.add(upperBound, upperBound, lowerBound);
+    this.boundingBox = new BoundingBox(lowerBound, upperBound);
   }
 
   getSources(volumeSourceOptions: VolumeSourceOptions) {
     let {numChannels, dataType, volumeType, encoding} = this;
     // Clip based on the bounds of the first scale.
     const baseScale = this.scales[0][0];
-    let upperClipBound = vec3.multiply(vec3.create(), baseScale.voxelSize, baseScale.sizeInVoxels);
+    const rank = this.modelSpace.dimensions.length;
+    let upperClipBound =
+        vector.multiply(new Float32Array(rank), baseScale.voxelSize, baseScale.sizeInVoxels);
     return this.scales.map(levelScales => levelScales.map(scaleInfo => {
+      const transform =
+          matrix.identity(new Float32Array((rank + 1) * (rank + 1)), rank + 1, rank + 1);
+      transform.set(scaleInfo.offset, (rank + 1) * rank);
+      const {chunkDataSize = getNearIsotropicBlockSize({
+               upperVoxelBound: scaleInfo.sizeInVoxels,
+               numChannels,
+               voxelSize: scaleInfo.voxelSize,
+               transform: volumeSourceOptions.transform,
+               spatialLayerDimensions: volumeSourceOptions.spatialLayerDimensions,
+             })} = scaleInfo;
       const spec = VolumeChunkSpecification.withDefaultCompression({
         voxelSize: scaleInfo.voxelSize,
         dataType,
         volumeType,
         numChannels,
-        transform: mat4.fromTranslation(mat4.create(), scaleInfo.offset),
+        transform,
         upperVoxelBound: scaleInfo.sizeInVoxels,
         upperClipBound: upperClipBound,
-        chunkDataSize: scaleInfo.chunkDataSize!,
+        chunkDataSize,
         volumeSourceOptions,
       });
       return this.chunkManager.getChunkSource(PythonVolumeChunkSource, {
@@ -255,7 +282,7 @@ function parseSkeletonVertexAttributes(spec: string): Map<string, VertexAttribut
   return verifyObjectAsMap(JSON.parse(spec), parseVertexAttributeInfo);
 }
 
-export class PythonDataSource extends DataSource {
+export class PythonDataSource extends DataSourceProvider {
   private sources = new Map<string, Set<PythonChunkSource>>();
   sourceGenerations = new Map<string, number>();
 

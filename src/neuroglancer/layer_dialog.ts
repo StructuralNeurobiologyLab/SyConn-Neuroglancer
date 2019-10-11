@@ -14,15 +14,17 @@
  * limitations under the License.
  */
 
-import {LayerListSpecification, ManagedUserLayerWithSpecification} from 'neuroglancer/layer_specification';
+import './layer_dialog.css';
+
+import {ManagedUserLayer} from 'neuroglancer/layer';
+import {LayerListSpecification} from 'neuroglancer/layer_specification';
 import {Overlay} from 'neuroglancer/overlay';
 import {DataType, VolumeType} from 'neuroglancer/sliceview/volume/base';
+import {MultiscaleVolumeChunkSource} from 'neuroglancer/sliceview/volume/frontend';
 import {CancellationToken, CancellationTokenSource} from 'neuroglancer/util/cancellation';
 import {associateLabelWithElement} from 'neuroglancer/widget/associate_label';
 import {AutocompleteTextInput, makeCompletionElementWithDescription} from 'neuroglancer/widget/autocomplete';
 import {makeHiddenSubmitButton} from 'neuroglancer/widget/hidden_submit_button';
-
-import './layer_dialog.css';
 
 export class LayerDialog extends Overlay {
   /**
@@ -40,14 +42,14 @@ export class LayerDialog extends Overlay {
 
   constructor(
       public manager: LayerListSpecification,
-      public existingLayer?: ManagedUserLayerWithSpecification) {
+      public existingLayer?: ManagedUserLayer) {
     super();
     let dialogElement = this.content;
     dialogElement.classList.add('add-layer-overlay');
 
     let sourceCompleter = (value: string, cancellationToken: CancellationToken) =>
-        this.manager.dataSourceProvider
-            .volumeCompleter(value, this.manager.chunkManager, cancellationToken)
+        this.manager.dataSourceProviderRegistry
+            .completeUrl({url: value, chunkManager: this.manager.chunkManager, cancellationToken})
             .then(originalResult => ({
                     completions: originalResult.completions,
                     makeElement: makeCompletionElementWithDescription,
@@ -131,11 +133,10 @@ export class LayerDialog extends Overlay {
       let {managedLayers} = this.manager.layerManager;
       for (let hintLayerIndex = managedLayers.length - 1; hintLayerIndex >= 0; --hintLayerIndex) {
         const hintLayer = managedLayers[hintLayerIndex];
-        if (!(hintLayer instanceof ManagedUserLayerWithSpecification)) continue;
         const {sourceUrl} = hintLayer;
         if (sourceUrl === undefined) continue;
         try {
-          let groupIndex = this.manager.dataSourceProvider.findSourceGroup(sourceUrl);
+          let groupIndex = this.manager.dataSourceProviderRegistry.findSourceGroup(sourceUrl);
           sourceInput.value = sourceUrl.substring(0, groupIndex);
           sourceInput.inputElement.setSelectionRange(0, groupIndex);
           break;
@@ -197,7 +198,7 @@ export class LayerDialog extends Overlay {
       return;
     }
     try {
-      let baseSuggestedName = this.manager.dataSourceProvider.suggestLayerName(url);
+      let baseSuggestedName = this.manager.dataSourceProviderRegistry.suggestLayerName(url);
       let {nameInputElement} = this;
       if (this.nameInputElement.value === '') {
         let suggestedName = this.manager.layerManager.getUniqueLayerName(baseSuggestedName);
@@ -215,13 +216,14 @@ export class LayerDialog extends Overlay {
 
     this.setInfo('Validating volume source...');
     const token = this.volumeCancellationSource = new CancellationTokenSource();
-    this.manager.dataSourceProvider
-        .getVolume(
-            this.manager.chunkManager, url, /*options=*/undefined, token)
-        .then(source => {
+    this.manager.dataSourceProviderRegistry
+        .get(
+          {chunkManager: this.manager.chunkManager, url: url, cancellationToken: token})
+      .then(dataSource => {
           if (token.isCanceled) {
             return;
           }
+          const source = dataSource.resources[0].resource.volume as MultiscaleVolumeChunkSource;
           this.volumeCancellationSource = undefined;
           this.sourceValid = true;
           this.setInfo(

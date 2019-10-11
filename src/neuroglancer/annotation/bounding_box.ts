@@ -21,7 +21,7 @@
 import {AnnotationType, AxisAlignedBoundingBox} from 'neuroglancer/annotation';
 import {AnnotationRenderContext, AnnotationRenderHelper, registerAnnotationTypeRenderHandler} from 'neuroglancer/annotation/type_handler';
 import {BoundingBoxCrossSectionRenderHelper, vertexBasePositions} from 'neuroglancer/sliceview/bounding_box_shader_helper';
-import {SliceViewPanelRenderContext} from 'neuroglancer/sliceview/panel';
+import {SliceViewPanelRenderContext} from 'neuroglancer/sliceview/renderlayer';
 import {tile2dArray} from 'neuroglancer/util/array';
 import {mat4, projectPointToLineSegment, vec3} from 'neuroglancer/util/geom';
 import {Buffer, getMemoizedBuffer} from 'neuroglancer/webgl/buffer';
@@ -336,8 +336,9 @@ emitAnnotation(vec4(vColor.rgb, uFillOpacity));
     let {gl} = this;
     this.enable(shader, context, () => {
       this.boundingBoxCrossSectionHelper.setViewportPlane(
-          shader, context.renderContext.sliceView.viewportAxes[2],
+          shader, context.renderContext.sliceView.viewportNormalInGlobalCoordinates,
           context.renderContext.sliceView.centerDataPosition,
+          context.annotationLayer.state.objectToGlobal,
           context.annotationLayer.state.globalToObject);
       const aVertexIndexFloat = shader.attribute('aVertexIndexFloat');
 

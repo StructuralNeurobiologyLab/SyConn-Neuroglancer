@@ -16,13 +16,13 @@
 
 import {ChunkState} from 'neuroglancer/chunk_manager/base';
 import {Chunk, ChunkManager, ChunkSource} from 'neuroglancer/chunk_manager/frontend';
-import {RenderLayer} from 'neuroglancer/layer';
-import {VoxelSize} from 'neuroglancer/navigation_state';
+import {CoordinateSpace, encodeCoordinateSpace} from 'neuroglancer/coordinate_transform';
 import {PerspectiveViewRenderContext, PerspectiveViewRenderLayer} from 'neuroglancer/perspective_view/render_layer';
+import {get3dModelToRenderSpaceMatrix, RenderLayer} from 'neuroglancer/renderlayer';
 import {forEachVisibleSegment, getObjectKey} from 'neuroglancer/segmentation_display_state/base';
 import {getObjectColor, registerRedrawWhenSegmentationDisplayState3DChanged, SegmentationDisplayState3D, SegmentationLayerSharedObject} from 'neuroglancer/segmentation_display_state/frontend';
 import {SKELETON_LAYER_RPC_ID, VertexAttributeInfo} from 'neuroglancer/skeleton/base';
-import {SliceViewPanelRenderContext, SliceViewPanelRenderLayer} from 'neuroglancer/sliceview/panel';
+import {SliceViewPanelRenderContext, SliceViewPanelRenderLayer} from 'neuroglancer/sliceview/renderlayer';
 import {TrackableValue, WatchableValue} from 'neuroglancer/trackable_value';
 import {DataType} from 'neuroglancer/util/data_type';
 import {Borrowed, RefCounted} from 'neuroglancer/util/disposable';
@@ -33,13 +33,12 @@ import {CompoundTrackable, Trackable} from 'neuroglancer/util/trackable';
 import {TrackableEnum} from 'neuroglancer/util/trackable_enum';
 import {Buffer} from 'neuroglancer/webgl/buffer';
 import {CircleShader} from 'neuroglancer/webgl/circles';
+import {glsl_COLORMAPS} from 'neuroglancer/webgl/colormaps';
 import {GL} from 'neuroglancer/webgl/context';
-
 import {parameterizedEmitterDependentShaderGetter, WatchableShaderError} from 'neuroglancer/webgl/dynamic_shader';
 import {LineShader} from 'neuroglancer/webgl/lines';
 import {ShaderBuilder, ShaderProgram, ShaderSamplerType} from 'neuroglancer/webgl/shader';
 import {compute1dTextureLayout, computeTextureFormat, getSamplerPrefixForDataType, OneDimensionalTextureAccessHelper, setOneDimensionalTextureData, TextureFormat} from 'neuroglancer/webgl/texture_access';
-import {glsl_COLORMAPS} from 'neuroglancer/webgl/colormaps';
 
 const tempMat2 = mat4.create();
 
@@ -103,7 +102,8 @@ vec4 segmentColor() {
   return uColor;
 }
 void emitRGB(vec3 color) {
-  emit(vec4(color * uColor.a, uColor.a * getLineAlpha() * ${this.getCrossSectionFadeFactor()}), uPickID);
+  emit(vec4(color * uColor.a, uColor.a * getLineAlpha() * ${
+            this.getCrossSectionFadeFactor()}), uPickID);
 }
 void emitDefault() {
   //emit(vec4(uColor.rgb, uColor.a * ${this.getCrossSectionFadeFactor()}), uPickID);
@@ -199,10 +199,9 @@ void emitDefault() {
 
   beginLayer(
       gl: GL, shader: ShaderProgram,
-      renderContext: SliceViewPanelRenderContext|PerspectiveViewRenderContext,
-      objectToDataMatrix: mat4) {
-    let {dataToDevice} = renderContext;
-    let mat = mat4.multiply(tempMat2, dataToDevice, objectToDataMatrix);
+      renderContext: SliceViewPanelRenderContext|PerspectiveViewRenderContext, modelMatrix: mat4) {
+    let {viewProjectionMat} = renderContext;
+    let mat = mat4.multiply(tempMat2, viewProjectionMat, modelMatrix);
     gl.uniformMatrix4fv(shader.uniform('uProjection'), false, mat);
   }
 
@@ -217,8 +216,7 @@ void emitDefault() {
   drawSkeleton(
       gl: GL, edgeShader: ShaderProgram, nodeShader: ShaderProgram|null,
       skeletonChunk: SkeletonChunk, renderContext: {viewportWidth: number, viewportHeight: number},
-    lineWidth: number,
-    pointDiameter: number) {
+      lineWidth: number, pointDiameter: number) {
     const {vertexAttributes} = this;
     const numAttributes = vertexAttributes.length;
     const {vertexAttributeTextures} = skeletonChunk;
@@ -350,7 +348,7 @@ export class SkeletonLayer extends RefCounted {
 
   constructor(
       public chunkManager: ChunkManager, public source: SkeletonSource,
-      public voxelSizeObject: VoxelSize, public displayState: SkeletonLayerDisplayState) {
+      public displayState: SkeletonLayerDisplayState) {
     super();
 
     registerRedrawWhenSegmentationDisplayState3DChanged(displayState, this);
@@ -386,14 +384,16 @@ export class SkeletonLayer extends RefCounted {
 
   draw(
       renderContext: SliceViewPanelRenderContext|PerspectiveViewRenderContext, layer: RenderLayer,
-    renderHelper: RenderHelper, renderOptions: ViewSpecificSkeletonRenderingOptions) {
+      renderHelper: RenderHelper, renderOptions: ViewSpecificSkeletonRenderingOptions) {
     let lineWidth = renderOptions.lineWidth.value;
-    let {gl, source, displayState} = this;
-    let alpha = Math.min(1.0, displayState.objectAlpha.value);
+    const {gl, source, displayState} = this;
+    const alpha = Math.min(1.0, displayState.objectAlpha.value);
     if (alpha <= 0.0) {
       // Skip drawing.
       return;
     }
+    const {transform: {value: transform}} = displayState;
+    if (transform.error !== undefined) return;
     let pointDiameter: number;
     if (renderOptions.mode.value === SkeletonRenderMode.LINES_AND_POINTS) {
       pointDiameter = Math.max(10, lineWidth * 2);
@@ -408,20 +408,15 @@ export class SkeletonLayer extends RefCounted {
       return;
     }
 
-    let objectToDataMatrix = this.tempMat;
-    mat4.identity(objectToDataMatrix);
-    if (source.skeletonVertexCoordinatesInVoxels) {
-      mat4.scale(objectToDataMatrix, objectToDataMatrix, this.voxelSizeObject.size);
-    }
-    mat4.multiply(objectToDataMatrix, objectToDataMatrix, source.transform);
-    mat4.multiply(
-        objectToDataMatrix, this.displayState.objectToDataTransform.transform, objectToDataMatrix);
+    let modelMatrix = this.tempMat;
+    get3dModelToRenderSpaceMatrix(modelMatrix, renderContext, transform);
+    mat4.multiply(modelMatrix, modelMatrix, source.transform);
 
     edgeShader.bind();
-    renderHelper.beginLayer(gl, edgeShader, renderContext, objectToDataMatrix);
+    renderHelper.beginLayer(gl, edgeShader, renderContext, modelMatrix);
 
     nodeShader.bind();
-    renderHelper.beginLayer(gl, nodeShader, renderContext, objectToDataMatrix);
+    renderHelper.beginLayer(gl, nodeShader, renderContext, modelMatrix);
 
     const skeletons = source.chunks;
     const {pickIDs} = renderContext;
@@ -591,6 +586,18 @@ function getAttributeTextureFormats(vertexAttributes: Map<string, VertexAttribut
   return attributeTextureFormats;
 }
 
+export interface SkeletonSourceOptions {
+  /**
+   * Must be 3 dimensional.
+   */
+  modelSpace: CoordinateSpace;
+
+  /**
+   * Transform from vertex coordinates to `modelSpace`.
+   */
+  transform?: mat4;
+}
+
 export class SkeletonSource extends ChunkSource {
   private attributeTextureFormats_?: TextureFormat[];
 
@@ -608,20 +615,22 @@ export class SkeletonSource extends ChunkSource {
     return new SkeletonChunk(this, x);
   }
 
+  modelSpace: CoordinateSpace;
   transform: mat4;
 
-  constructor(chunkManager: Borrowed<ChunkManager>, options: {transform?: mat4}) {
+  constructor(chunkManager: Borrowed<ChunkManager>, options: SkeletonSourceOptions) {
     super(chunkManager, options);
     const {transform = mat4.create()} = options;
     this.transform = transform;
+    this.modelSpace = options.modelSpace;
   }
 
-  /**
-   * Specifies whether the skeleton vertex coordinates are specified in units of voxels rather than
-   * nanometers.
-   */
-  get skeletonVertexCoordinatesInVoxels() {
-    return true;
+  static encodeOptions(options: SkeletonSourceOptions) {
+    return {
+      modelSpace: encodeCoordinateSpace(options.modelSpace),
+      transform: options.transform,
+      ...super.encodeOptions(options)
+    };
   }
 
   get vertexAttributes(): Map<string, VertexAttributeInfo> {

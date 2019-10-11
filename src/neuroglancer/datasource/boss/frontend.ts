@@ -22,7 +22,7 @@
 import {ChunkManager, WithParameters} from 'neuroglancer/chunk_manager/frontend';
 import {CredentialsManager, CredentialsProvider} from 'neuroglancer/credentials_provider';
 import {WithCredentialsProvider} from 'neuroglancer/credentials_provider/chunk_source_frontend';
-import {CompletionResult, DataSource} from 'neuroglancer/datasource';
+import {CompletionResult, DataSourceProvider} from 'neuroglancer/datasource';
 import {BossToken, credentialsKey, fetchWithBossCredentials} from 'neuroglancer/datasource/boss/api';
 import {MeshSourceParameters, VolumeChunkSourceParameters} from 'neuroglancer/datasource/boss/base';
 import {MeshSource} from 'neuroglancer/mesh/frontend';
@@ -582,7 +582,7 @@ function getAuthServer(endpoint: string): string {
   return authServer;
 }
 
-export class BossDataSource extends DataSource {
+export class BossDataSource extends DataSourceProvider {
   constructor(public credentialsManager: CredentialsManager) {
     super();
   }

@@ -50,15 +50,19 @@ export abstract class SingleTextureChunkFormat<TextureLayout extends Disposable>
   /**
    * Called each time textureLayout changes while drawing chunks.
    */
-  abstract setupTextureLayout(gl: GL, shader: ShaderProgram, textureLayout: TextureLayout): void;
+  abstract setupTextureLayout(
+      gl: GL, shader: ShaderProgram, textureLayout: TextureLayout, fixedChunkPosition: Uint32Array,
+      spatialChunkDimensions: number[]): void;
 
   bindChunk<Data>(
-      gl: GL, shader: ShaderProgram, chunk: SingleTextureVolumeChunk<Data, TextureLayout>) {
+      gl: GL, shader: ShaderProgram, chunk: SingleTextureVolumeChunk<Data, TextureLayout>,
+      fixedChunkPosition: Uint32Array, spatialChunkDimensions: number[], newSource: boolean) {
     let textureLayout = chunk.textureLayout!;
     let existingTextureLayout = (<any>shader)[textureLayoutSymbol];
-    if (existingTextureLayout !== textureLayout) {
+    if (existingTextureLayout !== textureLayout || newSource) {
       (<any>shader)[textureLayoutSymbol] = textureLayout;
-      this.setupTextureLayout(gl, shader, textureLayout);
+      this.setupTextureLayout(
+          gl, shader, textureLayout, fixedChunkPosition, spatialChunkDimensions);
     }
     gl.bindTexture(textureTargetForSamplerType[this.shaderSamplerType], chunk.texture);
   }

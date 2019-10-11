@@ -226,12 +226,18 @@ function getBaseConfig(options) {
           resolve: {},
         },
         {
-          test: /\.json$/i, type: 'json',
+          test: /\.json$/i,
+          type: 'json',
         }
       ],
       rules: [
         tsLoaderEntry,
         cssLoaderEntry,
+        {
+          test: /\.svg$/,
+          loader: require.resolve('svg-inline-loader'),
+            options: {removeSVGTagAttrs: false, removeTags: true}
+        },
         {
           test: /\.glsl$/,
           loader: [

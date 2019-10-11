@@ -1,0 +1,107 @@
+/**
+ * @license
+ * Copyright 2019 Google Inc.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+.neuroglancer-render-dimensions-widget {
+  position: absolute;
+  cursor: default;
+  top: 2px;
+  left: 2px;
+  display: grid;
+  grid-template-rows: 0fr 0fr 0fr 0fr;
+  grid-template-columns: 0fr 0fr 0fr;
+  background-color: rgba(0, 0, 0, 0.3);
+}
+
+.neuroglancer-render-dimensions-widget input {
+  outline: 0px;
+  background-color: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  margin: 0;
+  border: 0;
+  padding: 2px;
+}
+
+.neuroglancer-render-dimensions-widget input, .neuroglancer-render-dimensions-widget {
+  font-family: monospace;
+  color: white;
+}
+
+.neuroglancer-render-dimensions-widget-dimension:hover {
+  outline: 1px solid black;
+}
+
+.neuroglancer-render-dimensions-widget-name[data-is-valid="false"] {
+  text-decoration: solid underline red;
+}
+
+.neuroglancer-render-dimensions-widget-scale-factor {
+  text-align: right;
+  align-items: end;
+  display: inline-block;
+  white-space: nowrap;
+  margin-left: 2px;
+}
+
+.neuroglancer-render-dimensions-widget-scale {
+  display: inline-block;
+  white-space: nowrap;
+  padding-left: 10px;
+}
+
+.neuroglancer-render-dimensions-widget-scale::before {
+  content: "(";
+}
+
+.neuroglancer-render-dimensions-widget-scale::after {
+  content: ")";
+}
+
+.neuroglancer-render-dimensions-widget-scale-factor::after {
+  content: "×";
+}
+
+.neuroglancer-render-dimensions-widget-scale {
+  text-align: right;
+  margin-left: 5px;
+}
+
+.neuroglancer-render-dimensions-widget:not(:hover) .neuroglancer-render-dimensions-widget-scale-factor,
+.neuroglancer-render-dimensions-widget:not(:hover) .neuroglancer-render-dimensions-widget-scale,
+.neuroglancer-render-dimensions-widget:not(:hover) .neuroglancer-render-dimensions-widget-default {
+  display: none;
+}
+
+.neuroglancer-render-dimensions-widget-dimension[data-is-modified="true"] .neuroglancer-render-dimensions-widget-scale-factor,
+.neuroglancer-render-dimensions-widget-dimension[data-is-modified="true"] .neuroglancer-render-dimensions-widget-scale {
+  visibility: hidden;
+}
+
+.neuroglancer-render-dimensions-widget *:focus {
+  outline: 0px;
+}
+
+.neuroglancer-render-dimensions-widget-default {
+  grid-row: 4;
+  grid-column-start: 1;
+  grid-column-end: 3;
+  display: inline-block;
+  white-space: nowrap;
+}
+
+.neuroglancer-render-dimensions-widget-default input {
+  margin-right: 3px;
+}

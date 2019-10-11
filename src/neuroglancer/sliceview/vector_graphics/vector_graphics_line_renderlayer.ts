@@ -151,7 +151,7 @@ gl_Position = uProjection * (pos + delta);
   }
 
   draw(sliceView: SliceView) {
-    let visibleSources = sliceView.visibleLayers.get(this)!;
+    const {visibleSources} = sliceView.visibleLayers.get(this)!;
     if (visibleSources.length === 0) {
       return;
     }
@@ -174,16 +174,16 @@ gl_Position = uProjection * (pos + delta);
       let objectToDataMatrix = tempMat4;
       mat4.identity(objectToDataMatrix);
       if (source.vectorGraphicsCoordinatesInVoxels) {
-        mat4.scale(objectToDataMatrix, objectToDataMatrix, voxelSize);
+        mat4.scale(objectToDataMatrix, objectToDataMatrix, voxelSize as vec3);
       }
       mat4.multiply(objectToDataMatrix, chunkLayout.transform, objectToDataMatrix);
 
       // Compute projection matrix that transforms vertex coordinates to device coordinates
       gl.uniformMatrix4fv(
           shader.uniform('uProjection'), false,
-          mat4.multiply(tempMat4, sliceView.dataToDevice, objectToDataMatrix));
+          mat4.multiply(tempMat4, sliceView.viewProjectionMat, objectToDataMatrix));
 
-      let visibleChunks = sliceView.visibleChunks.get(chunkLayout);
+      const {visibleChunks} = transformedSource;
       if (!visibleChunks) {
         continue;
       }

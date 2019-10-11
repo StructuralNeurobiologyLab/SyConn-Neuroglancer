@@ -20,7 +20,7 @@
  */
 
 import {ChunkManager, WithParameters} from 'neuroglancer/chunk_manager/frontend';
-import {CompletionResult, DataSource} from 'neuroglancer/datasource';
+import {CompletionResult, DataSourceProvider} from 'neuroglancer/datasource';
 import {DVIDSourceParameters, MeshSourceParameters, SkeletonSourceParameters, VolumeChunkEncoding, VolumeChunkSourceParameters} from 'neuroglancer/datasource/dvid/base';
 import {MeshSource} from 'neuroglancer/mesh/frontend';
 import {SkeletonSource} from 'neuroglancer/skeleton/frontend';
@@ -508,7 +508,7 @@ export function volumeCompleter(
               applyCompletionOffset(baseUrl.length + 1, completeNodeAndInstance(serverInfo, path)));
 }
 
-export class DVIDDataSource extends DataSource {
+export class DVIDDataSource extends DataSourceProvider {
   get description() {
     return 'DVID';
   }

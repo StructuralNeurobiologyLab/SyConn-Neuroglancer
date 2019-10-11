@@ -14,12 +14,13 @@
  * limitations under the License.
  */
 
+import './user_layer.css';
+
 import {AnnotationType, LocalAnnotationSource} from 'neuroglancer/annotation';
 import {AnnotationLayerState} from 'neuroglancer/annotation/frontend';
-import {CoordinateTransform, makeDerivedCoordinateTransform} from 'neuroglancer/coordinate_transform';
+import {makeDerivedCoordinateTransform, WatchableCoordinateTransform} from 'neuroglancer/coordinate_transform';
 import {LayerReference, ManagedUserLayer, UserLayer} from 'neuroglancer/layer';
-import {LayerListSpecification, registerLayerType} from 'neuroglancer/layer_specification';
-import {VoxelSize} from 'neuroglancer/navigation_state';
+import {registerLayerType} from 'neuroglancer/layer_specification';
 import {SegmentationDisplayState} from 'neuroglancer/segmentation_display_state/frontend';
 import {SegmentationUserLayer} from 'neuroglancer/segmentation_user_layer';
 import {StatusMessage} from 'neuroglancer/status';
@@ -27,11 +28,10 @@ import {ElementVisibilityFromTrackableBoolean, TrackableBoolean, TrackableBoolea
 import {makeDerivedWatchableValue, WatchableValue} from 'neuroglancer/trackable_value';
 import {AnnotationLayerView, getAnnotationRenderOptions, UserLayerWithAnnotationsMixin} from 'neuroglancer/ui/annotations';
 import {UserLayerWithCoordinateTransformMixin} from 'neuroglancer/user_layer_with_coordinate_transform';
+import {Borrowed} from 'neuroglancer/util/disposable';
 import {mat4, vec3} from 'neuroglancer/util/geom';
 import {parseArray, verify3dVec} from 'neuroglancer/util/json';
 import {LayerReferenceWidget} from 'neuroglancer/widget/layer_reference';
-
-import './user_layer.css';
 
 const POINTS_JSON_KEY = 'points';
 const ANNOTATIONS_JSON_KEY = 'annotations';
@@ -82,11 +82,11 @@ const FILTER_BY_SEGMENTATION_JSON_KEY = 'filterBySegmentation';
 const Base = UserLayerWithAnnotationsMixin(UserLayerWithCoordinateTransformMixin(UserLayer));
 export class AnnotationUserLayer extends Base {
   localAnnotations = this.registerDisposer(new LocalAnnotationSource());
-  voxelSize = new VoxelSize();
   sourceUrl: string|undefined;
   linkedSegmentationLayer = this.registerDisposer(
       new LayerReference(this.manager.rootLayers.addRef(), isValidLinkedSegmentationLayer));
   filterBySegmentation = new TrackableBoolean(false);
+  voxelSize: any; // FIXME
 
   getAnnotationRenderOptions() {
     const segmentationState =
@@ -109,8 +109,9 @@ export class AnnotationUserLayer extends Base {
     };
   }
 
-  constructor(manager: LayerListSpecification, specification: any) {
-    super(manager, specification);
+  constructor(managedLayer: Borrowed<ManagedUserLayer>, specification: any) {
+    super(managedLayer, specification);
+    const {manager} = this;
     const sourceUrl = this.sourceUrl = specification[SOURCE_JSON_KEY];
     this.linkedSegmentationLayer.restoreState(specification[LINKED_SEGMENTATION_LAYER_JSON_KEY]);
     this.filterBySegmentation.restoreState(specification[FILTER_BY_SEGMENTATION_JSON_KEY]);
@@ -123,15 +124,16 @@ export class AnnotationUserLayer extends Base {
       let voxelSizeValid = false;
       const handleVoxelSizeChanged = () => {
         if (!this.voxelSize.valid && manager.voxelSize.valid) {
-          vec3.copy(this.voxelSize.size, manager.voxelSize.size);
+          this.voxelSize.size.set(manager.voxelSize.size);
           this.voxelSize.setValid();
         }
         if (this.voxelSize.valid && voxelSizeValid === false) {
-          const derivedTransform = new CoordinateTransform();
+          const derivedTransform = new WatchableCoordinateTransform(3);
           this.registerDisposer(
               makeDerivedCoordinateTransform(derivedTransform, this.transform, (output, input) => {
-                const voxelScalingMatrix = mat4.fromScaling(mat4.create(), this.voxelSize.size);
-                mat4.multiply(output, input, voxelScalingMatrix);
+                const voxelScalingMatrix =
+                    mat4.fromScaling(mat4.create(), this.voxelSize.size as vec3);
+                mat4.multiply(output as mat4, input as mat4, voxelScalingMatrix);
               }));
           this.annotationLayerState.value = new AnnotationLayerState({
             transform: derivedTransform,
@@ -151,7 +153,7 @@ export class AnnotationUserLayer extends Base {
     } else {
       StatusMessage
           .forPromise(
-              this.manager.dataSourceProvider.getAnnotationSource(
+              this.manager.dataSourceProviderRegistry.getAnnotationSource(
                   this.manager.chunkManager, sourceUrl),
               {
                 initialMessage: `Retrieving metadata for volume ${sourceUrl}.`,

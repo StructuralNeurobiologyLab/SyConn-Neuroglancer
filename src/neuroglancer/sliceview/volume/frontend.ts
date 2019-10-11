@@ -22,16 +22,12 @@ import {DataType} from 'neuroglancer/sliceview/base';
 import {MultiscaleSliceViewChunkSource, SliceViewChunk, SliceViewChunkSource} from 'neuroglancer/sliceview/frontend';
 import {VolumeChunkSource as VolumeChunkSourceInterface, VolumeChunkSpecification, VolumeSourceOptions, VolumeType} from 'neuroglancer/sliceview/volume/base';
 import {Disposable} from 'neuroglancer/util/disposable';
-import {vec3, vec3Key} from 'neuroglancer/util/geom';
+import * as matrix from 'neuroglancer/util/matrix';
 import {Uint64} from 'neuroglancer/util/uint64';
 import {GL} from 'neuroglancer/webgl/context';
 import {ShaderBuilder, ShaderProgram} from 'neuroglancer/webgl/shader';
 
 export type VolumeChunkKey = string;
-
-const tempChunkGridPosition = vec3.create();
-const tempLocalPosition = vec3.create();
-
 
 export interface ChunkFormat {
   shaderKey: string;
@@ -63,7 +59,9 @@ export interface ChunkFormat {
   /**
    * Called just before drawing each chunk, on the ChunkFormat .
    */
-  bindChunk: (gl: GL, shader: ShaderProgram, chunk: SliceViewChunk) => void;
+  bindChunk:
+      (gl: GL, shader: ShaderProgram, chunk: SliceViewChunk, fixedChunkPosition: Uint32Array,
+       spatialChunkDimensions: number[], newSource: boolean) => void;
 
   /**
    * Called just before drawing chunks for the source.
@@ -103,52 +101,55 @@ export class VolumeChunkSource extends SliceViewChunkSource implements VolumeChu
 
   spec: VolumeChunkSpecification;
 
+  private tempChunkGridPosition: Float32Array;
+  private tempPositionWithinChunk: Uint32Array;
+
   constructor(chunkManager: ChunkManager, options: {spec: VolumeChunkSpecification}) {
     super(chunkManager, options);
     this.chunkFormatHandler =
         this.registerDisposer(getChunkFormatHandler(chunkManager.chunkQueueManager.gl, this.spec));
+    const rank = this.spec.upperVoxelBound.length;
+    this.tempChunkGridPosition = new Float32Array(rank);
+    this.tempPositionWithinChunk = new Uint32Array(rank);
   }
 
   get chunkFormat() {
     return this.chunkFormatHandler.chunkFormat;
   }
 
-  getValueAt(position: vec3, chunkLayout = this.spec.chunkLayout) {
-    const chunkGridPosition = tempChunkGridPosition;
-    const localPosition = tempLocalPosition;
-    let spec = this.spec;
-    let chunkSize = chunkLayout.size;
-    chunkLayout.globalToLocalSpatial(localPosition, position);
-    for (let i = 0; i < 3; ++i) {
-      const chunkSizeValue = chunkSize[i];
-      const localPositionValue = localPosition[i];
-      chunkGridPosition[i] = Math.floor(localPositionValue / chunkSizeValue);
+  getValueAt(position: Float32Array, inverseTransform: Float32Array) {
+    const rank = position.length;
+    const chunkGridPosition = this.tempChunkGridPosition;
+    const positionWithinChunk = this.tempPositionWithinChunk;
+    const {spec} = this;
+    matrix.transformPoint(chunkGridPosition, inverseTransform, rank + 1, position, rank);
+    {
+      const {chunkDataSize} = spec;
+      for (let chunkDim = 0; chunkDim < rank; ++chunkDim) {
+        const voxel = chunkGridPosition[chunkDim];
+        const chunkSize = chunkDataSize[chunkDim];
+        const chunk = Math.floor(voxel / chunkSize);
+        chunkGridPosition[chunkDim] = chunk;
+        positionWithinChunk[chunkDim] = Math.floor(voxel - chunkSize * chunk);
+      }
     }
-    let key = vec3Key(chunkGridPosition);
-    let chunk = <VolumeChunk>this.chunks.get(key);
-    if (!chunk) {
+    const chunk = this.chunks.get(chunkGridPosition.join()) as VolumeChunk;
+    if (chunk === undefined) {
       return null;
     }
-    // Reuse temporary variable.
-    const dataPosition = chunkGridPosition;
-    const voxelSize = spec.voxelSize;
+    const chunkDataSize = chunk.chunkDataSize;
     for (let i = 0; i < 3; ++i) {
-      dataPosition[i] =
-          Math.floor((localPosition[i] - chunkGridPosition[i] * chunkSize[i]) / voxelSize[i]);
-    }
-    let chunkDataSize = chunk.chunkDataSize;
-    for (let i = 0; i < 3; ++i) {
-      if (dataPosition[i] >= chunkDataSize[i]) {
+      if (positionWithinChunk[i] >= chunkDataSize[i]) {
         return undefined;
       }
     }
-    let {numChannels} = spec;
+    const {numChannels} = spec;
     if (numChannels === 1) {
-      return chunk.getChannelValueAt(dataPosition, 0);
+      return chunk.getChannelValueAt(positionWithinChunk, 0);
     } else {
       let result = new Array<number|Uint64>(numChannels);
       for (let i = 0; i < numChannels; ++i) {
-        result[i] = chunk.getChannelValueAt(dataPosition, i);
+        result[i] = chunk.getChannelValueAt(positionWithinChunk, i);
       }
       return result;
     }
@@ -161,7 +162,7 @@ export class VolumeChunkSource extends SliceViewChunkSource implements VolumeChu
 
 export abstract class VolumeChunk extends SliceViewChunk {
   source: VolumeChunkSource;
-  chunkDataSize: vec3;
+  chunkDataSize: Uint32Array;
 
   get chunkFormat() {
     return this.source.chunkFormat;
@@ -171,18 +172,18 @@ export abstract class VolumeChunk extends SliceViewChunk {
     super(source, x);
     this.chunkDataSize = x['chunkDataSize'] || source.spec.chunkDataSize;
   }
-  abstract getChannelValueAt(dataPosition: vec3, channel: number): any;
+  abstract getChannelValueAt(dataPosition: Uint32Array, channel: number): any;
 }
 
 export type OptionalMeshSource = MeshSource|SkeletonSource|MultiscaleMeshSource|null;
 
 
-export interface MultiscaleVolumeChunkSource extends MultiscaleSliceViewChunkSource {
+export abstract class MultiscaleVolumeChunkSource extends MultiscaleSliceViewChunkSource {
   /**
    * @return Chunk sources for each scale, ordered by increasing minVoxelSize.  For each scale,
    * there may be alternative sources with different chunk layouts.
    */
-  getSources: (options: VolumeSourceOptions) => VolumeChunkSource[][];
+  abstract getSources(options: VolumeSourceOptions): VolumeChunkSource[][];
 
   numChannels: number;
   dataType: DataType;
@@ -193,7 +194,11 @@ export interface MultiscaleVolumeChunkSource extends MultiscaleSliceViewChunkSou
    *
    * This only makes sense if volumeType === VolumeType.SEGMENTATION.
    */
-  getMeshSource: () => Promise<OptionalMeshSource>| OptionalMeshSource;
+  getMeshSource(): OptionalMeshSource|Promise<OptionalMeshSource> {
+    return null;
+  }
 
-  getStaticAnnotations?: () => AnnotationSource;
+  getStaticAnnotations(): AnnotationSource|undefined {
+    return undefined;
+  }
 }

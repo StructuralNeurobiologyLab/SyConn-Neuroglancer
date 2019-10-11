@@ -16,27 +16,22 @@
 
 import {MultiscaleAnnotationSource} from 'neuroglancer/annotation/frontend_source';
 import {ChunkManager} from 'neuroglancer/chunk_manager/frontend';
+import {CoordinateSpace} from 'neuroglancer/coordinate_transform';
 import {MeshSource, MultiscaleMeshSource} from 'neuroglancer/mesh/frontend';
 import {SkeletonSource} from 'neuroglancer/skeleton/frontend';
 import {VectorGraphicsType} from 'neuroglancer/sliceview/vector_graphics/base';
 import {MultiscaleVectorGraphicsChunkSource} from 'neuroglancer/sliceview/vector_graphics/frontend';
-import {VolumeType} from 'neuroglancer/sliceview/volume/base';
 import {MultiscaleVolumeChunkSource} from 'neuroglancer/sliceview/volume/frontend';
 import {CancellationToken, uncancelableToken} from 'neuroglancer/util/cancellation';
-import {applyCompletionOffset, CompletionWithDescription} from 'neuroglancer/util/completion';
+import {applyCompletionOffset, BasicCompletionResult, CompletionWithDescription, getPrefixMatchesWithDescriptions} from 'neuroglancer/util/completion';
 import {Owned, RefCounted} from 'neuroglancer/util/disposable';
 
-export type Completion = CompletionWithDescription;
+export type CompletionResult = BasicCompletionResult<CompletionWithDescription>;
 
 export class RedirectError extends Error {
-  constructor(public redirect_target: string) {
-    super(`Redirected to: ${redirect_target}`);
+  constructor(public redirectTarget: string) {
+    super(`Redirected to: ${redirectTarget}`);
   }
-}
-
-export interface CompletionResult {
-  offset: number;
-  completions: Completion[];
 }
 
 /**
@@ -71,39 +66,89 @@ export function suggestLayerNameBasedOnSeparator(path: string, separator?: strin
   return path.substring(groupIndex);
 }
 
-export interface GetVolumeOptions {
-  /**
-   * Hint regarding the usage of the volume.
-   */
-  volumeType?: VolumeType;
-
-  dataSourceProvider?: DataSourceProvider;
-}
-
 export interface GetVectorGraphicsOptions {
   vectorGraphicsType?: VectorGraphicsType;
 }
 
-export interface DataSource {
-  getVolume?
-      (chunkManager: ChunkManager, path: string, options: GetVolumeOptions,
-       cancellationToken: CancellationToken):
-          Promise<MultiscaleVolumeChunkSource>|MultiscaleVolumeChunkSource;
-  getVectorGraphicsSource?
-      (chunkManager: ChunkManager, path: string, options: GetVectorGraphicsOptions,
-       cancellationToken: CancellationToken):
-          Promise<MultiscaleVectorGraphicsChunkSource>|MultiscaleVectorGraphicsChunkSource;
-  getMeshSource?(chunkManager: ChunkManager, path: string, cancellationToken: CancellationToken):
-      Promise<MeshSource|MultiscaleMeshSource>|MeshSource|MultiscaleMeshSource;
-  getSkeletonSource?
-      (chunkManager: ChunkManager, path: string, cancellationToken: CancellationToken):
-          Promise<SkeletonSource>|SkeletonSource;
-  volumeCompleter?(value: string, chunkManager: ChunkManager, cancellationToken: CancellationToken):
-      Promise<CompletionResult>;
+export interface GetDataSourceOptionsBase {
+  chunkManager: ChunkManager;
+  cancellationToken?: CancellationToken;
+  url: string;
+}
 
-  getAnnotationSource?
-      (chunkManager: ChunkManager, path: string, cancellationToken: CancellationToken):
-          Promise<MultiscaleAnnotationSource>|MultiscaleAnnotationSource;
+export interface GetDataSourceOptions extends GetDataSourceOptionsBase {
+  registry: DataSourceProviderRegistry;
+  providerUrl: string;
+  cancellationToken: CancellationToken;
+  providerProtocol: string;
+}
+
+export interface ConvertLegacyUrlOptionsBase {
+  url: string;
+  type: 'mesh'|'skeletons'|'single_mesh';
+}
+
+export interface ConvertLegacyUrlOptions extends ConvertLegacyUrlOptionsBase {
+  registry: DataSourceProviderRegistry;
+  providerUrl: string;
+  providerProtocol: string;
+}
+
+export interface NormalizeUrlOptionsBase {
+  url: string;
+}
+
+export interface NormalizeUrlOptions extends NormalizeUrlOptionsBase {
+  registry: DataSourceProviderRegistry;
+  providerUrl: string;
+  providerProtocol: string;
+}
+
+export interface DataSourceResource {
+  volume?: MultiscaleVolumeChunkSource|MultiscaleVectorGraphicsChunkSource;
+  mesh?: MeshSource|MultiscaleMeshSource|SkeletonSource;
+  annotation?: MultiscaleAnnotationSource;
+}
+
+export interface CompleteUrlOptionsBase {
+  url: string;
+  cancellationToken?: CancellationToken;
+  chunkManager: ChunkManager;
+}
+
+export interface CompleteUrlOptions extends CompleteUrlOptionsBase {
+  registry: DataSourceProviderRegistry;
+  providerUrl: string;
+  cancellationToken: CancellationToken;
+}
+
+export interface DataSourceSubresource {
+  /**
+   * Unique identifier (within the group) for this sub source.  Stored in the JSON state
+   * representation to indicate which subsources are enabled.
+   */
+  id: string;
+
+  /**
+   * Data source URL.
+   */
+  url: string|undefined;
+
+  resource: DataSourceResource;
+
+  /**
+   * Specifies whether this associated data source is enabled by default.
+   */
+  default: boolean;
+}
+
+export interface DataSource {
+  resources: DataSourceSubresource[];
+  modelSpace: CoordinateSpace;
+}
+
+export interface DataSourceProvider {
+  get(options: GetDataSourceOptions): Promise<DataSource>;
 
   /**
    * Returns a suggested layer name for the given volume source.
@@ -117,123 +162,124 @@ export interface DataSource {
   findSourceGroup?(path: string): number;
 }
 
-export class DataSource extends RefCounted {
+export class DataSourceProvider extends RefCounted {
   description?: string;
+
+  normalizeUrl(options: NormalizeUrlOptions): string {
+    return options.url;
+  }
+
+  convertLegacyUrl(options: ConvertLegacyUrlOptions): string {
+    return options.url;
+  }
+
+  async completeUrl(options: CompleteUrlOptions): Promise<CompletionResult> {
+    options;
+    throw null;
+  }
 }
 
 const protocolPattern = /^(?:([a-zA-Z][a-zA-Z0-9-+_]*):\/\/)?(.*)$/;
 
-export class DataSourceProvider extends RefCounted {
-  dataSources = new Map<string, Owned<DataSource>>();
+export class DataSourceProviderRegistry extends RefCounted {
+  dataSources = new Map<string, Owned<DataSourceProvider>>();
 
-  register(name: string, dataSource: Owned<DataSource>) {
+  register(name: string, dataSource: Owned<DataSourceProvider>) {
     this.dataSources.set(name, this.registerDisposer(dataSource));
   }
 
-  getDataSource(url: string): [DataSource, string, string] {
-    let m = url.match(protocolPattern);
+  getProvider(url: string): [DataSourceProvider, string, string] {
+    const m = url.match(protocolPattern);
     if (m === null || m[1] === undefined) {
       throw new Error(`Data source URL must have the form "<protocol>://<path>".`);
     }
-    let dataSource = m[1];
-    let factory = this.dataSources.get(dataSource);
+    const [, providerProtocol, providerUrl] = m;
+    const factory = this.dataSources.get(providerProtocol);
     if (factory === undefined) {
-      throw new Error(`Unsupported data source: ${JSON.stringify(dataSource)}.`);
+      throw new Error(`Unsupported data source: ${JSON.stringify(providerProtocol)}.`);
     }
-    return [factory, m[2], dataSource];
+    return [factory, providerUrl, providerProtocol];
   }
 
-  getVolume(
-      chunkManager: ChunkManager, url: string, options: GetVolumeOptions = {},
-      cancellationToken = uncancelableToken,
-      redirect_log = new Set<string>()): Promise<MultiscaleVolumeChunkSource> {
-    let [dataSource, path] = this.getDataSource(url);
-    if (options === undefined) {
-      options = {};
-    }
-    options.dataSourceProvider = this;
-    redirect_log.add(url);
-    return new Promise<MultiscaleVolumeChunkSource>(resolve => {
-             resolve(dataSource.getVolume!(chunkManager, path, options, cancellationToken));
-           })
-        .catch((err: Error) => {
-          if (err instanceof RedirectError) {
-            const redirect = err.redirect_target;
-            if (redirect_log.has(redirect)) {
-              throw Error('Layer source redirection contains loop.');
-            }
-            if (redirect_log.size >= 10) {
-              throw Error('Too many layer source redirections.');
-            }
-            return this.getVolume!
-                (chunkManager, redirect, options, cancellationToken, redirect_log);
-          } else {
-            throw err;
+  async get(options: GetDataSourceOptionsBase): Promise<DataSource> {
+    const redirectLog = new Set<string>();
+    const {cancellationToken = uncancelableToken} = options;
+    let url: string = options.url;
+    while (true) {
+      const [provider, providerUrl, providerProtocol] = this.getProvider(options.url);
+      redirectLog.add(options.url);
+      try {
+        return provider.get(
+            {...options, url, providerProtocol, providerUrl, registry: this, cancellationToken});
+      } catch (e) {
+        if (e instanceof RedirectError) {
+          const redirect = e.redirectTarget;
+          if (redirectLog.has(redirect)) {
+            throw Error(`Layer source redirection contains loop: ${
+                JSON.stringify(Array.from(redirectLog))}`);
           }
-        });
+          if (redirectLog.size >= 10) {
+            throw Error(
+                `Too many layer source redirections: ${JSON.stringify(Array.from(redirectLog))}`);
+          }
+          url = redirect;
+          continue;
+        }
+        throw e;
+      }
+    }
   }
 
-  getAnnotationSource(
-      chunkManager: ChunkManager, url: string, cancellationToken = uncancelableToken) {
-    let [dataSource, path] = this.getDataSource(url);
-    return new Promise<MultiscaleAnnotationSource>(resolve => {
-      resolve(dataSource.getAnnotationSource!(chunkManager, path, cancellationToken));
-    });
+  convertLegacyUrl(options: ConvertLegacyUrlOptionsBase): string {
+    try {
+      const [provider, providerUrl, providerProtocol] = this.getProvider(options.url);
+      return provider.convertLegacyUrl({...options, providerUrl, providerProtocol, registry: this});
+    } catch {
+      return options.url;
+    }
   }
 
-  getVectorGraphicsSource(
-      chunkManager: ChunkManager, url: string, options: GetVectorGraphicsOptions = {},
-      cancellationToken = uncancelableToken) {
-    let [dataSource, path] = this.getDataSource(url);
-    return new Promise<MultiscaleVectorGraphicsChunkSource>(resolve => {
-      resolve(dataSource.getVectorGraphicsSource!(chunkManager, path, options, cancellationToken));
-    });
+  normalizeUrl(options: NormalizeUrlOptionsBase): string {
+    try {
+      const [provider, providerUrl, providerProtocol] = this.getProvider(options.url);
+      return provider.normalizeUrl({...options, providerUrl, providerProtocol, registry: this});
+    } catch {
+      return options.url;
+    }
   }
 
-  getMeshSource(chunkManager: ChunkManager, url: string, cancellationToken = uncancelableToken) {
-    let [dataSource, path] = this.getDataSource(url);
-    return new Promise<MeshSource|MultiscaleMeshSource>(resolve => {
-      resolve(dataSource.getMeshSource!(chunkManager, path, cancellationToken));
-    });
-  }
-
-  getSkeletonSource(
-      chunkManager: ChunkManager, url: string, cancellationToken = uncancelableToken) {
-    let [dataSource, path] = this.getDataSource(url);
-    return new Promise<SkeletonSource>(resolve => {
-      resolve(dataSource.getSkeletonSource!(chunkManager, path, cancellationToken));
-    });
-  }
-
-  volumeCompleter(url: string, chunkManager: ChunkManager, cancellationToken = uncancelableToken):
-      Promise<CompletionResult> {
+  async completeUrl(options: CompleteUrlOptionsBase): Promise<CompletionResult> {
     // Check if url matches a protocol.  Note that protocolPattern always matches.
+    const {url, cancellationToken = uncancelableToken} = options;
     let protocolMatch = url.match(protocolPattern)!;
     let protocol = protocolMatch[1];
     if (protocol === undefined) {
-      // Return protocol completions.
-      let completions: Completion[] = [];
-      for (let [name, factory] of this.dataSources) {
-        name = name + '://';
-        if (name.startsWith(url)) {
-          completions.push({value: name, description: factory.description});
-        }
-      }
-      return Promise.resolve({offset: 0, completions});
+      return Promise.resolve({
+        offset: 0,
+        completions: getPrefixMatchesWithDescriptions(
+            url, this.dataSources, ([name]) => `${name}://`, ([, factory]) => factory.description)
+      });
     } else {
       const factory = this.dataSources.get(protocol);
       if (factory !== undefined) {
-        if (factory.volumeCompleter !== undefined) {
-          return factory.volumeCompleter!(protocolMatch[2], chunkManager, cancellationToken)
-              .then(completions => applyCompletionOffset(protocol.length + 3, completions));
-        }
+        const completions = await factory.completeUrl({
+          registry: this,
+          url,
+          providerUrl: protocolMatch[2],
+          chunkManager: options.chunkManager,
+          cancellationToken
+        });
+        return applyCompletionOffset(protocol.length + 3, completions);
       }
-      return Promise.reject<CompletionResult>(null);
+      throw null;
     }
   }
 
   suggestLayerName(url: string) {
-    let [dataSource, path] = this.getDataSource(url);
+    let [dataSource, path] = this.getProvider(url);
+    if (path.endsWith('/')) {
+      path = path.substring(0, path.length - 1);
+    }
     let suggestor = dataSource.suggestLayerName;
     if (suggestor !== undefined) {
       return suggestor(path);
@@ -242,7 +288,7 @@ export class DataSourceProvider extends RefCounted {
   }
 
   findSourceGroup(url: string) {
-    let [dataSource, path, dataSourceName] = this.getDataSource(url);
+    let [dataSource, path, dataSourceName] = this.getProvider(url);
     let helper = dataSource.findSourceGroup || findSourceGroupBasedOnSeparator;
     return helper(path) + dataSourceName.length + 3;
   }

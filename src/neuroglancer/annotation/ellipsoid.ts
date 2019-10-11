@@ -21,7 +21,7 @@
 import {AnnotationType, Ellipsoid} from 'neuroglancer/annotation';
 import {AnnotationRenderContext, AnnotationRenderHelper, registerAnnotationTypeRenderHandler} from 'neuroglancer/annotation/type_handler';
 import {PerspectiveViewRenderContext} from 'neuroglancer/perspective_view/render_layer';
-import {SliceViewPanelRenderContext} from 'neuroglancer/sliceview/panel';
+import {SliceViewPanelRenderContext} from 'neuroglancer/sliceview/renderlayer';
 import {mat3, mat4, vec3} from 'neuroglancer/util/geom';
 import {computeCenterOrientEllipseDebug, computeCrossSectionEllipseDebug, glsl_computeCenterOrientEllipse, glsl_computeCrossSectionEllipse} from 'neuroglancer/webgl/ellipse';
 import {QuadRenderHelper} from 'neuroglancer/webgl/quad';
@@ -183,12 +183,12 @@ emitAnnotation(vec4(vColor.rgb, 0.5));
       this.squareCornersBuffer.bindToVertexAttrib(aCornerOffset, /*components=*/ 2);
       const viewportToObject = mat4.multiply(
           tempMat4, context.annotationLayer.state.globalToObject,
-          context.renderContext.sliceView.viewportToData);
+          context.renderContext.sliceView.invViewMatrix);
       gl.uniformMatrix4fv(
           shader.uniform('uViewportToObject'), /*transpose=*/ false, viewportToObject);
       gl.uniformMatrix4fv(
           shader.uniform('uViewportToDevice'), /*transpose=*/ false,
-          context.renderContext.sliceView.viewportToDevice);
+          context.renderContext.sliceView.projectionMat);
       const objectToViewport = tempMat4;
       mat4.invert(objectToViewport, viewportToObject);
       gl.uniformMatrix4fv(

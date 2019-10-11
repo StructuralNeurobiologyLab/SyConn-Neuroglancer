@@ -27,7 +27,7 @@ import {EventActionMap, registerActionListener} from 'neuroglancer/util/event_ac
 import {vec3} from 'neuroglancer/util/geom';
 import {MouseEventBinder} from 'neuroglancer/util/mouse_bindings';
 import {numberToStringFixed} from 'neuroglancer/util/number_to_string';
-import {pickLengthUnit} from 'neuroglancer/widget/scale_bar';
+import {formatScaleWithUnit} from 'neuroglancer/util/si_units';
 import ResizeObserver from 'resize-observer-polyfill';
 
 const updateInterval = 200;
@@ -218,9 +218,9 @@ export class RenderScaleWidget extends RefCounted {
         totalNotPresent += histogramData[index + numRenderScaleHistogramBins];
       }
       if (Number.isFinite(hoverSpatialScale)) {
-        const unit = pickLengthUnit(hoverSpatialScale);
+        const formatted = formatScaleWithUnit(hoverSpatialScale, 'm', 2);
         this.legendSpatialScale.textContent =
-            numberToStringFixed(hoverSpatialScale / unit.lengthInNanometers, 2) + ' ' + unit.unit;
+            `${formatted.scale}${formatted.prefix}${formatted.unit}`;
       } else {
         this.legendSpatialScale.textContent = 'unknown';
       }

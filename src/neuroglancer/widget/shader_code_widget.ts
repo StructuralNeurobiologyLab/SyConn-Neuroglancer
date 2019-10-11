@@ -85,6 +85,15 @@ export class ShaderCodeWidget extends RefCounted {
       }));
     }
     this.updateErrorState();
+    const intersectionObserver = new IntersectionObserver(entries => {
+      if (entries.some(x => x.isIntersecting)) {
+        this.textEditor.refresh();
+      }
+    }, {
+      root: document.body,
+    });
+    intersectionObserver.observe(this.element);
+    this.registerDisposer(() => intersectionObserver.disconnect());
   }
 
   updateErrorState() {

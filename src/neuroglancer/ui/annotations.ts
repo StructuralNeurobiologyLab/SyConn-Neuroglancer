@@ -25,11 +25,11 @@ import {Annotation, AnnotationReference, AnnotationType, AxisAlignedBoundingBox,
 import {AnnotationLayer, AnnotationLayerState, PerspectiveViewAnnotationLayer, SliceViewAnnotationLayer} from 'neuroglancer/annotation/frontend';
 import {DataFetchSliceViewRenderLayer, MultiscaleAnnotationSource} from 'neuroglancer/annotation/frontend_source';
 import {setAnnotationHoverStateFromMouseState} from 'neuroglancer/annotation/selection';
+import {CoordinateSpace} from 'neuroglancer/coordinate_transform';
 import {MouseSelectionState, UserLayer} from 'neuroglancer/layer';
-import {VoxelSize} from 'neuroglancer/navigation_state';
 import {SegmentationDisplayState} from 'neuroglancer/segmentation_display_state/frontend';
 import {TrackableAlphaValue, trackableAlphaValue} from 'neuroglancer/trackable_alpha';
-import {registerNested, TrackableValueInterface, WatchableRefCounted, WatchableValue} from 'neuroglancer/trackable_value';
+import {registerNested, TrackableValueInterface, WatchableRefCounted, WatchableValue, WatchableValueInterface} from 'neuroglancer/trackable_value';
 import {registerTool, Tool} from 'neuroglancer/ui/tool';
 import {TrackableRGB} from 'neuroglancer/util/color';
 import {Borrowed, Owned, RefCounted} from 'neuroglancer/util/disposable';
@@ -310,10 +310,11 @@ export class SelectedAnnotationState extends RefCounted implements
 const tempVec3 = vec3.create();
 
 function makePointLink(
-    point: vec3, transform: mat4, voxelSize: VoxelSize,
+    point: vec3, transform: mat4, coordinateSpace: CoordinateSpace,
     setSpatialCoordinates?: (point: vec3) => void) {
   const spatialPoint = vec3.transformMat4(vec3.create(), point, transform);
-  const positionText = formatIntegerPoint(voxelSize.voxelFromSpatial(tempVec3, spatialPoint));
+  vec3.divide(tempVec3, spatialPoint, coordinateSpace.scales as any); // FIXME
+  const positionText = formatIntegerPoint(tempVec3);
   if (setSpatialCoordinates !== undefined) {
     const element = document.createElement('span');
     element.className = 'neuroglancer-voxel-coordinates-link';
@@ -329,10 +330,10 @@ function makePointLink(
 }
 
 export function getPositionSummary(
-    element: HTMLElement, annotation: Annotation, transform: mat4, voxelSize: VoxelSize,
+    element: HTMLElement, annotation: Annotation, transform: mat4, coordinateSpace: CoordinateSpace,
     setSpatialCoordinates?: (point: vec3) => void) {
   const makePointLinkWithTransform = (point: vec3) =>
-      makePointLink(point, transform, voxelSize, setSpatialCoordinates);
+      makePointLink(point, transform, coordinateSpace, setSpatialCoordinates);
 
   switch (annotation.type) {
     case AnnotationType.AXIS_ALIGNED_BOUNDING_BOX:
@@ -347,7 +348,7 @@ export function getPositionSummary(
     case AnnotationType.ELLIPSOID:
       element.appendChild(makePointLinkWithTransform(annotation.center));
       const transformedRadii = transformVectorByMat4(tempVec3, annotation.radii, transform);
-      voxelSize.voxelFromSpatial(transformedRadii, transformedRadii);
+      vec3.divide(transformedRadii, transformedRadii, coordinateSpace.scales as any); // FIXME
       element.appendChild(document.createTextNode('±' + formatIntegerBounds(transformedRadii)));
       break;
   }
@@ -381,13 +382,13 @@ export class AnnotationLayerView extends Tab {
   constructor(
       public layer: Borrowed<UserLayerWithAnnotations>,
       public state: Owned<SelectedAnnotationState>,
-      public annotationLayer: Owned<AnnotationLayerState>, public voxelSize: Owned<VoxelSize>,
+      public annotationLayer: Owned<AnnotationLayerState>,
+      public coordinateSpace: WatchableValueInterface<CoordinateSpace|undefined>,
       public setSpatialCoordinates: (point: vec3) => void) {
     super();
     this.element.classList.add('neuroglancer-annotation-layer-view');
     this.annotationListContainer.classList.add('neuroglancer-annotation-list');
     this.registerDisposer(state);
-    this.registerDisposer(voxelSize);
     this.registerDisposer(annotationLayer);
     const {source} = annotationLayer;
     const updateView = () => {
@@ -622,7 +623,8 @@ export class AnnotationLayerView extends Tab {
 
     const position = document.createElement('div');
     position.className = 'neuroglancer-annotation-position';
-    getPositionSummary(position, annotation, transform, this.voxelSize, this.setSpatialCoordinates);
+    getPositionSummary(
+        position, annotation, transform, this.coordinateSpace.value!, this.setSpatialCoordinates);
     element.appendChild(position);
 
     if (annotation.description) {
@@ -657,12 +659,12 @@ export class AnnotationDetailsTab extends Tab {
   private hoverState: WatchableValue<{id: string, partIndex?: number}|undefined>|undefined;
   private segmentListWidget: AnnotationSegmentListWidget|undefined;
   constructor(
-      public state: Owned<SelectedAnnotationState>, public voxelSize: VoxelSize,
+      public state: Owned<SelectedAnnotationState>,
+      public coordinateSpace: WatchableValueInterface<CoordinateSpace|undefined>,
       public setSpatialCoordinates: (point: vec3) => void) {
     super();
     this.element.classList.add('neuroglancer-annotation-details');
     this.registerDisposer(state);
-    this.registerDisposer(voxelSize);
     this.registerDisposer(this.state.changed.add(() => {
       this.valid = false;
       this.updateView();
@@ -716,7 +718,7 @@ export class AnnotationDetailsTab extends Tab {
     }
 
     const {objectToGlobal} = annotationLayer;
-    const {voxelSize} = this;
+    const {coordinateSpace: {value: coordinateSpace}} = this;
 
     const handler = getAnnotationTypeHandler(annotation.type);
 
@@ -757,7 +759,8 @@ export class AnnotationDetailsTab extends Tab {
 
     const position = document.createElement('div');
     position.className = 'neuroglancer-annotation-details-position';
-    getPositionSummary(position, annotation, objectToGlobal, voxelSize, this.setSpatialCoordinates);
+    getPositionSummary(
+        position, annotation, objectToGlobal, coordinateSpace!, this.setSpatialCoordinates);
     element.appendChild(position);
 
     if (annotation.type === AnnotationType.AXIS_ALIGNED_BOUNDING_BOX) {
@@ -772,8 +775,8 @@ export class AnnotationDetailsTab extends Tab {
           tempVec3, vec3.subtract(tempVec3, annotation.pointA, annotation.pointB), objectToGlobal);
       const voxelVolume = document.createElement('div');
       voxelVolume.className = 'neuroglancer-annotation-details-volume-in-voxels';
-      const voxelOffset = voxelSize.voxelFromSpatial(tempVec3, spatialOffset);
-      voxelVolume.textContent = `${formatIntegerBounds(voxelOffset)}`;
+      const voxelOffset = vec3.divide(tempVec3, spatialOffset, coordinateSpace!.scales as any); // FIXME
+      voxelVolume.textContent = `${formatIntegerBounds(voxelOffset as vec3)}`;
       element.appendChild(voxelVolume);
     } else if (annotation.type === AnnotationType.LINE) {
       const spatialOffset = transformVectorByMat4(
@@ -782,8 +785,9 @@ export class AnnotationDetailsTab extends Tab {
       length.className = 'neuroglancer-annotation-details-length';
       const spatialLengthText = formatLength(vec3.length(spatialOffset));
       let voxelLengthText = '';
-      if (voxelSize.valid) {
-        const voxelLength = vec3.length(voxelSize.voxelFromSpatial(tempVec3, spatialOffset));
+      if (coordinateSpace !== undefined) {
+        const voxelLength = vec3.length(
+            vec3.divide(tempVec3, spatialOffset, coordinateSpace.scales as any) as vec3); // FIXME
         voxelLengthText = `, ${Math.round(voxelLength)} vx`;
       }
       length.textContent = spatialLengthText + voxelLengthText;
@@ -826,18 +830,18 @@ export class AnnotationTab extends Tab {
   private stack = this.registerDisposer(
       new StackView<AnnotationLayerState, AnnotationLayerView>(annotationLayerState => {
         return new AnnotationLayerView(
-            this.layer, this.state.addRef(), annotationLayerState.addRef(), this.voxelSize.addRef(),
+            this.layer, this.state.addRef(), annotationLayerState.addRef(), this.coordinateSpace,
             this.setSpatialCoordinates);
-      }, this.visibility));
+      }, this.state.annotationLayerState, this.visibility));
   private detailsTab = this.registerDisposer(
-      new AnnotationDetailsTab(this.state, this.voxelSize.addRef(), this.setSpatialCoordinates));
+      new AnnotationDetailsTab(this.state, this.coordinateSpace, this.setSpatialCoordinates));
   constructor(
       public layer: Borrowed<UserLayerWithAnnotations>,
-      public state: Owned<SelectedAnnotationState>, public voxelSize: Owned<VoxelSize>,
+      public state: Owned<SelectedAnnotationState>,
+      public coordinateSpace: WatchableValueInterface<CoordinateSpace|undefined>,
       public setSpatialCoordinates: (point: vec3) => void) {
     super();
     this.registerDisposer(state);
-    this.registerDisposer(voxelSize);
     const {element} = this;
     element.classList.add('neuroglancer-annotations-tab');
     element.appendChild(this.stack.element);
@@ -849,11 +853,6 @@ export class AnnotationTab extends Tab {
     };
     this.registerDisposer(this.state.changed.add(updateDetailsVisibility));
     this.registerDisposer(this.visibility.changed.add(updateDetailsVisibility));
-    const setAnnotationLayerView = () => {
-      this.stack.selected = this.state.annotationLayerState.value;
-    };
-    this.registerDisposer(this.state.annotationLayerState.changed.add(setAnnotationLayerView));
-    setAnnotationLayerView();
   }
 }
 
@@ -906,7 +905,7 @@ export class PlacePointTool extends PlaceAnnotationTool {
         description: '',
         segments: getSelectedAssocatedSegment(annotationLayer),
         point:
-            vec3.transformMat4(vec3.create(), mouseState.position, annotationLayer.globalToObject),
+            vec3.transformMat4(vec3.create(), mouseState.position as any, annotationLayer.globalToObject), // FIXME
         type: AnnotationType.POINT,
       };
       const reference = annotationLayer.source.add(annotation, /*commit=*/ true);
@@ -926,7 +925,7 @@ export class PlacePointTool extends PlaceAnnotationTool {
 
 function getMousePositionInAnnotationCoordinates(
     mouseState: MouseSelectionState, annotationLayer: AnnotationLayerState) {
-  return vec3.transformMat4(vec3.create(), mouseState.position, annotationLayer.globalToObject);
+  return vec3.transformMat4(vec3.create(), mouseState.position as any, annotationLayer.globalToObject); // FIXME
 }
 
 abstract class TwoStepAnnotationTool extends PlaceAnnotationTool {
@@ -1084,7 +1083,7 @@ class PlaceSphereTool extends TwoStepAnnotationTool {
     const spatialCenter =
         vec3.transformMat4(vec3.create(), oldAnnotation.center, annotationLayer.objectToGlobal);
 
-    const radius = vec3.distance(spatialCenter, mouseState.position);
+    const radius = vec3.distance(spatialCenter, mouseState.position as any); // FIXME
 
     const tempMatrix = mat3.create();
     tempMatrix[0] = tempMatrix[4] = tempMatrix[8] = 1 / (radius * radius);
@@ -1157,7 +1156,7 @@ export function UserLayerWithAnnotationsMixin<TBase extends {new (...args: any[]
         label: 'Annotations',
         order: 10,
         getter: () => new AnnotationTab(
-            this, this.selectedAnnotation.addRef(), this.manager.voxelSize.addRef(),
+            this, this.selectedAnnotation.addRef(), this.manager.coordinateSpace,
             point => this.manager.setSpatialCoordinates(point))
       });
       this.annotationLayerState.changed.add(() => {

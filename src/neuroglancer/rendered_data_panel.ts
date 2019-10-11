@@ -495,11 +495,9 @@ export abstract class RenderedDataPanel extends RenderedPanel {
     }
 
     registerActionListener(element, 'move-to-mouse-position', () => {
-      let {mouseState} = this.viewer;
+      const {mouseState} = this.viewer;
       if (mouseState.updateUnconditionally()) {
-        let position = this.navigationState.pose.position;
-        vec3.copy(position.spatialCoordinates, mouseState.position);
-        position.changed.dispatch();
+        this.navigationState.position.value = mouseState.position;
       }
     });
 

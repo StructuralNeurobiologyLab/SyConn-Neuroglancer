@@ -14,8 +14,9 @@
  * limitations under the License.
  */
 
-import {makeTextIconButton} from 'neuroglancer/widget/text_icon_button';
+import svg_close from 'ikonate/icons/close.svg';
+import {makeIcon} from 'neuroglancer/widget/icon';
 
 export function makeCloseButton() {
-  return makeTextIconButton('❌');
+  return makeIcon({svg: svg_close});
 }

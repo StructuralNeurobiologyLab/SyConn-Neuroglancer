@@ -26,12 +26,13 @@ import {AnnotationGeometryData, MultiscaleAnnotationSource} from 'neuroglancer/a
 import {AnnotationRenderContext, AnnotationRenderHelper, getAnnotationTypeRenderHandler} from 'neuroglancer/annotation/type_handler';
 import {ChunkState} from 'neuroglancer/chunk_manager/base';
 import {ChunkManager} from 'neuroglancer/chunk_manager/frontend';
-import {MouseSelectionState, VisibilityTrackedRenderLayer} from 'neuroglancer/layer';
+import {MouseSelectionState} from 'neuroglancer/layer';
 import {PerspectiveViewRenderContext, PerspectiveViewRenderLayer} from 'neuroglancer/perspective_view/render_layer';
+import {VisibilityTrackedRenderLayer} from 'neuroglancer/renderlayer';
 import {forEachVisibleSegment, getObjectKey} from 'neuroglancer/segmentation_display_state/base';
 import {SegmentationDisplayState} from 'neuroglancer/segmentation_display_state/frontend';
 import {SharedWatchableValue} from 'neuroglancer/shared_watchable_value';
-import {SliceViewPanelRenderLayer} from 'neuroglancer/sliceview/panel';
+import {SliceViewPanelRenderLayer} from 'neuroglancer/sliceview/renderlayer';
 import {WatchableValueInterface} from 'neuroglancer/trackable_value';
 import {binarySearch} from 'neuroglancer/util/array';
 import {Borrowed, Owned, RefCounted} from 'neuroglancer/util/disposable';
@@ -325,7 +326,7 @@ function AnnotationRenderLayer<TBase extends {
       }
       const hoverValue = base.hoverState.value;
       const projectionMatrix =
-          mat4.multiply(tempMat, renderContext.dataToDevice, base.state.objectToGlobal);
+          mat4.multiply(tempMat, renderContext.viewProjectionMat, base.state.objectToGlobal);
       for (const annotationType of annotationTypes) {
         const ids = typeToIds[annotationType];
         if (ids.length > 0) {
@@ -410,9 +411,10 @@ function AnnotationRenderLayer<TBase extends {
           mouseState.pickedOffset = partIndex;
           mouseState.pickedAnnotationBuffer = chunk.data!.buffer;
           mouseState.pickedAnnotationBufferOffset = chunk.data!.byteOffset + typeToOffset[annotationType] + instanceIndex * handler.bytes;
+          // FIXME: need to update annotations for ndims
           handler.snapPosition(
-              mouseState.position, this.base.state.objectToGlobal, mouseState.pickedAnnotationBuffer,
-              mouseState.pickedAnnotationBufferOffset,
+              mouseState.position as any, this.base.state.objectToGlobal,
+              mouseState.pickedAnnotationBuffer, mouseState.pickedAnnotationBufferOffset,
               partIndex);
           return;
         }

@@ -490,12 +490,14 @@ export interface MultiscaleMeshSource {
 export class MultiscaleMeshSource extends ChunkSource {
   fragmentSource: MultiscaleFragmentSource;
   format: MultiscaleFragmentFormat;
+  transform: mat4;
 
   constructor(rpc: RPC, options: any) {
     super(rpc, options);
     let fragmentSource = this.fragmentSource =
         this.registerDisposer(rpc.getRef<MultiscaleFragmentSource>(options['fragmentSource']));
     this.format = options['format'];
+    this.transform = options['transform'];
     fragmentSource.meshSource = this;
   }
 
@@ -533,6 +535,8 @@ export class MultiscaleFragmentSource extends ChunkSource {
     return this.meshSource!.downloadFragment(chunk, cancellationToken);
   }
 }
+
+const tempModelMatrix = mat4.create();
 
 @registerSharedObject(MULTISCALE_MESH_LAYER_RPC_ID)
 export class MultiscaleMeshLayer extends SegmentationLayerSharedObjectCounterpart implements
@@ -581,6 +585,8 @@ export class MultiscaleMeshLayer extends SegmentationLayerSharedObjectCounterpar
     if (maxVisibility === Number.NEGATIVE_INFINITY) {
       return;
     }
+    const {transform: {value: transform}} = this;
+    if (transform === undefined) return;
     const manifestChunks = new Array<MultiscaleManifestChunk>();
     {
       const priorityTier = getPriorityTier(maxVisibility);
@@ -607,17 +613,18 @@ export class MultiscaleMeshLayer extends SegmentationLayerSharedObjectCounterpar
       const priorityTier = getPriorityTier(visibility);
       const basePriority = getBasePriority(visibility);
       const viewport = viewState.viewport.value;
-      const modelViewProjection = mat4.create();
+      const modelViewProjectionMatrix = tempModelMatrix;
       mat4.multiply(
-          modelViewProjection, viewport.viewProjectionMat,
-          mat4.multiply(
-              modelViewProjection, this.objectToDataTransform.value, source.format.transform));
-      const clippingPlanes = getFrustrumPlanes(new Float32Array(24), modelViewProjection);
+          modelViewProjectionMatrix, transform.modelToRenderLayerTransform as mat4,
+          this.source.transform);
+      mat4.multiply(
+          modelViewProjectionMatrix, viewport.viewProjectionMat, modelViewProjectionMatrix);
+      const clippingPlanes = getFrustrumPlanes(new Float32Array(24), modelViewProjectionMatrix);
       const detailCutoff = this.renderScaleTarget.value;
       for (const manifestChunk of manifestChunks) {
         const maxLod = manifestChunk.manifest!.lodScales.length - 1;
         getDesiredMultiscaleMeshChunks(
-            manifestChunk.manifest!, modelViewProjection, clippingPlanes, detailCutoff,
+            manifestChunk.manifest!, modelViewProjectionMatrix, clippingPlanes, detailCutoff,
             viewport.width, viewport.height, (lod, chunkIndex, _renderScale, empty) => {
               if (empty) return;
               let fragmentChunk = source.getFragmentChunk(manifestChunk, lod, chunkIndex);

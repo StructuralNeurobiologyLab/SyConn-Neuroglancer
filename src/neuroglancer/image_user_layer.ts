@@ -14,25 +14,31 @@
  * limitations under the License.
  */
 
-import {UserLayer} from 'neuroglancer/layer';
-import {LayerListSpecification, registerLayerType, registerVolumeLayerType} from 'neuroglancer/layer_specification';
+import './image_user_layer.css';
+
+import svg_maximize from 'ikonate/icons/maximise.svg';
+import {ManagedUserLayer, UserLayer} from 'neuroglancer/layer';
+import {LoadedLayerDataSource} from 'neuroglancer/layer_data_source';
+import {registerLayerType, registerVolumeLayerType} from 'neuroglancer/layer_specification';
 import {Overlay} from 'neuroglancer/overlay';
+import {getWatchableRenderLayerTransform} from 'neuroglancer/renderlayer';
 import {VolumeType} from 'neuroglancer/sliceview/volume/base';
+import {MultiscaleVolumeChunkSource} from 'neuroglancer/sliceview/volume/frontend';
 import {FRAGMENT_MAIN_START, getTrackableFragmentMain, ImageRenderLayer} from 'neuroglancer/sliceview/volume/image_renderlayer';
 import {trackableAlphaValue} from 'neuroglancer/trackable_alpha';
 import {trackableBlendModeValue} from 'neuroglancer/trackable_blend';
 import {UserLayerWithVolumeSourceMixin} from 'neuroglancer/user_layer_with_volume_source';
+import {Borrowed, RefCounted} from 'neuroglancer/util/disposable';
+import {MessageSeverity} from 'neuroglancer/util/message_list';
 import {makeWatchableShaderError} from 'neuroglancer/webgl/dynamic_shader';
 import {ShaderControlState} from 'neuroglancer/webgl/shader_ui_controls';
 import {EnumSelectWidget} from 'neuroglancer/widget/enum_widget';
+import {makeIcon} from 'neuroglancer/widget/icon';
 import {RangeWidget} from 'neuroglancer/widget/range';
 import {RenderScaleWidget} from 'neuroglancer/widget/render_scale_widget';
 import {ShaderCodeWidget} from 'neuroglancer/widget/shader_code_widget';
 import {ShaderControls} from 'neuroglancer/widget/shader_controls';
 import {Tab} from 'neuroglancer/widget/tab_view';
-
-import './image_user_layer.css';
-import 'neuroglancer/maximize_button.css';
 
 const OPACITY_JSON_KEY = 'opacity';
 const BLEND_JSON_KEY = 'blend';
@@ -45,10 +51,9 @@ export class ImageUserLayer extends Base {
   blendMode = trackableBlendModeValue();
   fragmentMain = getTrackableFragmentMain();
   shaderError = makeWatchableShaderError();
-  renderLayer: ImageRenderLayer;
   shaderControlState = new ShaderControlState(this.fragmentMain);
-  constructor(manager: LayerListSpecification, x: any) {
-    super(manager, x);
+  constructor(managedLayer: Borrowed<ManagedUserLayer>, specification: any) {
+    super(managedLayer, specification);
     this.registerDisposer(this.blendMode.changed.add(this.specificationChanged.dispatch));
     this.registerDisposer(this.fragmentMain.changed.add(this.specificationChanged.dispatch));
     this.registerDisposer(this.shaderControlState.changed.add(this.specificationChanged.dispatch));
@@ -56,6 +61,32 @@ export class ImageUserLayer extends Base {
         'rendering',
         {label: 'Rendering', order: -100, getter: () => new RenderingOptionsTab(this)});
     this.tabs.default = 'rendering';
+  }
+
+  initializeDataSource(loaded: LoadedLayerDataSource, refCounted: RefCounted) {
+    for (const loadedSubresource of loaded.enabledSubresources) {
+      const {volume} = loadedSubresource.subresource.resource;
+      if (!(volume instanceof MultiscaleVolumeChunkSource)) {
+        loaded.messages.addMessage(
+            {severity: MessageSeverity.error, message: 'Not compatible with image layer'});
+        continue;
+      }
+      const renderLayer = new ImageRenderLayer(volume, {
+        opacity: this.opacity,
+        blendMode: this.blendMode,
+        shaderControlState: this.shaderControlState,
+        shaderError: this.shaderError,
+        transform: refCounted.registerDisposer(getWatchableRenderLayerTransform(
+            this.manager.root.coordinateSpace, this.localPosition.coordinateSpace,
+            volume.modelSpace, loaded.transform)),
+        renderScaleTarget: this.sliceViewRenderScaleTarget,
+        renderScaleHistogram: this.sliceViewRenderScaleHistogram,
+        localPosition: this.localPosition,
+      });
+      refCounted.registerDisposer(this.addRenderLayer(renderLayer));
+      refCounted.registerDisposer(loadedSubresource.messages.addChild(renderLayer.messages));
+      this.shaderError.changed.dispatch();
+    }
   }
 
   restoreState(specification: any) {
@@ -67,26 +98,6 @@ export class ImageUserLayer extends Base {
     }
     this.fragmentMain.restoreState(specification[SHADER_JSON_KEY]);
     this.shaderControlState.restoreState(specification[SHADER_CONTROLS_JSON_KEY]);
-    const {multiscaleSource} = this;
-    if (multiscaleSource === undefined) {
-      throw new Error(`source property must be specified`);
-    }
-    multiscaleSource.then(volume => {
-      if (!this.wasDisposed) {
-        let renderLayer = this.renderLayer = new ImageRenderLayer(volume, {
-          opacity: this.opacity,
-          blendMode: this.blendMode,
-          shaderControlState: this.shaderControlState,
-          shaderError: this.shaderError,
-          transform: this.transform,
-          renderScaleTarget: this.sliceViewRenderScaleTarget,
-          renderScaleHistogram: this.sliceViewRenderScaleHistogram,
-        });
-        this.addRenderLayer(renderLayer);
-        this.shaderError.changed.dispatch();
-        this.isReady = true;
-      }
-    });
   }
   toJSON() {
     const x = super.toJSON();
@@ -97,7 +108,7 @@ export class ImageUserLayer extends Base {
     x[SHADER_CONTROLS_JSON_KEY] = this.shaderControlState.toJSON();
     return x;
   }
-}
+  }
 
 function makeShaderCodeWidget(layer: ImageUserLayer) {
   return new ShaderCodeWidget({
@@ -136,23 +147,19 @@ class RenderingOptionsTab extends Tab {
 
     let spacer = document.createElement('div');
     spacer.style.flex = '1';
-    let helpLink = document.createElement('a');
-    let helpButton = document.createElement('button');
-    helpButton.type = 'button';
-    helpButton.textContent = '?';
-    helpButton.className = 'help-link';
-    helpLink.appendChild(helpButton);
-    helpLink.title = 'Documentation on image layer rendering';
-    helpLink.target = '_blank';
-    helpLink.href =
-        'https://github.com/google/neuroglancer/blob/master/src/neuroglancer/sliceview/image_layer_rendering.md';
+    const helpLink = makeIcon({
+      text: '?',
+      title: 'Documentation on image layer rendering',
+      href:
+          'https://github.com/google/neuroglancer/blob/master/src/neuroglancer/sliceview/image_layer_rendering.md',
+    });
 
-    let maximizeButton = document.createElement('button');
-    maximizeButton.innerHTML = '&square;';
-    maximizeButton.className = 'maximize-button';
-    maximizeButton.title = 'Show larger editor view';
-    this.registerEventListener(maximizeButton, 'click', () => {
-      new ShaderCodeOverlay(this.layer);
+    const maximizeButton = makeIcon({
+      svg: svg_maximize,
+      title: 'Show larger editor view',
+      onClick: () => {
+        new ShaderCodeOverlay(this.layer);
+      }
     });
 
     topRow.appendChild(this.opacityWidget.element);
@@ -164,13 +171,6 @@ class RenderingOptionsTab extends Tab {
     element.appendChild(this.codeWidget.element);
     element.appendChild(
         this.registerDisposer(new ShaderControls(layer.shaderControlState)).element);
-
-    this.codeWidget.textEditor.refresh();
-    this.visibility.changed.add(() => {
-      if (this.visible) {
-        this.codeWidget.textEditor.refresh();
-      }
-    });
   }
 }
 

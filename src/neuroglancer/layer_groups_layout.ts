@@ -94,7 +94,7 @@ export class LayoutComponentContainer extends RefCounted {
             const {layerSpecification} = childComponent;
             layerSpecification.rootLayers.filter(layer => layersToKeep.has(layer));
             layerSpecification.rootLayers.managedLayers =
-              Array.from(childComponent.layerManager.managedLayers);
+                Array.from(childComponent.layerManager.managedLayers);
             layerSpecification.rootLayers.layersChanged.dispatch();
           } else {
             spec = childComponent.toJSON();

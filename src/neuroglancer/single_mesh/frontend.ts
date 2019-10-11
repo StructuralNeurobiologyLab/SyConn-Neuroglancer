@@ -16,7 +16,7 @@
 
 import {ChunkState} from 'neuroglancer/chunk_manager/base';
 import {Chunk, ChunkManager, ChunkSource, WithParameters} from 'neuroglancer/chunk_manager/frontend';
-import {CoordinateTransform} from 'neuroglancer/coordinate_transform';
+import {WatchableCoordinateTransform} from 'neuroglancer/coordinate_transform';
 import {PerspectiveViewRenderContext, PerspectiveViewRenderLayer} from 'neuroglancer/perspective_view/render_layer';
 import {GET_SINGLE_MESH_INFO_RPC_ID, SINGLE_MESH_CHUNK_KEY, SINGLE_MESH_LAYER_RPC_ID, SingleMeshInfo, SingleMeshSourceParameters, SingleMeshSourceParametersWithInfo, VertexAttributeInfo} from 'neuroglancer/single_mesh/base';
 import {TrackableValue} from 'neuroglancer/trackable_value';
@@ -59,7 +59,7 @@ export class SingleMeshDisplayState {
   shaderError = makeWatchableShaderError();
   fragmentMain = getTrackableFragmentMain();
   attributeNames = getTrackableAttributeNames();
-  objectToDataTransform = new CoordinateTransform();
+  objectToDataTransform = new WatchableCoordinateTransform(3);
 }
 
 export function getShaderAttributeType(info: {dataType: DataType, numComponents: number}) {
@@ -178,8 +178,8 @@ vLightingFactor = abs(dot(normal, uLightDirection.xyz)) + uLightDirection.w;
   }
 
   beginLayer(gl: GL, shader: ShaderProgram, renderContext: PerspectiveViewRenderContext) {
-    let {dataToDevice, lightDirection, ambientLighting, directionalLighting} = renderContext;
-    gl.uniformMatrix4fv(shader.uniform('uProjection'), false, dataToDevice);
+    let {viewProjectionMat, lightDirection, ambientLighting, directionalLighting} = renderContext;
+    gl.uniformMatrix4fv(shader.uniform('uProjection'), false, viewProjectionMat);
     let lightVec = <vec3>this.tempLightVec;
     vec3.scale(lightVec, lightDirection, directionalLighting);
     lightVec[3] = ambientLighting;
@@ -467,7 +467,7 @@ export class SingleMeshLayer extends PerspectiveViewRenderLayer {
 
     let {pickIDs} = renderContext;
 
-    shaderManager.beginObject(gl, shader, this.displayState.objectToDataTransform.transform);
+    shaderManager.beginObject(gl, shader, this.displayState.objectToDataTransform.transform as any); // FIXME
     if (renderContext.emitPickID) {
       shaderManager.setPickID(gl, shader, pickIDs.register(this, chunk.numIndices / 3));
     }

@@ -47,7 +47,8 @@ chunkDecoders.set(VolumeChunkEncoding.RAW, decodeRawChunk);
       // computeChunkBounds.
       let chunkPosition = this.computeChunkBounds(chunk);
       let {chunkDataSize} = chunk;
-      for (let i = 0; i < 3; ++i) {
+      const length = chunkPosition.length;
+      for (let i = 0; i < length; ++i) {
         path += `/${chunkPosition[i]},${chunkPosition[i] + chunkDataSize![i]}`;
       }
     }

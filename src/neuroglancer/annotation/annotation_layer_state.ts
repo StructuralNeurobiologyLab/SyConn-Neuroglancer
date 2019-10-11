@@ -16,8 +16,8 @@
 
 import {AnnotationSource} from 'neuroglancer/annotation';
 import {MultiscaleAnnotationSource} from 'neuroglancer/annotation/frontend_source';
-import {CoordinateTransform} from 'neuroglancer/coordinate_transform';
-import {RenderLayerRole} from 'neuroglancer/layer';
+import {WatchableCoordinateTransform} from 'neuroglancer/coordinate_transform';
+import {RenderLayerRole} from 'neuroglancer/renderlayer';
 import {SegmentationDisplayState} from 'neuroglancer/segmentation_display_state/frontend';
 import {TrackableAlphaValue} from 'neuroglancer/trackable_alpha';
 import {TrackableBoolean} from 'neuroglancer/trackable_boolean';
@@ -30,7 +30,7 @@ export class AnnotationHoverState extends
     WatchableValue<{id: string, partIndex: number}|undefined> {}
 
 export class AnnotationLayerState extends RefCounted {
-  transform: CoordinateTransform;
+  transform: WatchableCoordinateTransform;
   source: Owned<AnnotationSource|MultiscaleAnnotationSource>;
   hoverState: AnnotationHoverState;
   role: RenderLayerRole;
@@ -54,7 +54,8 @@ export class AnnotationLayerState extends RefCounted {
       return;
     }
     const {cachedObjectToGlobal} = this;
-    mat4.multiply(cachedObjectToGlobal, this.transform.transform, this.source.objectToLocal);
+    mat4.multiply(
+        cachedObjectToGlobal, this.transform.transform as any, this.source.objectToLocal);  // FIXME
     mat4.invert(this.cachedGlobalToObject, cachedObjectToGlobal);
   }
 
@@ -69,7 +70,8 @@ export class AnnotationLayerState extends RefCounted {
   }
 
   constructor(options: {
-    transform?: CoordinateTransform, source: Owned<AnnotationSource|MultiscaleAnnotationSource>,
+    transform?: WatchableCoordinateTransform,
+             source: Owned<AnnotationSource|MultiscaleAnnotationSource>,
     hoverState?: AnnotationHoverState,
     role?: RenderLayerRole, color: TrackableRGB, fillOpacity: TrackableAlphaValue,
     segmentationState?: WatchableValue<SegmentationDisplayState|undefined|null>,
@@ -77,7 +79,7 @@ export class AnnotationLayerState extends RefCounted {
   }) {
     super();
     const {
-      transform = new CoordinateTransform(),
+      transform = new WatchableCoordinateTransform(3),
       source,
       hoverState = new AnnotationHoverState(undefined),
       role = RenderLayerRole.ANNOTATION,

@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2018 Google Inc.
+ * Copyright 2019 Google Inc.
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -14,25 +14,28 @@
  * limitations under the License.
  */
 
-.neuroglancer-coordinate-transform-widget {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
+.neuroglancer-coordinate-space-transform-widget {
+  display: grid;
+  justify-items: stretch;
 }
 
-.neuroglancer-coordinate-transform-widget-homogeneous {
-  align-self: stretch;
-  display: block;
-}
-
-.neuroglancer-coordinate-transform-widget textarea {
-  display: block;
+.neuroglancer-coordinate-space-transform-widget input {
   font-family: monospace;
-  font-size: medium;
-  margin-left: 1em;
-  background-color: transparent;
+  justify-self: stretch;
+  background-color: black;
   color: white;
-  border: 0px;
-  outline: 0px;
-  resize: none;
+  border: 1px solid #333;
+}
+
+.neuroglancer-coordinate-space-transform-input-name, input.neuroglancer-coordinate-space-transform-output-name {
+  font-family: monospace;
+  color: #ff6;
+}
+
+.neuroglancer-coordinate-space-transform-input-scale, .neuroglancer-coordinate-space-transform-output-scale {
+  color: #aaa;
+}
+
+.neuroglancer-coordinate-space-transform-input-bounds, .neuroglancer-coordinate-space-transform-output-bounds {
+  text-align: right;
 }

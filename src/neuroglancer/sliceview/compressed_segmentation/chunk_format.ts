@@ -34,7 +34,8 @@ class TextureLayout extends RefCounted {
   textureHeight: number;
   subchunkGridSize: vec3;
 
-  constructor(gl: GL, public chunkDataSize: vec3, public subchunkSize: vec3, dataLength: number) {
+  constructor(
+      gl: GL, public chunkDataSize: Uint32Array, public subchunkSize: vec3, dataLength: number) {
     super();
     compute1dTextureLayout(this, gl, /*texelsPerElement=*/ 1, dataLength);
     let subchunkGridSize = this.subchunkGridSize = vec3.create();
@@ -43,7 +44,7 @@ class TextureLayout extends RefCounted {
     }
   }
 
-  static get(gl: GL, chunkDataSize: vec3, subchunkSize: vec3, dataLength: number) {
+  static get(gl: GL, chunkDataSize: Uint32Array, subchunkSize: vec3, dataLength: number) {
     return gl.memoize.get(
         `sliceview.CompressedSegmentationTextureLayout:${vec3Key(chunkDataSize)},` +
             `${vec3Key(subchunkSize)},${dataLength}`,
@@ -52,6 +53,7 @@ class TextureLayout extends RefCounted {
 }
 
 const textureFormat = computeTextureFormat(new TextureFormat(), DataType.UINT32);
+const tempStridesUniform = new Uint32Array(4 * 5);
 
 export class ChunkFormat extends SingleTextureChunkFormat<TextureLayout> {
   static get(gl: GL, dataType: DataType, subchunkSize: vec3, numChannels: number) {
@@ -81,6 +83,7 @@ export class ChunkFormat extends SingleTextureChunkFormat<TextureLayout> {
     let local = (x: string) => 'compressedSegmentationChunkFormat_' + x;
     builder.addUniform('highp ivec3', 'uSubchunkGridSize');
     builder.addUniform('highp ivec3', 'uSubchunkSize');
+    builder.addUniform('highp ivec4', 'uVolumeChunkStrides', 5);
     builder.addFragmentCode(glsl_getFortranOrderIndex);
     const {dataType} = this;
     const glslType = getShaderType(dataType);
@@ -100,13 +103,19 @@ uint ${local('getChannelOffset')}(int channelIndex) {
   return ${local('readTextureValue')}(uint(channelIndex)).value;
 }
 ${glslType} getDataValue (int channelIndex) {
-  ivec3 chunkPosition = getPositionWithinChunk();
+  highp ivec3 p = getPositionWithinChunk();
+  highp ivec4 chunkPositionFull = uVolumeChunkStrides[0] +
+                     + p.x * uVolumeChunkStrides[1]
+                     + p.y * uVolumeChunkStrides[2]
+                     + p.z * uVolumeChunkStrides[3]
+                     + channelIndex * uVolumeChunkStrides[4];
+  highp ivec3 chunkPosition = chunkPositionFull.xyz;
 
   // TODO: maybe premultiply this and store as uniform.
   ivec3 subchunkGridPosition = chunkPosition / uSubchunkSize;
   int subchunkGridOffset = getFortranOrderIndex(subchunkGridPosition, uSubchunkGridSize);
 
-  int channelOffset = int(${local('getChannelOffset')}(channelIndex));
+  int channelOffset = int(${local('getChannelOffset')}(chunkPositionFull[3]));
 
   // TODO: Maybe just combine this offset into subchunkGridStrides.
   int subchunkHeaderOffset = subchunkGridOffset * 2 + channelOffset;
@@ -148,11 +157,24 @@ ${glslType} getDataValue (int channelIndex) {
   /**
    * Called each time textureLayout changes while drawing chunks.
    */
-  setupTextureLayout(gl: GL, shader: ShaderProgram, textureLayout: TextureLayout) {
+  setupTextureLayout(
+      gl: GL, shader: ShaderProgram, textureLayout: TextureLayout, fixedChunkPosition: Uint32Array,
+      spatialChunkDimensions: number[]) {
     const {subchunkGridSize} = textureLayout;
     gl.uniform3i(
         shader.uniform('uSubchunkGridSize'), subchunkGridSize[0], subchunkGridSize[1],
         subchunkGridSize[2]);
+    const stridesUniform = tempStridesUniform;
+    stridesUniform.fill(0);
+    // channel is identity mapped at the moment
+    stridesUniform[4 * 4 + 3] = 1;
+    for (let i = 0; i < 3; ++i) {
+      stridesUniform[i] = fixedChunkPosition[i];
+      const chunkDim = spatialChunkDimensions[i];
+      if (chunkDim === -1) continue;
+      stridesUniform[4 * (i + 1) + chunkDim] = 1;
+    }
+    gl.uniform4iv(shader.uniform('uVolumeChunkStrides'), stridesUniform);
     this.textureAccessHelper.setupTextureLayout(gl, shader, textureLayout);
   }
 
@@ -160,7 +182,7 @@ ${glslType} getDataValue (int channelIndex) {
     setOneDimensionalTextureData(gl, textureLayout, textureFormat, data);
   }
 
-  getTextureLayout(gl: GL, chunkDataSize: vec3, dataLength: number) {
+  getTextureLayout(gl: GL, chunkDataSize: Uint32Array, dataLength: number) {
     return TextureLayout.get(gl, chunkDataSize, this.subchunkSize, dataLength);
   }
 
@@ -184,7 +206,7 @@ export class CompressedSegmentationVolumeChunk extends
     chunkFormat.setTextureData(gl, textureLayout, data);
   }
 
-  getChannelValueAt(dataPosition: vec3, channel: number): Uint64|number {
+  getChannelValueAt(dataPosition: Uint32Array, channel: number): Uint64|number {
     let {chunkDataSize, chunkFormat} = this;
     let {data} = this;
     let offset = data[channel];

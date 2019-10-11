@@ -21,7 +21,6 @@ import {Overlay} from 'neuroglancer/overlay';
 import {SingleMeshSourceParameters} from 'neuroglancer/single_mesh/base';
 import {VertexAttributeInfo} from 'neuroglancer/single_mesh/base';
 import {FRAGMENT_MAIN_START, getShaderAttributeType, getSingleMeshSource, SingleMeshDisplayState, SingleMeshLayer, SingleMeshSource, TrackableAttributeNames} from 'neuroglancer/single_mesh/frontend';
-import {UserLayerWithCoordinateTransformMixin} from 'neuroglancer/user_layer_with_coordinate_transform';
 import {RefCounted} from 'neuroglancer/util/disposable';
 import {removeFromParent} from 'neuroglancer/util/dom';
 import {parseArray, verifyObjectProperty, verifyOptionalString, verifyString} from 'neuroglancer/util/json';
@@ -49,7 +48,7 @@ function pickAttributeNames(existingNames: string[]) {
   return result;
 }
 
-const BaseUserLayer = UserLayerWithCoordinateTransformMixin(UserLayer);
+const BaseUserLayer = UserLayer;
 
 export class SingleMeshUserLayer extends BaseUserLayer {
   parameters: SingleMeshSourceParameters;

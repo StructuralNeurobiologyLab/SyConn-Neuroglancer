@@ -20,7 +20,7 @@
  */
 
 import {ChunkManager, WithParameters} from 'neuroglancer/chunk_manager/frontend';
-import {CompletionResult, DataSource} from 'neuroglancer/datasource';
+import {CompletionResult, DataSourceProvider} from 'neuroglancer/datasource';
 import {PointMatchChunkSourceParameters, TileChunkSourceParameters} from 'neuroglancer/datasource/render/base';
 import {VectorGraphicsChunkSpecification, VectorGraphicsSourceOptions} from 'neuroglancer/sliceview/vector_graphics/base';
 import {MultiscaleVectorGraphicsChunkSource as GenericMultiscaleVectorGraphicsChunkSource, VectorGraphicsChunkSource} from 'neuroglancer/sliceview/vector_graphics/frontend';
@@ -638,7 +638,7 @@ export function getPointMatches(chunkManager: ChunkManager, datasourcePath: stri
                         chunkManager, hostname, ownerInfo, stack, project, parameters)));
 }
 
-export class RenderDataSource extends DataSource {
+export class RenderDataSource extends DataSourceProvider {
   get description() {
     return 'Render';
   }

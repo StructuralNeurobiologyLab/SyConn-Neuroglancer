@@ -14,8 +14,10 @@
  * limitations under the License.
  */
 
+import './image_user_layer.css';
+
 import {ChunkManager} from 'neuroglancer/chunk_manager/frontend';
-import {DataSourceProvider, GetVectorGraphicsOptions} from 'neuroglancer/datasource';
+import {DataSourceProviderRegistry, GetVectorGraphicsOptions} from 'neuroglancer/datasource';
 import {UserLayer} from 'neuroglancer/layer';
 import {LayerListSpecification, registerLayerType} from 'neuroglancer/layer_specification';
 import {VectorGraphicsType} from 'neuroglancer/sliceview/vector_graphics/base';
@@ -27,15 +29,13 @@ import {trackableFiniteFloat} from 'neuroglancer/trackable_finite_float';
 import {trackableVec3, TrackableVec3} from 'neuroglancer/trackable_vec3';
 import {vec3} from 'neuroglancer/util/geom';
 import {verifyEnumString, verifyFiniteFloat, verifyOptionalString} from 'neuroglancer/util/json';
+import {makeIcon} from 'neuroglancer/widget/icon';
 import {RangeWidget} from 'neuroglancer/widget/range';
 import {Tab} from 'neuroglancer/widget/tab_view';
 import {Vec3Widget} from 'neuroglancer/widget/vec3_entry_widget';
 
-import './image_user_layer.css';
-import 'neuroglancer/maximize_button.css';
-
 function getVectorGraphicsWithStatusMessage(
-    dataSourceProvider: DataSourceProvider, chunkManager: ChunkManager, x: string,
+    dataSourceProvider: DataSourceProviderRegistry, chunkManager: ChunkManager, x: string,
     options: GetVectorGraphicsOptions = {}): Promise<MultiscaleVectorGraphicsChunkSource> {
   return StatusMessage.forPromise(
       new Promise(function(resolve) {
@@ -77,7 +77,7 @@ export class VectorGraphicsUserLayer extends UserLayer {
       ++remaining;
       if (this.vectorGraphicsLayerType === VectorGraphicsType.LINE) {
         getVectorGraphicsWithStatusMessage(
-            manager.dataSourceProvider, manager.chunkManager, vectorGraphicsPath)
+            manager.dataSourceProviderRegistry, manager.chunkManager, vectorGraphicsPath)
             .then(vectorGraphics => {
               if (!this.wasDisposed) {
                 let renderLayer = this.renderLayer =
@@ -135,16 +135,13 @@ class DisplayOptionsTab extends Tab {
 
     let spacer = document.createElement('div');
     spacer.style.flex = '1';
-    let helpLink = document.createElement('a');
-    let helpButton = document.createElement('button');
-    helpButton.type = 'button';
-    helpButton.textContent = '?';
-    helpButton.className = 'help-link';
-    helpLink.appendChild(helpButton);
-    helpLink.title = 'Documentation on vector graphics layer rendering';
-    helpLink.target = '_blank';
-    helpLink.href =
-        'https://github.com/google/neuroglancer/blob/master/src/neuroglancer/sliceview/vectorgraphics_layer_rendering.md';
+
+    const helpLink = makeIcon({
+      text: '?',
+      title: 'Documentation on vector graphics layer rendering',
+      href:
+          'https://github.com/google/neuroglancer/blob/master/src/neuroglancer/sliceview/vectorgraphics_layer_rendering.md',
+    });
 
     topRow.appendChild(spacer);
     topRow.appendChild(helpLink);

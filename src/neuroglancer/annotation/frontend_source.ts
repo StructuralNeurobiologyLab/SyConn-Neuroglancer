@@ -14,19 +14,21 @@
  * limitations under the License.
  */
 
-import {Annotation, AnnotationId, AnnotationReference, AnnotationType, annotationTypes, deserializeAnnotation, getAnnotationTypeHandler, makeAnnotationId, AnnotationSourceSignals} from 'neuroglancer/annotation';
+import {Annotation, AnnotationId, AnnotationReference, AnnotationSourceSignals, AnnotationType, annotationTypes, deserializeAnnotation, getAnnotationTypeHandler, makeAnnotationId} from 'neuroglancer/annotation';
 import {ANNOTATION_COMMIT_UPDATE_RESULT_RPC_ID, ANNOTATION_COMMIT_UPDATE_RPC_ID, ANNOTATION_GEOMETRY_CHUNK_SOURCE_RPC_ID, ANNOTATION_METADATA_CHUNK_SOURCE_RPC_ID, ANNOTATION_REFERENCE_ADD_RPC_ID, ANNOTATION_REFERENCE_DELETE_RPC_ID, ANNOTATION_SUBSET_GEOMETRY_CHUNK_SOURCE_RPC_ID, AnnotationGeometryChunkSpecification} from 'neuroglancer/annotation/base';
 import {getAnnotationTypeRenderHandler} from 'neuroglancer/annotation/type_handler';
 import {Chunk, ChunkManager, ChunkSource} from 'neuroglancer/chunk_manager/frontend';
+import { WatchableCoordinateTransform, CoordinateSpace, TransformedBoundingBox} from 'neuroglancer/coordinate_transform';
 import {getObjectKey} from 'neuroglancer/segmentation_display_state/base';
 import {SliceViewSourceOptions} from 'neuroglancer/sliceview/base';
 import {MultiscaleSliceViewChunkSource, SliceViewChunk, SliceViewChunkSource, SliceViewChunkSourceOptions} from 'neuroglancer/sliceview/frontend';
 import {RenderLayer} from 'neuroglancer/sliceview/renderlayer';
 import {StatusMessage} from 'neuroglancer/status';
+import {WatchableValue} from 'neuroglancer/trackable_value';
 import {binarySearch} from 'neuroglancer/util/array';
 import {Borrowed, Owned} from 'neuroglancer/util/disposable';
 import {mat4} from 'neuroglancer/util/geom';
-import {Signal, NullarySignal} from 'neuroglancer/util/signal';
+import {NullarySignal, Signal} from 'neuroglancer/util/signal';
 import {Buffer} from 'neuroglancer/webgl/buffer';
 import {GL} from 'neuroglancer/webgl/context';
 import {registerRPC, registerSharedObjectOwner, RPC, SharedObject} from 'neuroglancer/worker_rpc';
@@ -302,6 +304,8 @@ export class MultiscaleAnnotationSource extends SharedObject implements
   sources: Owned<AnnotationGeometryChunkSource>[][];
   segmentFilteredSource: Owned<AnnotationSubsetGeometryChunkSource>;
   objectToLocal = mat4.create();
+  modelSpace: CoordinateSpace;
+  boundingBox: TransformedBoundingBox;
   constructor(public chunkManager: Borrowed<ChunkManager>, options: {
     sourceSpecifications: {parameters: any, spec: AnnotationGeometryChunkSpecification}[][]
   }) {
@@ -618,7 +622,10 @@ export class DataFetchSliceViewRenderLayer extends RenderLayer {
   sources: AnnotationGeometryChunkSource[][];
 
   constructor(multiscaleSource: MultiscaleAnnotationSource) {
-    super(multiscaleSource.chunkManager, multiscaleSource.getSources({}), {});
+    super(multiscaleSource.chunkManager, multiscaleSource, {
+      transform: new WatchableCoordinateTransform(3) as any, // FIXME
+      localPosition: new WatchableValue(new Float32Array(0)),
+    });
   }
 
   // Does nothing.

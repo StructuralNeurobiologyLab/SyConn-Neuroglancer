@@ -16,117 +16,171 @@
 
 import debounce from 'lodash/debounce';
 import {AnnotationLayerState} from 'neuroglancer/annotation/frontend';
+import {CoordinateSpace, CoordinateSpaceCombiner, CoordinateTransformSpecification, coordinateTransformSpecificationFromLegacyJson, isLocalDimension, TrackableCoordinateSpace} from 'neuroglancer/coordinate_transform';
 import {RenderedPanel} from 'neuroglancer/display_context';
+import {LayerDataSource, LayerDataSourceSpecification, layerDataSourceSpecificationFromJson, LoadedLayerDataSource} from 'neuroglancer/layer_data_source';
 import {LayerListSpecification} from 'neuroglancer/layer_specification';
-import {SpatialPosition} from 'neuroglancer/navigation_state';
-import {TrackableRefCounted, TrackableValue, WatchableSet} from 'neuroglancer/trackable_value';
+import {Position} from 'neuroglancer/navigation_state';
+import {RenderLayer, RenderLayerRole, VisibilityTrackedRenderLayer} from 'neuroglancer/renderlayer';
+import {TrackableRefCounted, TrackableValue, WatchableSet, WatchableValueInterface} from 'neuroglancer/trackable_value';
+import {LayerDataSourcesTab} from 'neuroglancer/ui/layer_data_sources_tab';
 import {restoreTool, Tool} from 'neuroglancer/ui/tool';
-import {Borrowed, Owned, RefCounted} from 'neuroglancer/util/disposable';
-import {BoundingBox, vec3} from 'neuroglancer/util/geom';
+import {Borrowed, invokeDisposers, Owned, RefCounted} from 'neuroglancer/util/disposable';
 import {verifyObject, verifyObjectProperty, verifyOptionalBoolean, verifyOptionalString, verifyPositiveInt} from 'neuroglancer/util/json';
+import {MessageList} from 'neuroglancer/util/message_list';
 import {NullarySignal} from 'neuroglancer/util/signal';
 import {addSignalBinding, removeSignalBinding, SignalBindingUpdater} from 'neuroglancer/util/signal_binding_updater';
 import {Trackable} from 'neuroglancer/util/trackable';
 import {Uint64} from 'neuroglancer/util/uint64';
-import {VisibilityPriorityAggregator, WatchableVisibilityPriority} from 'neuroglancer/visibility_priority/frontend';
+import {kEmptyFloat32Vec} from 'neuroglancer/util/vector';
+import {WatchableVisibilityPriority} from 'neuroglancer/visibility_priority/frontend';
 import {TabSpecification} from 'neuroglancer/widget/tab_view';
-
-export enum RenderLayerRole {
-  DATA,
-  ANNOTATION,
-  DEFAULT_ANNOTATION,
-}
-
-export function allRenderLayerRoles() {
-  return new WatchableSet(
-      [RenderLayerRole.DATA, RenderLayerRole.ANNOTATION, RenderLayerRole.DEFAULT_ANNOTATION]);
-}
-
-export class RenderLayer extends RefCounted {
-  ready = false;
-  role: RenderLayerRole = RenderLayerRole.DATA;
-  layerChanged = new NullarySignal();
-  redrawNeeded = new NullarySignal();
-  readyStateChanged = new NullarySignal();
-  setReady(value: boolean) {
-    this.ready = value;
-    this.readyStateChanged.dispatch();
-    this.layerChanged.dispatch();
-  }
-
-  handleAction(_action: string) {
-    // Do nothing by default.
-  }
-
-  getValueAt(_x: Float32Array): any {
-    return undefined;
-  }
-
-  /**
-   * Base voxel size for this layer, in nanometers per voxel.
-   */
-  voxelSize: vec3|null = null;
-
-  /**
-   * Bounding box for this layer, in nanometers.
-   */
-  boundingBox: BoundingBox|null = null;
-
-  /**
-   * Transform the stored pickedValue and offset associated with the retrieved pick ID into the
-   * actual value.
-   */
-  transformPickedValue(pickedValue: Uint64, _pickedOffset: number): any {
-    return pickedValue;
-  }
-
-  /**
-   * Optionally updates the mouse state based on the retrived pick information.  This might snap the
-   * 3-d position to the center of the picked point.
-   */
-  updateMouseState(
-      _mouseState: MouseSelectionState, _pickedValue: Uint64, _pickedOffset: number, _data: any) {}
-}
-
-/**
- * Extends RenderLayer with functionality for tracking the number of panels in which the layer is
- * visible.
- */
-export class VisibilityTrackedRenderLayer extends RenderLayer {
-  visibility = new VisibilityPriorityAggregator();
-}
 
 const TAB_JSON_KEY = 'tab';
 const TOOL_JSON_KEY = 'tool';
+const LOCAL_POSITION_JSON_KEY = 'layerPosition';
+const LOCAL_COORDINATE_SPACE_JSON_KEY = 'layerDimensions';
+const SOURCE_JSON_KEY = 'source';
+const TRANSFORM_JSON_KEY = 'transform';
 
 export class UserLayer extends RefCounted {
+  get localPosition() {
+    return this.managedLayer.localPosition;
+  }
+
+  get localCoordinateSpace() {
+    return this.managedLayer.localCoordinateSpace;
+  }
+
+  localCoordinateSpaceCombiner =
+      new CoordinateSpaceCombiner(this.localCoordinateSpace, isLocalDimension);
+
   layersChanged = new NullarySignal();
   readyStateChanged = new NullarySignal();
   specificationChanged = new NullarySignal();
   renderLayers = new Array<RenderLayer>();
-  isReady = false;
+  private loadingCounter = 1;
+  get isReady() {
+    return this.loadingCounter === 0;
+  }
+
   tabs = this.registerDisposer(new TabSpecification());
-  tool = this.registerDisposer(
+  tool: TrackableRefCounted<Tool> = this.registerDisposer(
       new TrackableRefCounted<Tool>(value => restoreTool(this, value), value => value.toJSON()));
-  constructor(public manager: Borrowed<LayerListSpecification>, specification: any) {
+
+  dataSourcesChanged = new NullarySignal();
+  dataSources: LayerDataSource[] = [];
+
+  get manager() {
+    return this.managedLayer.manager;
+  }
+
+  constructor(public managedLayer: Borrowed<ManagedUserLayer>, specification: any) {
     super();
     specification;
     this.tabs.changed.add(this.specificationChanged.dispatch);
     this.tool.changed.add(this.specificationChanged.dispatch);
+    this.localPosition.changed.add(this.specificationChanged.dispatch);
+    this.dataSourcesChanged.add(this.specificationChanged.dispatch);
+    this.tabs.add('source', {
+      label: 'Source',
+      order: -100,
+      getter: () => new LayerDataSourcesTab(this),
+    });
+  }
+
+  canAddDataSource() {
+    return true;
+  }
+
+  addDataSource(spec: LayerDataSourceSpecification) {
+    this.dataSources.push(new LayerDataSource(this, spec));
+    this.dataSourcesChanged.dispatch();
+  }
+
+  initializeDataSource(loaded: LoadedLayerDataSource, refCounted: RefCounted): void {
+    loaded;
+    refCounted;
+    throw new Error('not implemented');
+  }
+
+  private decrementLoadingCounter() {
+    if (--this.loadingCounter === 0) {
+      this.readyStateChanged.dispatch();
+    }
+  }
+
+  markLoading() {
+    const localRetainer = this.localCoordinateSpaceCombiner.retain();
+    const globalRetainer = this.manager.root.coordinateSpaceCombiner.retain();
+    if (++this.loadingCounter === 1) {
+      this.readyStateChanged.dispatch();
+    }
+    const disposer = () => {
+      localRetainer();
+      globalRetainer();
+      this.decrementLoadingCounter();
+    };
+    return disposer;
+  }
+
+  addCoordinateSpace(coordinateSpace: WatchableValueInterface<CoordinateSpace>) {
+    const globalBinding = this.manager.root.coordinateSpaceCombiner.bind(coordinateSpace);
+    const localBinding = this.localCoordinateSpaceCombiner.bind(coordinateSpace);
+    return () => {
+      globalBinding();
+      localBinding();
+    };
+  }
+
+  initializationDone() {
+    this.decrementLoadingCounter();
+  }
+
+  getLegacyDataSourceSpecifications(
+      sourceSpec: string|undefined, layerSpec: any,
+      legacyTransform: CoordinateTransformSpecification|undefined): LayerDataSourceSpecification[] {
+    layerSpec;
+    if (sourceSpec === undefined) return [];
+    return [layerDataSourceSpecificationFromJson(sourceSpec, legacyTransform)];
+  }
+
+  getDataSourceSpecifications(layerSpec: any): LayerDataSourceSpecification[] {
+    let legacySpec: any = undefined;
+    const specs = verifyObjectProperty(layerSpec, SOURCE_JSON_KEY, sourcesObj => {
+      if (Array.isArray(sourcesObj)) {
+        return sourcesObj.map(source => layerDataSourceSpecificationFromJson(source));
+      } else if (typeof sourcesObj === 'object') {
+        return [layerDataSourceSpecificationFromJson(sourcesObj)];
+      } else {
+        legacySpec = sourcesObj;
+        return [];
+      }
+    });
+    const legacyTransform = verifyObjectProperty(
+        layerSpec, TRANSFORM_JSON_KEY, coordinateTransformSpecificationFromLegacyJson);
+    specs.push(...this.getLegacyDataSourceSpecifications(legacySpec, layerSpec, legacyTransform));
+    return specs;
   }
 
   restoreState(specification: any) {
     this.tool.restoreState(specification[TOOL_JSON_KEY]);
     this.tabs.restoreState(specification[TAB_JSON_KEY]);
+    this.localCoordinateSpace.restoreState(specification[LOCAL_COORDINATE_SPACE_JSON_KEY]);
+    this.localPosition.restoreState(specification[LOCAL_POSITION_JSON_KEY]);
+    for (const spec of this.getDataSourceSpecifications(specification)) {
+      this.addDataSource(spec);
+    }
   }
 
-  addRenderLayer(layer: RenderLayer) {
+  addRenderLayer(layer: Owned<RenderLayer>) {
     this.renderLayers.push(layer);
     const {layersChanged, readyStateChanged} = this;
     layer.layerChanged.add(layersChanged.dispatch);
     layer.readyStateChanged.add(readyStateChanged.dispatch);
     readyStateChanged.dispatch();
     layersChanged.dispatch();
+    return () => this.removeRenderLayer(layer);
   }
 
   removeRenderLayer(layer: RenderLayer) {
@@ -145,11 +199,13 @@ export class UserLayer extends RefCounted {
 
   disposed() {
     const {layersChanged, readyStateChanged} = this;
+    invokeDisposers(this.dataSources);
     for (const layer of this.renderLayers) {
       layer.layerChanged.remove(layersChanged.dispatch);
       layer.readyStateChanged.remove(readyStateChanged.dispatch);
       layer.dispose();
     }
+    this.renderLayers.length = 0;
     super.disposed();
   }
 
@@ -180,15 +236,28 @@ export class UserLayer extends RefCounted {
 
   toJSON(): any {
     return {
+      [SOURCE_JSON_KEY]: dataSourcesToJson(this.dataSources),
       [TAB_JSON_KEY]: this.tabs.toJSON(),
       [TOOL_JSON_KEY]: this.tool.toJSON(),
+      [LOCAL_COORDINATE_SPACE_JSON_KEY]: this.localCoordinateSpace.toJSON(),
+      [LOCAL_POSITION_JSON_KEY]: this.localPosition.toJSON(),
     };
   }
 
   handleAction(_action: string): void {}
 }
 
+function dataSourcesToJson(sources: readonly LayerDataSource[]) {
+  if (sources.length === 0) return undefined;
+  if (sources.length === 1) return sources[0].toJSON();
+  return sources.map(x => x.toJSON());
+}
+
 export class ManagedUserLayer extends RefCounted {
+  sourceUrl: string|undefined;
+  localCoordinateSpace = new TrackableCoordinateSpace();
+  localPosition = this.registerDisposer(new Position(this.localCoordinateSpace));
+
   readyStateChanged = new NullarySignal();
   layerChanged = new NullarySignal();
   specificationChanged = new NullarySignal();
@@ -241,13 +310,29 @@ export class ManagedUserLayer extends RefCounted {
     }
   }
 
+  visible = true;
+
   /**
    * If layer is not null, tranfers ownership of a reference.
    */
-  constructor(name: string, layer: UserLayer|null = null, public visible: boolean = true) {
+  constructor(
+      name: string, public initialSpecification: any,
+      public manager: Borrowed<LayerListSpecification>) {
     super();
     this.name_ = name;
-    this.layer = layer;
+  }
+
+  toJSON() {
+    let userLayer = this.layer;
+    if (!userLayer) {
+      return this.initialSpecification;
+    }
+    let layerSpec = userLayer.toJSON();
+    layerSpec.name = this.name;
+    if (!this.visible) {
+      layerSpec['visible'] = false;
+    }
+    return layerSpec;
   }
 
   private handleLayerChanged() {
@@ -275,7 +360,7 @@ export class LayerManager extends RefCounted {
   layersChanged = new NullarySignal();
   readyStateChanged = new NullarySignal();
   specificationChanged = new NullarySignal();
-  boundPositions = new WeakSet<SpatialPosition>();
+  boundPositions = new WeakSet<Position>();
   numDirectUsers = 0;
   private renderLayerToManagedLayerMapGeneration = -1;
   private renderLayerToManagedLayerMap_ = new Map<RenderLayer, ManagedUserLayer>();
@@ -363,14 +448,6 @@ export class LayerManager extends RefCounted {
     return managedLayer;
   }
 
-  /**
-   * Assumes ownership of an existing reference to userLayer.
-   */
-  addUserLayer(name: string, userLayer: UserLayer, visible: boolean) {
-    let managedLayer = new ManagedUserLayer(name, userLayer, visible);
-    return this.addManagedLayer(managedLayer);
-  }
-
   * readyRenderLayers() {
     for (let managedUserLayer of this.managedLayers) {
       if (!managedUserLayer.visible || !managedUserLayer.layer) {
@@ -449,62 +526,6 @@ export class LayerManager extends RefCounted {
     return this.layerSet.has(layer);
   }
 
-  /**
-   * Asynchronously initialize the voxelSize and position based on the managed layers.
-   *
-   * The first ready layer with an associated bounding box will set the position to the center of
-   * the bounding box.
-   *
-   * If the position later becomes invalid, it will be initialized again.
-   */
-  initializePosition(position: SpatialPosition) {
-    let {boundPositions} = this;
-    if (boundPositions.has(position)) {
-      return;
-    }
-    boundPositions.add(position);
-
-    // Deboucne to ensure that if the position is reset and the layers are reset immediately after,
-    // the position will not be reinitialized based on the soon to be reset layers.
-    const handler = debounce(() => {
-      this.updatePositionFromLayers(position);
-    });
-    this.readyStateChanged.add(handler);
-    position.changed.add(handler);
-    this.updatePositionFromLayers(position);
-  }
-
-  updatePositionFromLayers(position: SpatialPosition) {
-    if (position.valid) {
-      return;
-    }
-    for (let managedLayer of this.managedLayers) {
-      let userLayer = managedLayer.layer;
-      if (userLayer == null) {
-        continue;
-      }
-      for (let renderLayer of userLayer.renderLayers) {
-        if (!renderLayer.ready) {
-          continue;
-        }
-        if (!position.voxelSize.valid && renderLayer.voxelSize != null) {
-          vec3.copy(position.voxelSize.size, renderLayer.voxelSize);
-          position.voxelSize.setValid();
-        }
-
-        if (!position.spatialCoordinatesValid && !position.voxelCoordinatesValid &&
-            renderLayer.boundingBox != null) {
-          let boundingBox = renderLayer.boundingBox;
-          let centerPosition = position.spatialCoordinates;
-          vec3.add(centerPosition, boundingBox.lower, boundingBox.upper);
-          vec3.scale(centerPosition, centerPosition, 0.5);
-          position.spatialCoordinatesValid = true;
-          position.changed.dispatch();
-        }
-      }
-    }
-  }
-
   get renderLayers() {
     let layerManager = this;
     return {
@@ -562,7 +583,8 @@ export interface PickState {
 
 export class MouseSelectionState implements PickState {
   changed = new NullarySignal();
-  position = vec3.create();
+  coordinateSpace: CoordinateSpace|undefined;
+  position: Float32Array = kEmptyFloat32Vec;
   active = false;
   pickedRenderLayer: RenderLayer|null = null;
   pickedValue = new Uint64(0, 0);
@@ -680,13 +702,19 @@ export class LayerSelectedValues extends RefCounted {
   }
 }
 
+export class VisibleLayerInfo extends RefCounted {
+  messages = new MessageList();
+  seenGeneration = -1;
+}
+
+let visibleLayerInfoGeneration = 0;
+
 export class VisibleRenderLayerTracker<RenderLayerType extends VisibilityTrackedRenderLayer> extends
     RefCounted {
   /**
    * Maps a layer to the disposer to call when it is no longer visible.
    */
-  private visibleLayers = new Map<RenderLayerType, () => void>();
-  private newVisibleLayers = new Set<RenderLayerType>();
+  private visibleLayers_ = new Map<RenderLayerType, VisibleLayerInfo>();
 
   private debouncedUpdateVisibleLayers =
       this.registerCancellable(debounce(() => this.updateVisibleLayers(), 0));
@@ -695,7 +723,7 @@ export class VisibleRenderLayerTracker<RenderLayerType extends VisibilityTracked
       public layerManager: LayerManager,
       public renderLayerType: {new(...args: any[]): RenderLayerType},
       public roles: WatchableSet<RenderLayerRole>,
-      private layerAdded: (layer: RenderLayerType) => (() => void),
+      private layerAdded: (layer: RenderLayerType, info: VisibleLayerInfo) => void,
       public visibility: WatchableVisibilityPriority) {
     super();
     this.registerDisposer(layerManager.layersChanged.add(this.debouncedUpdateVisibleLayers));
@@ -704,40 +732,40 @@ export class VisibleRenderLayerTracker<RenderLayerType extends VisibilityTracked
   }
 
   disposed() {
-    this.visibleLayers.forEach(disposer => disposer());
+    this.visibleLayers.forEach(x => x.dispose());
     this.visibleLayers.clear();
     super.disposed();
   }
 
   private updateVisibleLayers() {
-    let {visibleLayers, newVisibleLayers, renderLayerType, layerAdded, roles} = this;
+    const curGeneration = ++visibleLayerInfoGeneration;
+    const {visibleLayers_: visibleLayers, renderLayerType, layerAdded, roles} = this;
     for (let renderLayer of this.layerManager.readyRenderLayers()) {
       if (renderLayer instanceof renderLayerType && roles.has(renderLayer.role)) {
         let typedLayer = <RenderLayerType>renderLayer;
-        newVisibleLayers.add(typedLayer);
-        if (!visibleLayers.has(typedLayer)) {
-          const visibilityDisposer = typedLayer.visibility.add(this.visibility);
-          const disposer = layerAdded(typedLayer);
-          visibleLayers.set(typedLayer.addRef(), () => {
-            disposer();
-            visibilityDisposer();
-            typedLayer.dispose();
-          });
+        let info = visibleLayers.get(typedLayer);
+        if (info === undefined) {
+          info = new VisibleLayerInfo();
+          info.registerDisposer(typedLayer.messages.addChild(info.messages));
+          info.registerDisposer(typedLayer.addRef());
+          info.registerDisposer(typedLayer.visibility.add(this.visibility));
+          visibleLayers.set(typedLayer, info);
+          layerAdded(typedLayer, info);
         }
+        info.seenGeneration = curGeneration;
       }
     }
-    for (let [renderLayer, disposer] of visibleLayers) {
-      if (!newVisibleLayers.has(renderLayer)) {
+    for (const [renderLayer, info] of visibleLayers) {
+      if (info.seenGeneration !== curGeneration) {
         visibleLayers.delete(renderLayer);
-        disposer();
+        info.dispose();
       }
     }
-    newVisibleLayers.clear();
   }
 
-  getVisibleLayers() {
-    (<any>this.debouncedUpdateVisibleLayers).flush();
-    return [...this.visibleLayers.keys()];
+  get visibleLayers() {
+    this.debouncedUpdateVisibleLayers.flush();
+    return this.visibleLayers_;
   }
 }
 
@@ -745,19 +773,15 @@ export function
 makeRenderedPanelVisibleLayerTracker<RenderLayerType extends VisibilityTrackedRenderLayer>(
     layerManager: LayerManager, renderLayerType: {new (...args: any[]): RenderLayerType},
     roles: WatchableSet<RenderLayerRole>, panel: RenderedPanel,
-    layerAdded?: (layer: RenderLayerType) => ((() => void) | void)) {
+    layerAdded?: (layer: RenderLayerType, info: VisibleLayerInfo) => void) {
   return panel.registerDisposer(
-      new VisibleRenderLayerTracker(layerManager, renderLayerType, roles, layer => {
-        const disposer = layer.redrawNeeded.add(() => panel.scheduleRedraw());
-        const disposer2 = layerAdded && layerAdded(layer);
+      new VisibleRenderLayerTracker(layerManager, renderLayerType, roles, (layer, info) => {
+        info.registerDisposer(layer.redrawNeeded.add(() => panel.scheduleRedraw()));
+        if (layerAdded !== undefined) {
+          layerAdded(layer, info);
+        }
         panel.scheduleRedraw();
-        return () => {
-          if (disposer2 !== undefined) {
-            disposer2();
-          }
-          disposer();
-          panel.scheduleRedraw();
-        };
+        info.registerDisposer(() => panel.scheduleRedraw());
       }, panel.visibility));
 }
 

@@ -16,7 +16,7 @@
 
 import {MultiscaleSliceViewChunkSource, SliceViewChunk, SliceViewChunkSource} from 'neuroglancer/sliceview/frontend';
 import {SliceView} from 'neuroglancer/sliceview/frontend';
-import {RenderLayer as GenericSliceViewRenderLayer} from 'neuroglancer/sliceview/renderlayer';
+import { RenderLayer as GenericSliceViewRenderLayer, RenderLayerOptions} from 'neuroglancer/sliceview/renderlayer';
 import {VectorGraphicsChunkSource as VectorGraphicsChunkSourceInterface, VectorGraphicsChunkSpecification, VectorGraphicsSourceOptions} from 'neuroglancer/sliceview/vector_graphics/base';
 import {Owned} from 'neuroglancer/util/disposable';
 import {Buffer} from 'neuroglancer/webgl/buffer';
@@ -31,10 +31,8 @@ export abstract class RenderLayer extends GenericSliceViewRenderLayer {
   rpcId: RpcId|null = null;
   protected shaderGetter: Owned<ShaderGetter>;
 
-  constructor(multiscaleSource: MultiscaleVectorGraphicsChunkSource, {
-    sourceOptions = <VectorGraphicsSourceOptions> {}
-  } = {}) {
-    super(multiscaleSource.chunkManager, multiscaleSource.getSources(sourceOptions), {});
+  constructor(multiscaleSource: MultiscaleVectorGraphicsChunkSource, options: RenderLayerOptions) {
+    super(multiscaleSource.chunkManager, multiscaleSource, options);
     this.shaderGetter = this.registerDisposer(new ShaderGetter(
         this.gl, builder => this.defineShader(builder), () => this.getShaderKey()));
   }

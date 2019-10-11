@@ -16,8 +16,8 @@
 
 import {ChunkLayoutOptions, getChunkDataSizes, getCombinedTransform, getNearIsotropicBlockSize, SliceViewChunkSource, SliceViewChunkSpecification, SliceViewChunkSpecificationBaseOptions, SliceViewChunkSpecificationOptions, SliceViewSourceOptions} from 'neuroglancer/sliceview/base';
 import {DATA_TYPE_BYTES, DataType} from 'neuroglancer/util/data_type';
-import {kInfinityVec, kZeroVec, prod3, vec3} from 'neuroglancer/util/geom';
-
+import {vec3} from 'neuroglancer/util/geom';
+import * as vector from 'neuroglancer/util/vector';
 export {DATA_TYPE_BYTES, DataType};
 
 export interface RenderLayer {
@@ -50,40 +50,13 @@ export interface VolumeSourceOptions extends SliceViewSourceOptions {}
 export interface VolumeChunkSpecificationBaseOptions extends
     SliceViewChunkSpecificationBaseOptions {
   /**
-   * Lower clipping bound (in nanometers), relative to chunkLayout coordinates.  If not specified,
-   * defaults to lowerVoxelBound * voxelSize.
-   *
-   * Both lowerClipBound and upperClipBound are applied during rendering but do not affect which
-   * chunks/voxels are actually retrieved.  That is determined by lowerVoxelBound and
-   * upperVoxelBound.
-   */
-  lowerClipBound?: vec3;
-
-  /**
-   * Upper clipping bound (in nanometers), relative to chunkLayout coordinates.  If not specified,
-   * defaults to upperVoxelBound * voxelSize.
-   */
-  upperClipBound?: vec3;
-
-  /**
-   * If not specified, defaults to (0, 0, 0).  This determines lowerChunkBound.  If this is not a
-   * multiple of chunkDataSize, then voxels at lower positions may still be requested.
-   */
-  lowerVoxelBound?: vec3;
-
-  /**
-   * Upper voxel bound, relative to chunkLayout coordinates.  This determines upperChunkBound.
-   */
-  upperVoxelBound: vec3;
-
-  /**
    * Specifies offset for use by backend.ts:GenericVolumeChunkSource.computeChunkBounds in
    * calculating chunk voxel coordinates.  The calculated chunk coordinates will be equal to the
    * voxel position (in chunkLayout coordinates) plus this value.
    *
    * Defaults to kZeroVec if not specified.
    */
-  baseVoxelOffset?: vec3;
+  baseVoxelOffset?: Float32Array;
   numChannels: number;
   dataType: DataType;
 
@@ -94,12 +67,8 @@ export interface VolumeChunkSpecificationBaseOptions extends
   compressedSegmentationBlockSize?: vec3;
 }
 
-export interface VolumeChunkSpecificationOptions extends VolumeChunkSpecificationBaseOptions {
-  /**
-   * Chunk size in voxels.
-   */
-  chunkDataSize: vec3;
-}
+export interface VolumeChunkSpecificationOptions extends VolumeChunkSpecificationBaseOptions,
+                                                         SliceViewChunkSpecificationOptions {}
 
 
 export interface VolumeChunkSpecificationVolumeSourceOptions {
@@ -115,6 +84,7 @@ export interface VolumeChunkSpecificationDefaultCompressionOptions {
    */
   volumeType: VolumeType;
   maxCompressedSegmentationBlockSize?: vec3;
+  minBlockSize?: Uint32Array;
 }
 
 /**
@@ -128,14 +98,8 @@ export interface VolumeChunkSpecificationGetDefaultsOptions extends
  * Specifies a chunk layout and voxel size.
  */
 export class VolumeChunkSpecification extends SliceViewChunkSpecification {
-  lowerClipBound: vec3;
-  upperClipBound: vec3;
 
-  lowerVoxelBound: vec3;
-  upperVoxelBound: vec3;
-
-  baseVoxelOffset: vec3;
-  chunkDataSize: vec3;
+  baseVoxelOffset: Float32Array;
   numChannels: number;
   dataType: DataType;
 
@@ -144,61 +108,29 @@ export class VolumeChunkSpecification extends SliceViewChunkSpecification {
   compressedSegmentationBlockSize: vec3|undefined;
 
   constructor(options: VolumeChunkSpecificationOptions) {
-    let {
-      lowerVoxelBound = kZeroVec,
-      upperVoxelBound,
-      chunkDataSize,
-      voxelSize,
-      transform,
-      baseVoxelOffset = kZeroVec
-    } = options;
-    let {
-      lowerClipBound = vec3.multiply(vec3.create(), voxelSize, lowerVoxelBound),
-      upperClipBound = vec3.multiply(vec3.create(), voxelSize, upperVoxelBound)
-    } = options;
-    const chunkSize = vec3.multiply(vec3.create(), chunkDataSize, voxelSize);
-    let lowerChunkBound = vec3.create();
-    let upperChunkBound = vec3.create();
-    for (let i = 0; i < 3; ++i) {
-      lowerChunkBound[i] = Math.floor(lowerVoxelBound[i] / chunkDataSize[i]);
-      upperChunkBound[i] = Math.floor((upperVoxelBound[i] - 1) / chunkDataSize[i] + 1);
-    }
-    super({voxelSize, transform, lowerChunkBound, upperChunkBound, chunkSize});
+    super(options);
+    const {rank} = this;
+    const {baseVoxelOffset = new Float32Array(rank)} = options;
     this.baseVoxelOffset = baseVoxelOffset;
-    this.lowerClipBound = lowerClipBound;
-    this.upperClipBound = upperClipBound;
-    this.lowerVoxelBound = lowerVoxelBound;
-    this.upperVoxelBound = upperVoxelBound;
-    this.chunkDataSize = chunkDataSize;
-
-    let dataType = this.dataType = options.dataType;
-    let numChannels = this.numChannels = options.numChannels;
-
-    this.chunkBytes = prod3(chunkDataSize) * DATA_TYPE_BYTES[dataType] * numChannels;
-
+    const dataType = this.dataType = options.dataType;
+    const numChannels = this.numChannels = options.numChannels;
+    this.chunkBytes = vector.prod(this.chunkDataSize) * DATA_TYPE_BYTES[dataType] * numChannels;
     this.compressedSegmentationBlockSize = options.compressedSegmentationBlockSize;
   }
 
-  static make(options: VolumeChunkSpecificationOptions&
-              {volumeSourceOptions: SliceViewSourceOptions}) {
-    return new VolumeChunkSpecification(Object.assign(
-        {}, options,
-        {transform: getCombinedTransform(options.transform, options.volumeSourceOptions)}));
+  static make(options: VolumeChunkSpecificationOptions) {
+    return new VolumeChunkSpecification(options);
   }
 
   static fromObject(msg: any) {
     return new VolumeChunkSpecification(msg);
   }
+
   toObject(): VolumeChunkSpecificationOptions&SliceViewChunkSpecificationOptions {
     return {
       ...super.toObject(),
       numChannels: this.numChannels,
-      chunkDataSize: this.chunkDataSize,
       dataType: this.dataType,
-      lowerVoxelBound: this.lowerVoxelBound,
-      upperVoxelBound: this.upperVoxelBound,
-      lowerClipBound: this.lowerClipBound,
-      upperClipBound: this.upperClipBound,
       baseVoxelOffset: this.baseVoxelOffset,
       compressedSegmentationBlockSize: this.compressedSegmentationBlockSize,
     };
@@ -214,40 +146,45 @@ export class VolumeChunkSpecification extends SliceViewChunkSpecification {
     let {
       compressedSegmentationBlockSize,
       dataType,
-      voxelSize,
       transform,
       lowerVoxelBound,
-      upperVoxelBound
+      upperVoxelBound,
     } = options;
-    transform = getCombinedTransform(transform, options.volumeSourceOptions);
-    if (compressedSegmentationBlockSize === undefined &&
+    const rank = upperVoxelBound.length;
+    const combinedTransform =
+        getCombinedTransform(rank, options.volumeSourceOptions.transform, transform);
+    if (compressedSegmentationBlockSize === undefined && rank === 3 &&
         options.volumeType === VolumeType.SEGMENTATION &&
         (dataType === DataType.UINT32 || dataType === DataType.UINT64)) {
-      compressedSegmentationBlockSize = getNearIsotropicBlockSize({
+      const {maxCompressedSegmentationBlockSize, chunkDataSize} = options;
+      compressedSegmentationBlockSize = Float32Array.from(getNearIsotropicBlockSize({
+        rank,
         numChannels: options.numChannels,
-        voxelSize,
-        transform,
+        transform: combinedTransform,
         lowerVoxelBound,
         upperVoxelBound,
         maxVoxelsPerChunkLog2: 9,
-        maxBlockSize: vec3.min(
-            vec3.create(), options.chunkDataSize,
-            options.maxCompressedSegmentationBlockSize || kInfinityVec),
-      });
+        spatialLayerDimensions: [0, 1, 2],
+        maxBlockSize: maxCompressedSegmentationBlockSize === undefined ?
+            chunkDataSize :
+            vector.min(new Uint32Array(rank), chunkDataSize, maxCompressedSegmentationBlockSize),
+      })) as vec3;
     }
-    return new VolumeChunkSpecification(
-        Object.assign({}, options, {compressedSegmentationBlockSize, transform}));
+    return new VolumeChunkSpecification({...options, compressedSegmentationBlockSize});
   }
 
   static getDefaults(options: VolumeChunkSpecificationGetDefaultsOptions) {
-    const adjustedOptions = Object.assign(
-        {}, options,
-        {transform: getCombinedTransform(options.transform, options.volumeSourceOptions)});
-
-    let {chunkDataSizes = getChunkDataSizes(adjustedOptions)} = options;
+    const rank = options.upperVoxelBound.length;
+    const {chunkDataSizes = getChunkDataSizes({
+             rank,
+             ...options,
+             transform: getCombinedTransform(
+                 rank, options.volumeSourceOptions.transform, options.transform),
+             spatialLayerDimensions: options.volumeSourceOptions.spatialLayerDimensions,
+           })} = options;
     return chunkDataSizes.map(
         chunkDataSize => VolumeChunkSpecification.withDefaultCompression(
-            Object.assign({}, options, {chunkDataSize})));
+            {...options, chunkDataSize: chunkDataSize}));
   }
 }
 

@@ -17,7 +17,7 @@
 import {Annotation, AnnotationType} from 'neuroglancer/annotation';
 import {AnnotationLayer} from 'neuroglancer/annotation/frontend';
 import {PerspectiveViewRenderContext} from 'neuroglancer/perspective_view/render_layer';
-import {SliceViewPanelRenderContext} from 'neuroglancer/sliceview/panel';
+import {SliceViewPanelRenderContext} from 'neuroglancer/sliceview/renderlayer';
 import {RefCounted} from 'neuroglancer/util/disposable';
 import {mat4, vec3} from 'neuroglancer/util/geom';
 import {Buffer} from 'neuroglancer/webgl/buffer';

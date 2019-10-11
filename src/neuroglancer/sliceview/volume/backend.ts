@@ -17,15 +17,13 @@
 import {SliceViewChunk, SliceViewChunkSource} from 'neuroglancer/sliceview/backend';
 import {VolumeChunkSource as VolumeChunkSourceInterface, VolumeChunkSpecification} from 'neuroglancer/sliceview/volume/base';
 import {vec3} from 'neuroglancer/util/geom';
+import * as vector from 'neuroglancer/util/vector';
 import {RPC} from 'neuroglancer/worker_rpc';
-
-const tempChunkDataSize = vec3.create();
-const tempChunkPosition = vec3.create();
 
 export class VolumeChunk extends SliceViewChunk {
   source: VolumeChunkSource|null = null;
   data: ArrayBufferView|null;
-  chunkDataSize: vec3|null;
+  chunkDataSize: Uint32Array|null;
   constructor() {
     super();
   }
@@ -68,9 +66,14 @@ export class VolumeChunk extends SliceViewChunk {
 
 export class VolumeChunkSource extends SliceViewChunkSource implements VolumeChunkSourceInterface {
   spec: VolumeChunkSpecification;
+  private tempChunkDataSize: Uint32Array;
+  private tempChunkPosition: Float32Array;
   constructor(rpc: RPC, options: any) {
     super(rpc, options);
-    this.spec = VolumeChunkSpecification.fromObject(options['spec']);
+    const spec = this.spec = VolumeChunkSpecification.fromObject(options['spec']);
+    const rank = spec.upperVoxelBound.length;
+    this.tempChunkDataSize = new Uint32Array(rank);
+    this.tempChunkPosition = new Float32Array(rank);
   }
 
   /**
@@ -93,11 +96,12 @@ export class VolumeChunkSource extends SliceViewChunkSource implements VolumeChu
     let {upperVoxelBound} = spec;
 
     let origChunkDataSize = spec.chunkDataSize;
-    let newChunkDataSize = tempChunkDataSize;
+    let newChunkDataSize = this.tempChunkDataSize;
+
 
     // Chunk start position in voxel coordinates.
     let chunkPosition =
-        vec3.multiply(tempChunkPosition, chunk.chunkGridPosition, origChunkDataSize);
+        vector.multiply(this.tempChunkPosition, chunk.chunkGridPosition, origChunkDataSize);
 
     // Specifies whether the chunk only partially fits within the data bounds.
     let partial = false;
@@ -109,10 +113,10 @@ export class VolumeChunkSource extends SliceViewChunkSource implements VolumeChu
       }
     }
 
-    vec3.add(chunkPosition, chunkPosition, this.spec.baseVoxelOffset);
+    vector.add(chunkPosition, chunkPosition, this.spec.baseVoxelOffset);
 
     if (partial) {
-      chunk.chunkDataSize = vec3.clone(newChunkDataSize);
+      chunk.chunkDataSize = Uint32Array.from(newChunkDataSize);
     } else {
       chunk.chunkDataSize = origChunkDataSize;
     }

@@ -51,9 +51,10 @@ export class VectorGraphicsChunkSpecification extends SliceViewChunkSpecificatio
 
   static make(options: VectorGraphicsChunkSpecificationOptions&
               {vectorGraphicsSourceOptions: VectorGraphicsSourceOptions}) {
-    return new VectorGraphicsChunkSpecification(Object.assign(
-        {}, options,
-        {transform: getCombinedTransform(options.transform, options.vectorGraphicsSourceOptions)}));
+    return new VectorGraphicsChunkSpecification(Object.assign({}, options, {
+      transform:
+          getCombinedTransform(4, options.vectorGraphicsSourceOptions.transform, options.transform)
+    }));
   }
 
   static fromObject(msg: any) {

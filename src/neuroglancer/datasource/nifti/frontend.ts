@@ -20,7 +20,7 @@
  */
 
 import {ChunkManager, WithParameters} from 'neuroglancer/chunk_manager/frontend';
-import {DataSource} from 'neuroglancer/datasource';
+import {DataSourceProvider} from 'neuroglancer/datasource';
 import {GET_NIFTI_VOLUME_INFO_RPC_ID, NiftiVolumeInfo, VolumeSourceParameters} from 'neuroglancer/datasource/nifti/base';
 import {VolumeChunkSpecification, VolumeSourceOptions} from 'neuroglancer/sliceview/volume/base';
 import {VolumeChunkSource, MultiscaleVolumeChunkSource as GenericMultiscaleVolumeChunkSource} from 'neuroglancer/sliceview/volume/frontend';
@@ -77,7 +77,7 @@ export function getVolume(chunkManager: ChunkManager, url: string) {
                 .then(info => new MultiscaleVolumeChunkSource(chunkManager, url, info)));
 }
 
-export class NiftiDataSource extends DataSource {
+export class NiftiDataSource extends DataSourceProvider {
   get description() { return 'Single NIfTI file'; }
   getVolume(chunkManager: ChunkManager, url: string) {
     return getVolume(chunkManager, url);

@@ -14,11 +14,15 @@
  * limitations under the License.
  */
 
+import 'neuroglancer/noselect.css';
+import './layer_panel.css';
+
+import svg_plus from 'ikonate/icons/plus.svg';
 import {DisplayContext} from 'neuroglancer/display_context';
 import {ManagedUserLayer, SelectedLayerState,} from 'neuroglancer/layer';
 import {LayerDialog} from 'neuroglancer/layer_dialog';
 import {LinkedViewerNavigationState} from 'neuroglancer/layer_group_viewer';
-import {LayerListSpecification, ManagedUserLayerWithSpecification} from 'neuroglancer/layer_specification';
+import {LayerListSpecification} from 'neuroglancer/layer_specification';
 import {NavigationLinkType} from 'neuroglancer/navigation_state';
 import {DropLayers, endLayerDrag, getDropLayers, getLayerDropEffect, startLayerDrag} from 'neuroglancer/ui/layer_drag_and_drop';
 import {animationFrameDebounce} from 'neuroglancer/util/animation_frame_debounce';
@@ -27,26 +31,21 @@ import {removeFromParent} from 'neuroglancer/util/dom';
 import {getDropEffect, preventDrag, setDropEffect} from 'neuroglancer/util/drag_and_drop';
 import {float32ToString} from 'neuroglancer/util/float32_to_string';
 import {makeCloseButton} from 'neuroglancer/widget/close_button';
+import {makeIcon} from 'neuroglancer/widget/icon';
 import {PositionWidget} from 'neuroglancer/widget/position_widget';
 
-import 'neuroglancer/noselect.css';
-import './layer_panel.css';
-import 'neuroglancer/ui/button.css';
-
 function destroyDropLayers(
-    dropLayers: DropLayers, targetLayer?: ManagedUserLayerWithSpecification) {
+    dropLayers: DropLayers, targetLayer?: ManagedUserLayer) {
   if (dropLayers.method === 'move') {
     // Nothing to do.
     return false;
   }
-  dropLayers.manager.layerManager.filter(
-      layer => !dropLayers.layers.has(<ManagedUserLayerWithSpecification>layer));
+  dropLayers.manager.layerManager.filter(layer => !dropLayers.layers.has(layer));
   return targetLayer !== undefined && dropLayers.layers.has(targetLayer);
 }
 
 function registerDropHandlers(
-    panel: LayerPanel, target: EventTarget,
-    targetLayer: ManagedUserLayerWithSpecification|undefined) {
+    panel: LayerPanel, target: EventTarget, targetLayer: ManagedUserLayer|undefined) {
   function update(event: DragEvent, updateDropEffect: boolean): DropLayers|undefined {
     let dropLayers = panel.dropLayers;
     const dropEffect =
@@ -90,10 +89,10 @@ function registerDropHandlers(
     } else {
       // Rearrange layers.
       const {layerManager} = panel.manager;
-      const existingLayers = new Set<ManagedUserLayerWithSpecification>();
+      const existingLayers = new Set<ManagedUserLayer>();
       let firstRemovalIndex = Number.POSITIVE_INFINITY;
       const managedLayers = layerManager.managedLayers =
-          layerManager.managedLayers.filter((x: ManagedUserLayerWithSpecification, index) => {
+          layerManager.managedLayers.filter((x: ManagedUserLayer, index) => {
             if (dropLayers!.layers.has(x)) {
               if (firstRemovalIndex === Number.POSITIVE_INFINITY) {
                 firstRemovalIndex = index;
@@ -165,7 +164,7 @@ class LayerWidget extends RefCounted {
   labelElement: HTMLSpanElement;
   valueElement: HTMLSpanElement;
 
-  constructor(public layer: ManagedUserLayerWithSpecification, public panel: LayerPanel) {
+  constructor(public layer: ManagedUserLayer, public panel: LayerPanel) {
     super();
     let element = this.element = document.createElement('div');
     element.title = 'Control+click for layer options, drag to move/copy.';
@@ -185,6 +184,15 @@ class LayerWidget extends RefCounted {
     element.appendChild(layerNumberElement);
     element.appendChild(labelElement);
     element.appendChild(valueElement);
+    const positionWidget =
+        this.registerDisposer(new PositionWidget(layer.localPosition, {copyButton: false}));
+    element.appendChild(positionWidget.element);
+    positionWidget.element.addEventListener('click', (event: MouseEvent) => {
+      event.stopPropagation();
+    });
+    positionWidget.element.addEventListener('dblclick', (event: MouseEvent) => {
+      event.stopPropagation();
+    });
     element.appendChild(closeElement);
     this.registerEventListener(element, 'click', (event: MouseEvent) => {
       if (event.ctrlKey) {
@@ -217,9 +225,7 @@ class LayerWidget extends RefCounted {
     this.registerDisposer(registerDropHandlers(this.panel, element, this.layer));
 
     this.registerEventListener(element, 'dblclick', (_event: MouseEvent) => {
-      if (layer instanceof ManagedUserLayerWithSpecification) {
-        new LayerDialog(this.panel.manager, layer);
-      }
+      new LayerDialog(this.panel.manager, layer);
     });
   }
 
@@ -276,18 +282,18 @@ export class LayerPanel extends RefCounted {
     this.layerWidgetInsertionPoint.style.display = 'none';
     this.element.appendChild(this.layerWidgetInsertionPoint);
 
-    let addButton = document.createElement('div');
-    addButton.className = 'neuroglancer-layer-add-button neuroglancer-button';
-    addButton.title =
-        'Click to add layer, control+click/right click/⌘+click to add local annotation layer.';
-    addButton.textContent = '+';
+    let addButton = makeIcon({
+      svg: svg_plus,
+      title: 'Click to add layer, control+click/right click/⌘+click to add local annotation layer.',
+    });
+    addButton.classList.add('neuroglancer-layer-add-button');
 
     let dropZone = this.dropZone = document.createElement('div');
     dropZone.className = 'neuroglancer-layer-panel-drop-zone';
 
     const addLayer = (event: MouseEvent) => {
       if (event.ctrlKey || event.metaKey || event.type === 'contextmenu') {
-        const layer = new ManagedUserLayerWithSpecification('annotation', {}, this.manager);
+        const layer = new ManagedUserLayer('annotation', {}, this.manager);
         this.manager.initializeLayerFromSpec(layer, {type: 'annotation'});
         this.manager.add(layer);
       } else {
@@ -387,7 +393,7 @@ export class LayerPanel extends RefCounted {
     let container = this.element;
     let layers = new Set();
     let nextChild = this.layerWidgetInsertionPoint.nextElementSibling;
-    this.manager.layerManager.managedLayers.forEach((layer: ManagedUserLayerWithSpecification) => {
+    this.manager.layerManager.managedLayers.forEach((layer: ManagedUserLayer) => {
       layers.add(layer);
       let widget = this.layerWidgets.get(layer);
       const layerIndex = this.manager.rootLayers.managedLayers.indexOf(layer);

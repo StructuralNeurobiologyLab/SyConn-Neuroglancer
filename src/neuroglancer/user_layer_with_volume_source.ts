@@ -14,29 +14,25 @@
  * limitations under the License.
  */
 
-import {AnnotationLayerState} from 'neuroglancer/annotation/frontend';
-import {GetVolumeOptions} from 'neuroglancer/datasource';
-import {RenderLayerRole, UserLayer} from 'neuroglancer/layer';
-import {getVolumeWithStatusMessage} from 'neuroglancer/layer_specification';
+// import {AnnotationLayerState} from 'neuroglancer/annotation/frontend';
+import {UserLayer} from 'neuroglancer/layer';
 import {RenderScaleHistogram, trackableRenderScaleTarget} from 'neuroglancer/render_scale_statistics';
 import {MultiscaleVolumeChunkSource} from 'neuroglancer/sliceview/volume/frontend';
 import {TrackableValue} from 'neuroglancer/trackable_value';
-import {getAnnotationRenderOptions, UserLayerWithAnnotations, UserLayerWithAnnotationsMixin} from 'neuroglancer/ui/annotations';
-import {UserLayerWithCoordinateTransform, UserLayerWithCoordinateTransformMixin} from 'neuroglancer/user_layer_with_coordinate_transform';
-import {verifyObjectProperty, verifyOptionalString} from 'neuroglancer/util/json';
+import {UserLayerWithAnnotations, UserLayerWithAnnotationsMixin} from 'neuroglancer/ui/annotations';
 
-const SOURCE_JSON_KEY = 'source';
+// const SOURCE_JSON_KEY = 'source';
 const CROSS_SECTION_RENDER_SCALE_JSON_KEY = 'crossSectionRenderScale';
 
 interface BaseConstructor {
-  new(...args: any[]): UserLayerWithAnnotations&UserLayerWithCoordinateTransform;
+  new(...args: any[]): UserLayerWithAnnotations;
 }
 
 function helper<TBase extends BaseConstructor>(Base: TBase) {
   class C extends Base implements UserLayerWithVolumeSource {
     volumePath: string|undefined;
     multiscaleSource: Promise<MultiscaleVolumeChunkSource>|undefined;
-    volumeOptions: GetVolumeOptions|undefined;
+    volumeOptions: any|undefined;
     sliceViewRenderScaleHistogram = new RenderScaleHistogram();
     sliceViewRenderScaleTarget = (() => {
       const target = trackableRenderScaleTarget(1);
@@ -46,34 +42,32 @@ function helper<TBase extends BaseConstructor>(Base: TBase) {
 
     restoreState(specification: any) {
       super.restoreState(specification);
-      const volumePath = this.volumePath =
-          verifyObjectProperty(specification, SOURCE_JSON_KEY, verifyOptionalString);
       this.sliceViewRenderScaleTarget.restoreState(
           specification[CROSS_SECTION_RENDER_SCALE_JSON_KEY]);
 
-      if (volumePath !== undefined) {
-        const multiscaleSource = this.multiscaleSource = getVolumeWithStatusMessage(
-            this.manager.dataSourceProvider, this.manager.chunkManager, volumePath,
-            this.volumeOptions);
-        multiscaleSource.then(volume => {
-          if (!this.wasDisposed) {
-            const staticAnnotations = volume.getStaticAnnotations && volume.getStaticAnnotations();
-            if (staticAnnotations !== undefined) {
-              this.annotationLayerState.value = new AnnotationLayerState({
-                transform: this.transform,
-                source: staticAnnotations,
-                role: RenderLayerRole.DEFAULT_ANNOTATION,
-                ...getAnnotationRenderOptions(this),
-              });
-            }
-          }
-        });
-      }
+      // if (volumePath !== undefined) {
+      //   const multiscaleSource = this.multiscaleSource = getVolumeWithStatusMessage(
+      //       this.manager.dataSourceProviderRegistry, this.manager.chunkManager, volumePath,
+      //       this.volumeOptions);
+      //   multiscaleSource;
+      // multiscaleSource.then(volume => {
+      //   if (!this.wasDisposed) {
+      //     const staticAnnotations = volume.getStaticAnnotations && volume.getStaticAnnotations();
+      //     if (staticAnnotations !== undefined && false) {
+      //       this.annotationLayerState.value = new AnnotationLayerState({
+      //         transform: this.transform as any,  // FIXME
+      //         source: staticAnnotations as any,  // FIXME
+      //         role: RenderLayerRole.DEFAULT_ANNOTATION,
+      //         ...getAnnotationRenderOptions(this),
+      //       });
+      //     }
+      //   }
+      // });
+      // }
     }
 
     toJSON() {
       const result = super.toJSON();
-      result[SOURCE_JSON_KEY] = this.volumePath;
       result[CROSS_SECTION_RENDER_SCALE_JSON_KEY] = this.sliceViewRenderScaleTarget.toJSON();
       return result;
     }
@@ -81,8 +75,7 @@ function helper<TBase extends BaseConstructor>(Base: TBase) {
   return C;
 }
 
-export interface UserLayerWithVolumeSource extends UserLayerWithAnnotations,
-                                                   UserLayerWithCoordinateTransform {
+export interface UserLayerWithVolumeSource extends UserLayerWithAnnotations {
   volumePath: string|undefined;
   multiscaleSource: Promise<MultiscaleVolumeChunkSource>|undefined;
   sliceViewRenderScaleHistogram: RenderScaleHistogram;
@@ -94,5 +87,5 @@ export interface UserLayerWithVolumeSource extends UserLayerWithAnnotations,
  */
 export function UserLayerWithVolumeSourceMixin<TBase extends {new (...args: any[]): UserLayer}>(
     Base: TBase) {
-  return helper(UserLayerWithAnnotationsMixin(UserLayerWithCoordinateTransformMixin(Base)));
+  return helper(UserLayerWithAnnotationsMixin(Base));
 }
