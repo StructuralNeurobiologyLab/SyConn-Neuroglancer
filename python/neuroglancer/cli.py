@@ -15,17 +15,27 @@
 
 def add_server_arguments(ap):
     """Defines common options for the Neuroglancer server."""
-    g = ap.add_argument_group(title='Neuroglancer server options')
-    g.add_argument(
-        '--bind-address',
-        help='Bind address for Python web server.  Use 127.0.0.1 (the default) to restrict access '
-        'to browers running on the local machine, use 0.0.0.0 to permit access from remote browsers.'
-    )
-    g.add_argument('--static-content-url',
-                   help='Obtain the Neuroglancer client code from the specified URL.')
-    g.add_argument('--debug-server',
-                   action='store_true',
-                   help='Log requests to web server used for Neuroglancer Python API')
+
+    ap.add_argument('--port', type=int, default=1080,
+                        help='Port to connect to SyConn Gate')
+    ap.add_argument('--host', type=str, default='0.0.0.0',
+                        help='IP address to SyConn Gate')
+
+
+    # g = ap.add_argument_group(title='Neuroglancer server options')
+    # g.add_argument(
+    #     '--host',
+    #     help='Bind address for Python web server.  Use 127.0.0.1 (the default) to restrict access '
+    #     'to browers running on the local machine, use 0.0.0.0 to permit access from remote browsers.'
+    # )
+    # g.add_argument(
+    #     '--port',
+    #     help='Bind port for Python web server.  Use 1080 (the default) to restrict access.')
+    # g.add_argument('--static-content-url',
+    #                help='Obtain the Neuroglancer client code from the specified URL.')
+    # g.add_argument('--debug-server',
+    #                action='store_true',
+    #                help='Log requests to web server used for Neuroglancer Python API')
 
 
 def add_state_arguments(ap, required=False, dest='state'):
@@ -57,8 +67,8 @@ def handle_server_arguments(args):
     """Handles the options defined by `add_server_arguments`."""
     from . import server
 
-    if args.bind_address:
-        server.set_server_bind_address(args.bind_address)
+    if args.host and args.port:
+        server.set_server_bind_address(args.host, args.port)
     if args.static_content_url:
         server.set_static_content_source(url=args.static_content_url)
     if args.debug_server:

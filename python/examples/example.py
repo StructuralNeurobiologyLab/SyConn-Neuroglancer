@@ -51,7 +51,8 @@ void main() {
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
     neuroglancer.cli.add_server_arguments(ap)
-    args = ap.parse_args()
+    print('fat')
+    args = ap.parse_args()                          # TODO problem to parse arguments --host --port
     neuroglancer.cli.handle_server_arguments(args)
     viewer = neuroglancer.Viewer()
     with viewer.txn() as s:
