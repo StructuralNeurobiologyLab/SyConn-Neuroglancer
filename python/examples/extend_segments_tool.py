@@ -11,7 +11,7 @@ import webbrowser
 import neuroglancer
 from neuroglancer.json_utils import decode_json, encode_json
 
-neuroglancer.set_static_content_source(url='http://localhost:8080')
+neuroglancer.set_static_content_source(url='http://localhost:1080')
 
 
 def get_segmentation_layer(layers):

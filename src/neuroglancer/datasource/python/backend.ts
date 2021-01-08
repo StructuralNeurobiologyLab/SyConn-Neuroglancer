@@ -44,7 +44,7 @@ chunkDecoders.set(VolumeChunkEncoding.RAW, decodeRawChunk);
     let path = `../../neuroglancer/${this.encoding}/${parameters.key}/${parameters.scaleKey}`;
     {
       // chunkPosition must not be captured, since it will be invalidated by the next call to
-      // computeChunkBounds.
+      // computeChunkBounds. 
       let chunkPosition = this.computeChunkBounds(chunk);
       const chunkDataSize = chunk.chunkDataSize!;
       const length = chunkPosition.length;

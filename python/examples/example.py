@@ -1,10 +1,12 @@
 from __future__ import print_function
 
 import argparse
+import sys
 import numpy as np
 
 import neuroglancer
 import neuroglancer.cli
+from syconn.analysis.backend import SyConnBackend
 
 
 def add_example_layers(state):
@@ -55,7 +57,10 @@ void main() {
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
     neuroglancer.cli.add_server_arguments(ap)
-    args = ap.parse_args()
+    args = ap.parse_args(sys.argv[1:])
+    # TODO delete this print
+    print(args.host)
+    print(args.port)
     neuroglancer.cli.handle_server_arguments(args)
     viewer = neuroglancer.Viewer()
     with viewer.txn() as s:
