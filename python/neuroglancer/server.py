@@ -19,7 +19,7 @@ import numpy as np
 global_server = None
 global_static_content_source = None
 _global_server_lock = threading.Lock()
-global_server_args = dict(bind_address='127.0.0.1', bind_port=1080)
+global_server_args = dict(host='127.0.0.1', port=1080)
 
 # create and configure the app
 app = Flask(__name__)
@@ -188,7 +188,7 @@ def set_static_content_source(*args, **kwargs):
 
 def set_server_bind_address(bind_address='127.0.0.1', bind_port=1080):
     global global_server_args
-    global_server_args = dict(bind_address=bind_address, bind_port=bind_port)
+    global_server_args = dict(host=bind_address, port=bind_port)
 
 
 def is_server_running():

@@ -15,10 +15,10 @@
 
 def add_server_arguments(ap):
     """Defines common options for the Neuroglancer server."""
-
-    ap.add_argument('--port', type=int, default=1080,
+    g = ap.add_argument_group(title='Neuroglancer server options')
+    g.add_argument('--port', type=int, default=1080,
                         help='Port to connect to SyConn Gate')
-    ap.add_argument('--host', type=str, default='0.0.0.0',
+    g.add_argument('--host', type=str, default='0.0.0.0',
                         help='IP address to SyConn Gate')
 
 
@@ -69,7 +69,7 @@ def handle_server_arguments(args):
 
     if args.host and args.port:
         server.set_server_bind_address(args.host, args.port)
-    if args.static_content_url:
-        server.set_static_content_source(url=args.static_content_url)
-    if args.debug_server:
-        server.debug = True
+    #if args.static_content_url:
+    #    server.set_static_content_source(url=args.static_content_url)
+    #if args.debug_server:
+    #    server.debug = True

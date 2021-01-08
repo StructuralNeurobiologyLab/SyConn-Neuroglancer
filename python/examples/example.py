@@ -1,6 +1,7 @@
 from __future__ import print_function
 
 import argparse
+import sys
 import numpy as np
 
 import neuroglancer
@@ -51,8 +52,9 @@ void main() {
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
     neuroglancer.cli.add_server_arguments(ap)
-    print('fat')
-    args = ap.parse_args()                          # TODO problem to parse arguments --host --port
+    args = ap.parse_args(sys.argv[1:])
+    print(args.host)
+    print(args.port)                          # TODO problem to parse arguments --host --port
     neuroglancer.cli.handle_server_arguments(args)
     viewer = neuroglancer.Viewer()
     with viewer.txn() as s:
