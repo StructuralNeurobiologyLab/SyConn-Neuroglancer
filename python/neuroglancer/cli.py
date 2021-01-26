@@ -22,22 +22,6 @@ def add_server_arguments(ap):
                         help='IP address to SyConn Gate')
 
 
-    # g = ap.add_argument_group(title='Neuroglancer server options')
-    # g.add_argument(
-    #     '--host',
-    #     help='Bind address for Python web server.  Use 127.0.0.1 (the default) to restrict access '
-    #     'to browers running on the local machine, use 0.0.0.0 to permit access from remote browsers.'
-    # )
-    # g.add_argument(
-    #     '--port',
-    #     help='Bind port for Python web server.  Use 1080 (the default) to restrict access.')
-    # g.add_argument('--static-content-url',
-    #                help='Obtain the Neuroglancer client code from the specified URL.')
-    # g.add_argument('--debug-server',
-    #                action='store_true',
-    #                help='Log requests to web server used for Neuroglancer Python API')
-
-
 def add_state_arguments(ap, required=False, dest='state'):
     """Defines options for specifying a Neuroglancer state."""
     g = ap.add_mutually_exclusive_group(required=required)

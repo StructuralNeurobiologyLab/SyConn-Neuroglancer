@@ -53,8 +53,9 @@ if __name__ == '__main__':
     ap = argparse.ArgumentParser()
     neuroglancer.cli.add_server_arguments(ap)
     args = ap.parse_args(sys.argv[1:])
+    # TODO delete this print
     print(args.host)
-    print(args.port)                          # TODO problem to parse arguments --host --port
+    print(args.port)
     neuroglancer.cli.handle_server_arguments(args)
     viewer = neuroglancer.Viewer()
     with viewer.txn() as s:

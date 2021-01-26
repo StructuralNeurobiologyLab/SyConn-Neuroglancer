@@ -191,10 +191,14 @@ class LocalVolume(trackable_state.ChangeNotifier):
         return data, content_type
 
     def get_object_mesh(self, object_id):
-        mesh_generator = self._get_mesh_generator()
-        data = mesh_generator.get_mesh(object_id)
+        # mesh_generator = self._get_mesh_generator()
+        # data = mesh_generator.get_mesh(object_id)
+
         if data is None:
             raise InvalidObjectIdForMesh()
+
+        #TODO try dummy vertices
+
         return data
 
     def _get_mesh_generator(self):

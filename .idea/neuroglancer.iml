@@ -6,6 +6,7 @@
     </content>
     <orderEntry type="jdk" jdkName="Python 3.9 (neuro)" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />
+    <orderEntry type="module" module-name="SyConn" />
   </component>
   <component name="TemplatesService">
     <option name="TEMPLATE_FOLDERS">

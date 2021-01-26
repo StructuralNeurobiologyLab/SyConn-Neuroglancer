@@ -58,12 +58,12 @@ ACTION_PATH_REGEX = r'^/action/(?P<viewer_token>[^/]+)$'
 
 global_static_content_source = None
 
-global_server_args = dict(bind_address='127.0.0.1', bind_port=0)
+global_server_args = dict(host='127.0.0.1', port=1080)
 
 debug = False
 
 class Server(object):
-    def __init__(self, ioloop, bind_address='127.0.0.1', bind_port=0):
+    def __init__(self, ioloop, host='127.0.0.1', port=0):
         self.viewers = weakref.WeakValueDictionary()
         self.token = make_random_token()
         self.executor = concurrent.futures.ThreadPoolExecutor(
@@ -97,7 +97,7 @@ class Server(object):
             # Allow very large requests to accommodate large screenshots.
             max_buffer_size=1024**3,
         )
-        sockets = tornado.netutil.bind_sockets(port=bind_port, address=bind_address)
+        sockets = tornado.netutil.bind_sockets(port=port, address=host)
         http_server.add_sockets(sockets)
         actual_port = sockets[0].getsockname()[1]
 
@@ -105,10 +105,10 @@ class Server(object):
         if global_static_content_source is None:
             global_static_content_source = static.get_default_static_content_source()
 
-        if bind_address == '0.0.0.0' or bind_address == '::':
+        if host == '0.0.0.0' or host == '::':
             hostname = socket.getfqdn()
         else:
-            hostname = bind_address
+            hostname = host
 
         self.server_url = 'http://%s:%s' % (hostname, actual_port)
 
@@ -264,9 +264,9 @@ def set_static_content_source(*args, **kwargs):
     global_static_content_source = static.get_static_content_source(*args, **kwargs)
 
 
-def set_server_bind_address(bind_address='127.0.0.1', bind_port=0):
+def set_server_bind_address(bind_address='127.0.0.1', bind_port=1080):
     global global_server_args
-    global_server_args = dict(bind_address=bind_address, bind_port=bind_port)
+    global_server_args = dict(host=bind_address, port=bind_port)
 
 
 def is_server_running():
