@@ -1,7 +1,6 @@
 from __future__ import print_function
 
 import argparse
-import sys
 import numpy as np
 
 import neuroglancer
@@ -27,22 +26,14 @@ def add_example_layers(state):
         layer=neuroglancer.LocalVolume(
             data=a,
             dimensions=neuroglancer.CoordinateSpace(
-                names=['c^', 'x', 'y', 'z'],
+                names=['c', 'x', 'y', 'z'],
                 units=['', 'nm', 'nm', 'nm'],
                 scales=[1, 10, 10, 10],
                 coordinate_arrays=[
                     neuroglancer.CoordinateArray(labels=['red', 'green', 'blue']), None, None, None
                 ]),
             voxel_offset=(0, 20, 30, 15),
-        ),
-        shader="""
-void main() {
-  emitRGB(vec3(toNormalized(getDataValue(0)),
-               toNormalized(getDataValue(1)),
-               toNormalized(getDataValue(2))));
-}
-""",
-    )
+        ))
     state.layers.append(
         name='b',
         layer=neuroglancer.LocalVolume(
@@ -56,10 +47,7 @@ void main() {
 if __name__ == '__main__':
     ap = argparse.ArgumentParser()
     neuroglancer.cli.add_server_arguments(ap)
-    args = ap.parse_args(sys.argv[1:])
-    # TODO delete this print
-    print(args.host)
-    print(args.port)
+    args = ap.parse_args()
     neuroglancer.cli.handle_server_arguments(args)
     viewer = neuroglancer.Viewer()
     with viewer.txn() as s:
