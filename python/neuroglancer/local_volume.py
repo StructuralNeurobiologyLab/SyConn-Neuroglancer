@@ -17,6 +17,7 @@ from __future__ import absolute_import, division, print_function
 import collections
 import math
 import threading
+import struct
 
 import numpy as np
 import six
@@ -45,6 +46,8 @@ class LocalVolume(trackable_state.ChangeNotifier):
                  voxel_offset=None,
                  encoding='npz',
                  max_voxels_per_chunk_log2=None,
+                 precomputedMesh=False,                     # added for precomputed meshes
+                 meshes=None,
                  mesh_options=None,
                  downsampling='3d',
                  chunk_layout=None,
@@ -116,6 +119,8 @@ class LocalVolume(trackable_state.ChangeNotifier):
                 volume_type = 'image'
         self.volume_type = volume_type
 
+        self.precomputedMesh = precomputedMesh
+        self.meshes = meshes
         self._mesh_generator = None
         self._mesh_generator_pending = None
         self._mesh_generator_lock = threading.Condition()
@@ -190,14 +195,80 @@ class LocalVolume(trackable_state.ChangeNotifier):
             raise ValueError('Invalid data format requested.')
         return data, content_type
 
+    def get_flattenedMeshById(self, id):
+        '''
+        Gets mesh for an id. {'vertices', 'indices', 'normals'}
+                                (float32)   (int64)     (?)
+        :param backend: SyConn backend
+        :param id: id of ssv
+        :return: Python bytes() of [num_vert, vertices, indices, normals]
+        '''
+
+        print('in flatMesh')
+        def convertToBytes(arg):
+            """
+            Converts np.array into bytes in Little Endian
+
+            #TODO  nativecode = '>' if sys.byteorder == 'big' else '<'
+            Assume system byteorder is little endian
+
+            :param arg: np.ndarray of float32/int32 values
+            :return: Bytes() of the input list
+            """
+
+            res = bytes()
+
+            if (type(arg[0]) is np.float32):
+                for num in arg:
+                    res = res + struct.pack('<f', num)
+                # print(arg.dtype.byteorder)
+                return res  # arg.tobytes(order='C')
+            elif (type(arg[0]) is np.int64):
+                for num in arg:
+                    res = res + struct.pack('<I', num.astype(np.int32).item())
+                # print(arg.astype(np.int32).dtype)
+                # print('multiple of 12?')
+                # print(len(res) % 2 == 0)
+                return res
+
+            return res
+
+        print(self.meshes.keys())
+
+        try:
+            print('in try')
+            meshDict = self.meshes[id]
+        except:
+            print('exception')
+            raise InvalidObjectIdForMesh()
+
+        # convert nd.arrays into bytes to be json serializable bytes
+        num_vert = struct.pack('<I', meshDict['num_vertices'])
+        print('Length of parts')
+        print(len(num_vert))
+        vertices = convertToBytes(meshDict['vertices'])
+        print(len(vertices))
+        indices = convertToBytes(meshDict['indices'])
+        print(len(indices))
+        flattenedMesh = b''.join([num_vert, vertices, indices])               # bytes of [num_vert, vertices, indices, normals]
+
+        return flattenedMesh
+
     def get_object_mesh(self, object_id):
-        # mesh_generator = self._get_mesh_generator()
-        # data = mesh_generator.get_mesh(object_id)
+
+        print(object_id)
+
+        if self.precomputedMesh is True:
+            print('Entered precomputed')
+            flattenedMesh = self.get_flattenedMeshById(object_id)
+            print('Parse flattenedMesh')
+            return flattenedMesh
+
+        mesh_generator = self._get_mesh_generator()
+        data = mesh_generator.get_mesh(object_id)
 
         if data is None:
             raise InvalidObjectIdForMesh()
-
-        #TODO try dummy vertices
 
         return data
 
