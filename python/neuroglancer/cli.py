@@ -51,9 +51,8 @@ def handle_server_arguments(args):
     """Handles the options defined by `add_server_arguments`."""
     from . import server
 
+    print(args.port)
+    print(args.host)
+
     if args.host and args.port:
         server.set_server_bind_address(args.host, args.port)
-    #if args.static_content_url:
-    #    server.set_static_content_source(url=args.static_content_url)
-    #if args.debug_server:
-    #    server.debug = True

@@ -208,7 +208,6 @@ class LocalVolume(trackable_state.ChangeNotifier):
 
         :return: Python bytes() of [num_vert, vertices, indices]
         '''
-        print('in flatMesh')
 
         vertices = mesh['vertices'].astype(np.float32).reshape(-1, 3)[:, [2, 1, 0]].reshape(-1, 3)
         indices = np.array(mesh['indices'], dtype=np.uint32).reshape(-1, 3)
@@ -235,7 +234,6 @@ class LocalVolume(trackable_state.ChangeNotifier):
     def get_object_mesh_precomputed(self, object_id):
         try:
             mesh = self.backend.ssv_mesh(object_id)
-            print('in get object mesh precomputed')
         except:
             raise InvalidObjectIdForMesh(
                 'Precomputed mesh not available for ssv_id: {}'.format(object_id))
