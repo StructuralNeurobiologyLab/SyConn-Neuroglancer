@@ -176,7 +176,6 @@ class SubvolumeHandler(BaseRequestHandler):
         if vol is None or not isinstance(vol, local_volume.LocalVolume):
             self.send_error(404)
             return
-
         def handle_subvolume_result(f):
             try:
                 data, content_type = f.result()
@@ -221,8 +220,14 @@ class MeshHandler(BaseRequestHandler):
             self.set_header('Content-type', 'application/octet-stream')
             self.finish(encoded_mesh)
 
-        self.server.executor.submit(vol.get_object_mesh, object_id).add_done_callback(
+        if vol.precomputedMesh is True:
+            print('Loading precomputed mesh')
+            self.server.executor.submit(vol.get_object_mesh_precomputed, object_id).add_done_callback(
             lambda f: self.server.ioloop.add_callback(lambda: handle_mesh_result(f)))
+        else:
+            print('Loading generated mesh')
+            self.server.executor.submit(vol.get_object_mesh, vol, object_id).add_done_callback(
+                lambda f: self.server.ioloop.add_callback(lambda: handle_mesh_result(f)))
 
 
 class SkeletonHandler(BaseRequestHandler):
@@ -264,7 +269,7 @@ def set_static_content_source(*args, **kwargs):
     global_static_content_source = static.get_static_content_source(*args, **kwargs)
 
 
-def set_server_bind_address(bind_address='127.0.0.1', bind_port=1080):
+def set_server_bind_address(bind_address='127.0.0.1', bind_port=0):
     global global_server_args
     global_server_args = dict(host=bind_address, port=bind_port)
 
@@ -275,6 +280,7 @@ def is_server_running():
 
 def stop():
     """Stop the server, invalidating any viewer URLs.
+
     This allows any previously-referenced data arrays to be garbage collected if there are no other
     references to them.
     """
@@ -283,7 +289,6 @@ def stop():
         ioloop = global_server.ioloop
         def stop_ioloop():
             ioloop.stop()
-            ioloop.close()
         global_server.ioloop.add_callback(stop_ioloop)
         global_server = None
 
@@ -315,6 +320,7 @@ def start():
             global_server = Server(ioloop=ioloop, **global_server_args)
             done.set()
             ioloop.start()
+            ioloop.close()
 
         thread = threading.Thread(target=start_server)
         thread.daemon = True

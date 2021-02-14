@@ -15,28 +15,35 @@
 from __future__ import absolute_import, division, print_function
 
 import collections
+from ctypes import c_int32
+import io
 import math
-import threading
 import struct
+import threading
 
 import numpy as np
 import six
+import syconn
 
 from . import downsample, downsample_scales
 from .chunks import encode_jpeg, encode_npz, encode_raw
 from .coordinate_space import CoordinateSpace
 from . import trackable_state
 from .random_token import make_random_token
+import openmesh as om
 
 
 class MeshImplementationNotAvailable(Exception):
     pass
 
+
 class MeshesNotSupportedForVolume(Exception):
     pass
 
+
 class InvalidObjectIdForMesh(Exception):
     pass
+
 
 class LocalVolume(trackable_state.ChangeNotifier):
     def __init__(self,
@@ -46,41 +53,32 @@ class LocalVolume(trackable_state.ChangeNotifier):
                  voxel_offset=None,
                  encoding='npz',
                  max_voxels_per_chunk_log2=None,
-                 precomputedMesh=False,                     # added for precomputed meshes
-                 meshes=None,
+                 precomputedMesh=False,  # added for precomputed meshes
                  mesh_options=None,
+                 backend=None,
                  downsampling='3d',
                  chunk_layout=None,
                  max_downsampling=downsample_scales.DEFAULT_MAX_DOWNSAMPLING,
                  max_downsampled_size=downsample_scales.DEFAULT_MAX_DOWNSAMPLED_SIZE,
                  max_downsampling_scales=downsample_scales.DEFAULT_MAX_DOWNSAMPLING_SCALES):
         """Initializes a LocalVolume.
-
         @param data: Source data.
-
         @param downsampling: '3d' to use isotropic downsampling, '2d' to downsample separately in
             XY, XZ, and YZ, None to use no downsampling.
-
         @param max_downsampling: Maximum amount by which on-the-fly downsampling may reduce the
             volume of a chunk.  For example, 4x4x4 downsampling reduces the volume by 64.
-
         @param volume_type: either 'image' or 'segmentation'.  If not specified, guessed from the
             data type.
-
         @param voxel_size: Sequence [x, y, z] of floats.  Specifies the voxel size.
-
         @param mesh_options: A dict with the following keys specifying options for mesh
             simplification for 'segmentation' volumes:
-
                 - max_quadrics_error: float.  Edge collapses with a larger associated quadrics error
                   than this amount are prohibited.  Set this to a negative number to disable mesh
                   simplification, and just use the original mesh produced by the marching cubes
                   algorithm.  Defaults to 1e6.  The effect of this value depends on the voxel_size.
-
                 - max_normal_angle_deviation: float.  Edge collapses that change a triangle normal
                   by more than this angle are prohibited.  The angle is specified in degrees.
                   Defaults to 90.
-
                 - lock_boundary_vertices: bool.  Retain all vertices along mesh surface boundaries,
                   which can only occur at the boundary of the volume.  Defaults to true.
         """
@@ -118,16 +116,16 @@ class LocalVolume(trackable_state.ChangeNotifier):
             else:
                 volume_type = 'image'
         self.volume_type = volume_type
-
-        self.precomputedMesh = precomputedMesh
-        self.meshes = meshes
+        self._precomputedMesh = precomputedMesh
         self._mesh_generator = None
         self._mesh_generator_pending = None
         self._mesh_generator_lock = threading.Condition()
         self._mesh_options = mesh_options.copy() if mesh_options is not None else dict()
-
+        if backend is None or not isinstance(backend, syconn.analysis.backend.SyConnBackend):
+            raise ValueError('backend must be a SyConnBackend object')
+        else:
+            self.backend = backend
         self.max_voxels_per_chunk_log2 = max_voxels_per_chunk_log2
-
         self.downsampling_layout = downsampling
         if chunk_layout is None:
             if downsampling == '2d':
@@ -135,10 +133,13 @@ class LocalVolume(trackable_state.ChangeNotifier):
             else:
                 chunk_layout = 'isotropic'
         self.chunk_layout = chunk_layout
-
         self.max_downsampling = max_downsampling
         self.max_downsampled_size = max_downsampled_size
         self.max_downsampling_scales = max_downsampling_scales
+
+    @property
+    def precomputedMesh(self):
+        return self._precomputedMesh
 
     def info(self):
         info = dict(dataType=self.data_type,
@@ -150,10 +151,13 @@ class LocalVolume(trackable_state.ChangeNotifier):
                     voxelOffset=self.voxel_offset,
                     chunkLayout=self.chunk_layout,
                     downsamplingLayout=self.downsampling_layout,
-                    maxDownsampling=None if math.isinf(self.max_downsampling) else self.max_downsampling,
-                    maxDownsampledSize=None if math.isinf(self.max_downsampled_size) else self.max_downsampled_size,
-                    maxDownsamplingScales=None if math.isinf(self.max_downsampling_scales) else self.max_downsampling_scales,
-        )
+                    maxDownsampling=None if math.isinf(
+                        self.max_downsampling) else self.max_downsampling,
+                    maxDownsampledSize=None if math.isinf(
+                        self.max_downsampled_size) else self.max_downsampled_size,
+                    maxDownsamplingScales=None if math.isinf(
+                        self.max_downsampling_scales) else self.max_downsampling_scales,
+                    )
         if self.max_voxels_per_chunk_log2 is not None:
             info['maxVoxelsPerChunkLog2'] = self.max_voxels_per_chunk_log2
 
@@ -195,75 +199,31 @@ class LocalVolume(trackable_state.ChangeNotifier):
             raise ValueError('Invalid data format requested.')
         return data, content_type
 
-    def get_flattenedMeshById(self, id):
+    def _get_flattened_mesh(self, mesh: dict):
         '''
-        Gets mesh for an id. {'vertices', 'indices', 'normals'}
-                                (float32)   (int64)     (?)
-        :param backend: SyConn backend
-        :param id: id of ssv
-        :return: Python bytes() of [num_vert, vertices, indices, normals]
-        '''
+        Gets mesh for an id.
 
+        :param mesh: dict of {'num_vert', 'vertices', 'indices'}
+                                (int32)   (float32)     (int64)
+
+        :return: Python bytes() of [num_vert, vertices, indices]
+        '''
         print('in flatMesh')
-        def convertToBytes(arg):
-            """
-            Converts np.array into bytes in Little Endian
 
-            #TODO  nativecode = '>' if sys.byteorder == 'big' else '<'
-            Assume system byteorder is little endian
+        vertices = mesh['vertices'].astype(np.float32).reshape(-1, 3)[:, [2, 1, 0]].reshape(-1, 3)
+        indices = np.array(mesh['indices'], dtype=np.uint32).reshape(-1, 3)
+        num_vert = len(vertices)
 
-            :param arg: np.ndarray of float32/int32 values
-            :return: Bytes() of the input list
-            """
+        data = [
+            np.uint32(num_vert),
+            vertices * self.dimensions.scales[0],
+            indices
+        ]
+        encoded_mesh = b''.join([array.tobytes('C') for array in data])
 
-            res = bytes()
-
-            if (type(arg[0]) is np.float32):
-                for num in arg:
-                    res = res + struct.pack('<f', num)
-                # print(arg.dtype.byteorder)
-                return res  # arg.tobytes(order='C')
-            elif (type(arg[0]) is np.int64):
-                for num in arg:
-                    res = res + struct.pack('<I', num.astype(np.int32).item())
-                # print(arg.astype(np.int32).dtype)
-                # print('multiple of 12?')
-                # print(len(res) % 2 == 0)
-                return res
-
-            return res
-
-        print(self.meshes.keys())
-
-        try:
-            print('in try')
-            meshDict = self.meshes[id]
-        except:
-            print('exception')
-            raise InvalidObjectIdForMesh()
-
-        # convert nd.arrays into bytes to be json serializable bytes
-        num_vert = struct.pack('<I', meshDict['num_vertices'])
-        print('Length of parts')
-        print(len(num_vert))
-        vertices = convertToBytes(meshDict['vertices'])
-        print(len(vertices))
-        indices = convertToBytes(meshDict['indices'])
-        print(len(indices))
-        flattenedMesh = b''.join([num_vert, vertices, indices])               # bytes of [num_vert, vertices, indices, normals]
-
-        return flattenedMesh
+        return encoded_mesh
 
     def get_object_mesh(self, object_id):
-
-        print(object_id)
-
-        if self.precomputedMesh is True:
-            print('Entered precomputed')
-            flattenedMesh = self.get_flattenedMeshById(object_id)
-            print('Parse flattenedMesh')
-            return flattenedMesh
-
         mesh_generator = self._get_mesh_generator()
         data = mesh_generator.get_mesh(object_id)
 
@@ -271,6 +231,18 @@ class LocalVolume(trackable_state.ChangeNotifier):
             raise InvalidObjectIdForMesh()
 
         return data
+
+    def get_object_mesh_precomputed(self, object_id):
+        try:
+            mesh = self.backend.ssv_mesh(object_id)
+            print('in get object mesh precomputed')
+        except:
+            raise InvalidObjectIdForMesh(
+                'Precomputed mesh not available for ssv_id: {}'.format(object_id))
+
+        encoded_mesh = self._get_flattened_mesh(mesh)
+
+        return encoded_mesh
 
     def _get_mesh_generator(self):
         if self._mesh_generator is not None:
