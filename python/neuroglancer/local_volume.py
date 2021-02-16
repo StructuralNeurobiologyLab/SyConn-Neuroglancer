@@ -209,13 +209,13 @@ class LocalVolume(trackable_state.ChangeNotifier):
         :return: Python bytes() of [num_vert, vertices, indices]
         '''
 
-        vertices = mesh['vertices'].astype(np.float32).reshape(-1, 3)[:, [2, 1, 0]].reshape(-1, 3)
+        vertices = mesh['vertices'].astype(np.float32).reshape(-1, 3)[:, [2, 1, 0]].reshape(-1, 3) * 1e-9
         indices = np.array(mesh['indices'], dtype=np.uint32).reshape(-1, 3)
         num_vert = len(vertices)
 
         data = [
             np.uint32(num_vert),
-            vertices * self.dimensions.scales[0],
+            vertices,
             indices
         ]
         encoded_mesh = b''.join([array.tobytes('C') for array in data])
