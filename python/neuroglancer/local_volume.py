@@ -56,6 +56,7 @@ class LocalVolume(trackable_state.ChangeNotifier):
                  precomputedMesh=False,  # added for precomputed meshes
                  mesh_options=None,
                  backend=None,
+                 object_type='sv',
                  downsampling='3d',
                  chunk_layout=None,
                  max_downsampling=downsample_scales.DEFAULT_MAX_DOWNSAMPLING,
@@ -121,6 +122,7 @@ class LocalVolume(trackable_state.ChangeNotifier):
         self._mesh_generator_pending = None
         self._mesh_generator_lock = threading.Condition()
         self._mesh_options = mesh_options.copy() if mesh_options is not None else dict()
+        self.obj_type = object_type
         if backend is None or not isinstance(backend, syconn.analysis.backend.SyConnBackend):
             raise ValueError('backend must be a SyConnBackend object')
         else:
@@ -209,7 +211,7 @@ class LocalVolume(trackable_state.ChangeNotifier):
         :return: Python bytes() of [num_vert, vertices, indices]
         '''
 
-        vertices = mesh['vertices'].astype(np.float32).reshape(-1, 3)[:, [2, 1, 0]].reshape(-1, 3) * 1e-9
+        vertices = np.array(mesh['vertices'], dtype=np.float32).reshape(-1, 3)[:, [2, 1, 0]] * 1e-9
         indices = np.array(mesh['indices'], dtype=np.uint32).reshape(-1, 3)
         num_vert = len(vertices)
 
@@ -233,7 +235,14 @@ class LocalVolume(trackable_state.ChangeNotifier):
 
     def get_object_mesh_precomputed(self, object_id):
         try:
-            mesh = self.backend.ssv_mesh(object_id)
+            if self.obj_type == 'mi':
+                mi_vert = self.backend.ssv_obj_vert(object_id, self.obj_type)
+                mi_ind = self.backend.ssv_obj_ind(object_id, self.obj_type)
+                mesh = {}
+                mesh['vertices'] = mi_vert['vert']
+                mesh['indices'] = mi_ind['ind']
+            else:
+                mesh = self.backend.ssv_mesh(object_id)
         except:
             raise InvalidObjectIdForMesh(
                 'Precomputed mesh not available for ssv_id: {}'.format(object_id))
