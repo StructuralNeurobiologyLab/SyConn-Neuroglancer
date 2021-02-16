@@ -42,6 +42,7 @@ from . import skeleton
 from .json_utils import json_encoder_default
 from .random_token import make_random_token
 from .sockjs_handler import SOCKET_PATH_REGEX, SOCKET_PATH_REGEX_WITHOUT_GROUP, SockJSHandler
+from syconn.handler.logger import log_main as log_gate
 
 INFO_PATH_REGEX = r'^/neuroglancer/info/(?P<token>[^/]+)$'
 SKELETON_INFO_PATH_REGEX = r'^/neuroglancer/skeletoninfo/(?P<token>[^/]+)$'
@@ -73,6 +74,8 @@ class Server(object):
         sockjs_router = sockjs.tornado.SockJSRouter(
             SockJSHandler, SOCKET_PATH_REGEX_WITHOUT_GROUP, io_loop=ioloop)
         sockjs_router.neuroglancer_server = self
+        global logger
+        logger = log_gate
         def log_function(handler):
             if debug:
                 print("%d %s %.2fs" % (handler.get_status(),
@@ -221,7 +224,7 @@ class MeshHandler(BaseRequestHandler):
             self.finish(encoded_mesh)
 
         if vol.precomputedMesh is True:
-            print('Loading precomputed mesh')
+            logger.info('Loading precomputed mesh')
             self.server.executor.submit(vol.get_object_mesh_precomputed, object_id).add_done_callback(
             lambda f: self.server.ioloop.add_callback(lambda: handle_mesh_result(f)))
         else:

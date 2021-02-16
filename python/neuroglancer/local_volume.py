@@ -201,15 +201,36 @@ class LocalVolume(trackable_state.ChangeNotifier):
             raise ValueError('Invalid data format requested.')
         return data, content_type
 
+    def buildMeshDict(self, object_id):
+        """
+        Handle the getter for mesh according to the object type of the LocalVolume
+
+        :return: mesh dict {('num_vertices',) 'vertices', 'indices'}
+        """
+        mesh = {}
+
+        #obj_type is 'mi' or 'sj'
+        if self.obj_type == 'mi' or self.obj_type == 'sj':
+            obj_vert = self.backend.ssv_obj_vert(object_id, self.obj_type)
+            obj_ind = self.backend.ssv_obj_ind(object_id, self.obj_type)
+            mesh['vertices'] = obj_vert['vert']
+            mesh['indices'] = obj_ind['ind']
+        #obj_type = 'sv'
+        else:
+            mesh = self.backend.ssv_mesh(object_id)
+
+        return mesh
+
     def _get_flattened_mesh(self, mesh: dict):
-        '''
-        Gets mesh for an id.
+        """
+        Gets mesh for an id and encodes it according to single-resolution mesh from
+        neuroglancer/src/neuroglancer/datasource/precomputed/meshes.md
 
         :param mesh: dict of {'num_vert', 'vertices', 'indices'}
-                                (int32)   (float32)     (int64)
+                          (int32,optional) (float32)   (int64)
 
         :return: Python bytes() of [num_vert, vertices, indices]
-        '''
+        """
 
         vertices = np.array(mesh['vertices'], dtype=np.float32).reshape(-1, 3)[:, [2, 1, 0]] * 1e-9
         indices = np.array(mesh['indices'], dtype=np.uint32).reshape(-1, 3)
@@ -225,6 +246,12 @@ class LocalVolume(trackable_state.ChangeNotifier):
         return encoded_mesh
 
     def get_object_mesh(self, object_id):
+        """
+        Gets encoded mesh from the mesh generator
+
+        :param object_id: int
+        :return:
+        """
         mesh_generator = self._get_mesh_generator()
         data = mesh_generator.get_mesh(object_id)
 
@@ -234,15 +261,14 @@ class LocalVolume(trackable_state.ChangeNotifier):
         return data
 
     def get_object_mesh_precomputed(self, object_id):
+        """
+        Gets precomputed mesh from the SyConn backend and encodes it in bytes.
+
+        :param object_id: int
+        :return: bytes
+        """
         try:
-            if self.obj_type == 'mi':
-                mi_vert = self.backend.ssv_obj_vert(object_id, self.obj_type)
-                mi_ind = self.backend.ssv_obj_ind(object_id, self.obj_type)
-                mesh = {}
-                mesh['vertices'] = mi_vert['vert']
-                mesh['indices'] = mi_ind['ind']
-            else:
-                mesh = self.backend.ssv_mesh(object_id)
+            mesh = self.buildMeshDict(object_id)
         except:
             raise InvalidObjectIdForMesh(
                 'Precomputed mesh not available for ssv_id: {}'.format(object_id))
