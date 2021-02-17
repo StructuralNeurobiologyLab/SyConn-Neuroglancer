@@ -20,6 +20,8 @@ def add_server_arguments(ap):
                         help='Port to connect to SyConn Gate')
     g.add_argument('--host', type=str, default='0.0.0.0',
                         help='IP address to SyConn Gate')
+    g.add_argument('--wd', type=str, default='',
+                        help='Working directory of SyConn')
 
 
 def add_state_arguments(ap, required=False, dest='state'):
@@ -51,8 +53,9 @@ def handle_server_arguments(args):
     """Handles the options defined by `add_server_arguments`."""
     from . import server
 
-    print(args.port)
-    print(args.host)
+    # print(args.port)
+    # print(args.host)
 
     if args.host and args.port:
         server.set_server_bind_address(args.host, args.port)
+
