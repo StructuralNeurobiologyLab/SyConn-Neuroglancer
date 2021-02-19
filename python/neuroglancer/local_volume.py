@@ -209,15 +209,15 @@ class LocalVolume(trackable_state.ChangeNotifier):
         """
         mesh = {}
 
-        #obj_type is 'mi' or 'sj'
-        if self.obj_type == 'mi' or self.obj_type == 'sj':
+        #obj_type = 'sv'
+        if self.obj_type == 'sv':
+            mesh = self.backend.ssv_mesh(object_id)
+        #obj_type is 'mi'/'syn_ssv'/'sj'
+        else:
             obj_vert = self.backend.ssv_obj_vert(object_id, self.obj_type)
             obj_ind = self.backend.ssv_obj_ind(object_id, self.obj_type)
             mesh['vertices'] = obj_vert['vert']
             mesh['indices'] = obj_ind['ind']
-        #obj_type = 'sv'
-        else:
-            mesh = self.backend.ssv_mesh(object_id)
 
         return mesh
 

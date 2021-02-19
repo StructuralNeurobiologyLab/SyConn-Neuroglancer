@@ -11,8 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-
-
 def add_server_arguments(ap):
     """Defines common options for the Neuroglancer server."""
     g = ap.add_argument_group(title='Neuroglancer server options')
@@ -22,40 +20,28 @@ def add_server_arguments(ap):
                         help='IP address to SyConn Gate')
     g.add_argument('--wd', type=str, default='',
                         help='Working directory of SyConn')
-
-
 def add_state_arguments(ap, required=False, dest='state'):
     """Defines options for specifying a Neuroglancer state."""
     g = ap.add_mutually_exclusive_group(required=required)
-
     def neuroglancer_url(s):
         from .url_state import parse_url
         return parse_url(s)
-
     g.add_argument('--url',
                    type=neuroglancer_url,
                    dest=dest,
                    help='Neuroglancer URL from which to obtain state.')
-
     def json_state(path):
         import json
         from . import viewer_state
         with open(path, 'r') as f:
             return viewer_state.ViewerState(json.load(f))
-
     g.add_argument('--json',
                    type=json_state,
                    dest=dest,
                    help='Path to file containing Neuroglancer JSON state.')
-
-
 def handle_server_arguments(args):
     """Handles the options defined by `add_server_arguments`."""
     from . import server
 
-    # print(args.port)
-    # print(args.host)
-
     if args.host and args.port:
         server.set_server_bind_address(args.host, args.port)
-

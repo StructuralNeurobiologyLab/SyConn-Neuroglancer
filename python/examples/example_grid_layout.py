@@ -32,4 +32,4 @@ if __name__ == '__main__':
         ])
     print(viewer.state)
     print(viewer)
-    webbrowser.open_new(viewer.get_viewer_url())
+    # webbrowser.open_new(viewer.get_viewer_url())
