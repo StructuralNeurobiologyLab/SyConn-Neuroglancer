@@ -15,8 +15,6 @@
 from __future__ import absolute_import, division, print_function
 
 import collections
-from ctypes import c_int32
-import io
 import math
 import struct
 import threading
@@ -30,7 +28,6 @@ from .chunks import encode_jpeg, encode_npz, encode_raw
 from .coordinate_space import CoordinateSpace
 from . import trackable_state
 from .random_token import make_random_token
-import openmesh as om
 
 
 class MeshImplementationNotAvailable(Exception):
@@ -211,11 +208,19 @@ class LocalVolume(trackable_state.ChangeNotifier):
 
         #obj_type = 'sv'
         if self.obj_type == 'sv':
-            mesh = self.backend.ssv_mesh(object_id)
-        #obj_type is 'mi'/'syn_ssv'/'sj'
+            try:
+                mesh = self.backend.ssv_mesh(object_id)
+            except:
+                raise InvalidObjectIdForMesh(
+                    'Precomputed mesh not available for ssv_id: {}'.format(object_id))
+        #obj_type is 'mi'/'syn_ssv'/'sj'/'vc'
         else:
-            obj_vert = self.backend.ssv_obj_vert(object_id, self.obj_type)
-            obj_ind = self.backend.ssv_obj_ind(object_id, self.obj_type)
+            try:
+                obj_vert = self.backend.ssv_obj_vert(object_id, self.obj_type)
+                obj_ind = self.backend.ssv_obj_ind(object_id, self.obj_type)
+            except:
+                raise InvalidObjectIdForMesh(
+                    'Precomputed mesh not available for ssv_id: {}'.format(object_id))
             mesh['vertices'] = obj_vert['vert']
             mesh['indices'] = obj_ind['ind']
 
@@ -267,12 +272,7 @@ class LocalVolume(trackable_state.ChangeNotifier):
         :param object_id: int
         :return: bytes
         """
-        try:
-            mesh = self.buildMeshDict(object_id)
-        except:
-            raise InvalidObjectIdForMesh(
-                'Precomputed mesh not available for ssv_id: {}'.format(object_id))
-
+        mesh = self.buildMeshDict(object_id)
         encoded_mesh = self._get_flattened_mesh(mesh)
 
         return encoded_mesh

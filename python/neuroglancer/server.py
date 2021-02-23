@@ -38,7 +38,7 @@ except ImportError:
     from tornado.web import asynchronous
 
 from . import local_volume, static
-from . import skeleton
+from . import skeleton, mesh
 from .json_utils import json_encoder_default
 from .random_token import make_random_token
 from .sockjs_handler import SOCKET_PATH_REGEX, SOCKET_PATH_REGEX_WITHOUT_GROUP, SockJSHandler
@@ -46,6 +46,8 @@ from syconn.handler.logger import log_main as log_gate
 
 INFO_PATH_REGEX = r'^/neuroglancer/info/(?P<token>[^/]+)$'
 SKELETON_INFO_PATH_REGEX = r'^/neuroglancer/skeletoninfo/(?P<token>[^/]+)$'
+# TODO(hashir): independent mesh source
+MESH_INFO_PATH_REGEX = r'^/neuroglancer/meshinfo/(?P<token>[^/]+)$'
 
 DATA_PATH_REGEX = r'^/neuroglancer/(?P<data_format>[^/]+)/(?P<token>[^/]+)/(?P<scale_key>[^/]+)/(?P<start>[0-9]+(?:,[0-9]+)*)/(?P<end>[0-9]+(?:,[0-9]+)*)$'
 
@@ -86,6 +88,8 @@ class Server(object):
                 (STATIC_PATH_REGEX, StaticPathHandler, dict(server=self)),
                 (INFO_PATH_REGEX, VolumeInfoHandler, dict(server=self)),
                 (SKELETON_INFO_PATH_REGEX, SkeletonInfoHandler, dict(server=self)),
+                # TODO(hashir): independent mesh source
+                (MESH_INFO_PATH_REGEX, MeshInfoHandler, dict(server=self)),
                 (DATA_PATH_REGEX, SubvolumeHandler, dict(server=self)),
                 (SKELETON_PATH_REGEX, SkeletonHandler, dict(server=self)),
                 (MESH_PATH_REGEX, MeshHandler, dict(server=self)),
@@ -170,6 +174,17 @@ class SkeletonInfoHandler(BaseRequestHandler):
             return
         self.finish(json.dumps(vol.info(), default=json_encoder_default).encode())
 
+# TODO(hashir): independent mesh source
+class MeshInfoHandler(BaseRequestHandler):
+    def get(self, token):
+        vol = self.server.get_volume(token)
+        print('In MeshInfoHandler')
+        print(type(vol))
+        if vol is None or not isinstance(vol, mesh.MeshSource):
+            self.send_error(404)
+            return
+        self.finish(json.dumps(vol.info(), default=json_encoder_default).encode())
+
 class SubvolumeHandler(BaseRequestHandler):
     @asynchronous
     def get(self, data_format, token, scale_key, start, end):
@@ -200,9 +215,16 @@ class MeshHandler(BaseRequestHandler):
     def get(self, key, object_id):
         object_id = int(object_id)
         vol = self.server.get_volume(key)
+        print('In MeshHandler')
+        print(type(vol))
         if vol is None or not isinstance(vol, local_volume.LocalVolume):
             self.send_error(404)
             return
+
+        # TODO(hashir): independent mesh source
+        # if vol is None or not isinstance(vol, local_volume.LocalVolume) or not isinstance(vol, mesh.MeshSource):
+        #     self.send_error(404)
+        #     return
 
         def handle_mesh_result(f):
             try:
@@ -223,6 +245,10 @@ class MeshHandler(BaseRequestHandler):
             self.set_header('Content-type', 'application/octet-stream')
             self.finish(encoded_mesh)
 
+        # TODO(hashir): independent mesh source 
+        # self.server.executor.submit(vol.get_mesh, object_id).add_done_callback(lambda f: self.server.ioloop.add_callback(lambda: handle_mesh_result(f)))
+
+        # mesh as a subsource of local volume
         if vol.precomputedMesh is True:
             logger.info('Loading precomputed mesh')
             self.server.executor.submit(vol.get_object_mesh_precomputed, object_id).add_done_callback(

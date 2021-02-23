@@ -22,7 +22,7 @@ import threading
 import six
 
 from . import local_volume, trackable_state, viewer_config_state, viewer_state
-from . import skeleton
+from . import skeleton, mesh
 from .json_utils import decode_json, encode_json, json_encoder_default
 from .random_token import make_random_token
 
@@ -39,8 +39,10 @@ class LocalVolumeManager(trackable_state.ChangeNotifier):
             self._dispatch_changed_callbacks()
         if isinstance(v, local_volume.LocalVolume):
             source_type = 'volume'
-        else:
+        elif isinstance(v, skeleton.SkeletonSource):
             source_type = 'skeleton'
+        else: # TODO(hashir): independent mesh source
+            source_type = 'mesh'
         return 'python://%s/%s' % (source_type, self.get_volume_key(v))
 
     def get_volume_key(self, v):
@@ -184,8 +186,8 @@ class ViewerCommonBase(object):
         if isinstance(new_state, viewer_state.ViewerState):
             new_state = new_state.to_json()
 
-            def encoder(x):
-                if isinstance(x, (local_volume.LocalVolume, skeleton.SkeletonSource)):
+            def encoder(x): # TODO(hashir): independent mesh source
+                if isinstance(x, (local_volume.LocalVolume, skeleton.SkeletonSource, mesh.MeshSource)): 
                     return self.volume_manager.register_volume(x)
                 return json_encoder_default(x)
 

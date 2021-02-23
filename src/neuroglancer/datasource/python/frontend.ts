@@ -394,6 +394,39 @@ function getVolumeDataSource(
       });
 }
 
+function getMeshDataSource(
+  dataSourceProvider: PythonDataSource, options: GetDataSourceOptions, key: string
+) {
+  return options.chunkManager.memoize.getUncounted(
+    {'type': 'python:MeshDataSource', key}, async () => {
+      const response = await (await fetchOk(`../../neuroglancer/meshinfo/${key}`)).json();
+      const {baseModelSpace, subsourceToModelTransform} =
+            parseCoordinateSpaceAndVoxelOffset(response);
+      const volume = new PythonMultiscaleVolumeChunkSource(
+              dataSourceProvider, options.chunkManager, key, response);
+      const dataSource: DataSource = {
+        modelTransform: makeIdentityTransform(baseModelSpace),
+        subsources: [
+          {
+            id: 'meshes',
+            subsourceToModelSubspaceTransform: subsourceToModelTransform,
+            default: true,
+            subsource: {
+              mesh: options.chunkManager.getChunkSource(PythonMeshSource, {
+                dataSource: dataSourceProvider,
+                generation: volume.generation,
+                parameters: {
+                  key: key,
+                }
+              })
+            },
+          }
+        ],
+      }
+      return dataSource;  
+    });
+  }
+
 function getSkeletonDataSource(
     dataSourceProvider: PythonDataSource, options: GetDataSourceOptions, key: string) {
   return options.chunkManager.memoize.getUncounted(
@@ -477,15 +510,17 @@ export class PythonDataSource extends DataSourceProvider {
     return 'Python-served volume';
   }
   get(options: GetDataSourceOptions): Promise<DataSource> {
-    const m = options.providerUrl.match(`^(volume|skeleton)/(.*)$`);
+    const m = options.providerUrl.match(`^(volume|skeleton|mesh)/(.*)$`);
     if (m === null) {
       throw new Error(`Invalid Python data source URL: ${JSON.stringify(options.providerUrl)}`);
     }
     const key = m[2];
     if (m[1] === 'volume') {
       return getVolumeDataSource(this, options, key);
-    } else {
+    } else if (m[1] === 'skeleton') {
       return getSkeletonDataSource(this, options, key);
+    } else {
+      return getMeshDataSource(this, options, key);
     }
   }
 }

@@ -30,7 +30,7 @@ import numpy as np
 import six
 
 from . import local_volume
-from . import skeleton
+from . import skeleton, mesh
 from . import segment_colors
 from .coordinate_space import DimensionScale, CoordinateSpace, CoordinateArray
 from .equivalence_map import EquivalenceMap
@@ -204,7 +204,7 @@ class CoordinateSpaceTransform(JsonObjectWrapper):
     matrix = wrapped_property('matrix', optional(array_wrapper(np.float64)))
 
 def data_source_url(x):
-    if isinstance(x, (local_volume.LocalVolume, skeleton.SkeletonSource)):
+    if isinstance(x, (local_volume.LocalVolume, skeleton.SkeletonSource, mesh.MeshSource)): # TODO (hashir): independent mesh source
         return x
     if not isinstance(x, six.string_types):
         raise TypeError
@@ -228,7 +228,7 @@ class LayerDataSource(JsonObjectWrapper):
 
     def __init__(self, json_data=None, *args, **kwargs):
         if (isinstance(json_data, six.string_types) or
-            isinstance(json_data, (local_volume.LocalVolume, skeleton.SkeletonSource))):
+            isinstance(json_data, (local_volume.LocalVolume, skeleton.SkeletonSource, mesh.MeshSource))): # TODO (hashir): independent mesh source
             json_data = {'url': json_data}
         super(LayerDataSource, self).__init__(json_data, *args, **kwargs)
 
@@ -243,7 +243,7 @@ class LayerDataSources(typed_list(LayerDataSource, validator=LayerDataSource)):
 
     def __init__(self, json_data=None, **kwargs):
         if isinstance(json_data, (LayerDataSource, six.string_types, local_volume.LocalVolume,
-                                  skeleton.SkeletonSource, dict)):
+                                  skeleton.SkeletonSource, mesh.MeshSource, dict)): # TODO (hashir): independent mesh source
             json_data = [json_data]
         elif isinstance(json_data, LayerDataSources):
             json_data = json_data.to_json()
