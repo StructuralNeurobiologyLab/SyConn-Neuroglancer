@@ -65,6 +65,7 @@ global_server_args = dict(host='127.0.0.1', port=1080)
 
 debug = False
 
+
 class Server(object):
     def __init__(self, ioloop, host='127.0.0.1', port=0):
         self.viewers = weakref.WeakValueDictionary()
@@ -78,6 +79,7 @@ class Server(object):
         sockjs_router.neuroglancer_server = self
         global logger
         logger = log_gate
+
         def log_function(handler):
             if debug:
                 print("%d %s %.2fs" % (handler.get_status(),
@@ -102,7 +104,7 @@ class Server(object):
         http_server = tornado.httpserver.HTTPServer(
             app,
             # Allow very large requests to accommodate large screenshots.
-            max_buffer_size=1024**3,
+            max_buffer_size=1024 ** 3,
         )
         sockets = tornado.netutil.bind_sockets(port=port, address=host)
         http_server.add_sockets(sockets)
@@ -124,7 +126,7 @@ class Server(object):
         if dot_index == -1:
             return None
         viewer_token = key[:dot_index]
-        volume_token = key[dot_index+1:]
+        volume_token = key[dot_index + 1:]
         viewer = self.viewers.get(viewer_token)
         if viewer is None:
             return None
@@ -134,6 +136,7 @@ class Server(object):
 class BaseRequestHandler(tornado.web.RequestHandler):
     def initialize(self, server):
         self.server = server
+
 
 class StaticPathHandler(BaseRequestHandler):
     def get(self, viewer_token, path):
@@ -148,6 +151,7 @@ class StaticPathHandler(BaseRequestHandler):
         self.set_header('Content-type', content_type)
         self.finish(data)
 
+
 class ActionHandler(BaseRequestHandler):
     def post(self, viewer_token):
         viewer = self.server.viewers.get(viewer_token)
@@ -158,6 +162,7 @@ class ActionHandler(BaseRequestHandler):
         self.server.ioloop.add_callback(viewer.actions.invoke, action['action'], action['state'])
         self.finish('')
 
+
 class VolumeInfoHandler(BaseRequestHandler):
     def get(self, token):
         vol = self.server.get_volume(token)
@@ -165,6 +170,7 @@ class VolumeInfoHandler(BaseRequestHandler):
             self.send_error(404)
             return
         self.finish(json.dumps(vol.info(), default=json_encoder_default).encode())
+
 
 class SkeletonInfoHandler(BaseRequestHandler):
     def get(self, token):
@@ -174,16 +180,17 @@ class SkeletonInfoHandler(BaseRequestHandler):
             return
         self.finish(json.dumps(vol.info(), default=json_encoder_default).encode())
 
-# TODO(hashir): independent mesh source
+
 class MeshInfoHandler(BaseRequestHandler):
     def get(self, token):
         vol = self.server.get_volume(token)
-        print('In MeshInfoHandler')
-        print(type(vol))
+        # print('In MeshInfoHandler')
+        # print(type(vol))
         if vol is None or not isinstance(vol, mesh.MeshSource):
             self.send_error(404)
             return
         self.finish(json.dumps(vol.info(), default=json_encoder_default).encode())
+
 
 class SubvolumeHandler(BaseRequestHandler):
     @asynchronous
@@ -194,6 +201,7 @@ class SubvolumeHandler(BaseRequestHandler):
         if vol is None or not isinstance(vol, local_volume.LocalVolume):
             self.send_error(404)
             return
+
         def handle_subvolume_result(f):
             try:
                 data, content_type = f.result()
@@ -206,8 +214,9 @@ class SubvolumeHandler(BaseRequestHandler):
 
         self.server.executor.submit(
             vol.get_encoded_subvolume,
-            data_format=data_format, start=start_pos, end=end_pos, scale_key=scale_key).add_done_callback(
-                lambda f: self.server.ioloop.add_callback(lambda: handle_subvolume_result(f)))
+            data_format=data_format, start=start_pos, end=end_pos,
+            scale_key=scale_key).add_done_callback(
+            lambda f: self.server.ioloop.add_callback(lambda: handle_subvolume_result(f)))
 
 
 class MeshHandler(BaseRequestHandler):
@@ -217,14 +226,8 @@ class MeshHandler(BaseRequestHandler):
         vol = self.server.get_volume(key)
         print('In MeshHandler')
         print(type(vol))
-        if vol is None or not isinstance(vol, local_volume.LocalVolume):
+        if vol is None or not isinstance(vol, (local_volume.LocalVolume, mesh.MeshSource)):
             self.send_error(404)
-            return
-
-        # TODO(hashir): independent mesh source
-        # if vol is None or not isinstance(vol, local_volume.LocalVolume) or not isinstance(vol, mesh.MeshSource):
-        #     self.send_error(404)
-        #     return
 
         def handle_mesh_result(f):
             try:
@@ -245,18 +248,23 @@ class MeshHandler(BaseRequestHandler):
             self.set_header('Content-type', 'application/octet-stream')
             self.finish(encoded_mesh)
 
-        # TODO(hashir): independent mesh source 
-        # self.server.executor.submit(vol.get_mesh, object_id).add_done_callback(lambda f: self.server.ioloop.add_callback(lambda: handle_mesh_result(f)))
-
-        # mesh as a subsource of local volume
-        if vol.precomputedMesh is True:
-            logger.info('Loading precomputed mesh')
-            self.server.executor.submit(vol.get_object_mesh_precomputed, object_id).add_done_callback(
-            lambda f: self.server.ioloop.add_callback(lambda: handle_mesh_result(f)))
-        else:
-            print('Loading generated mesh')
-            self.server.executor.submit(vol.get_object_mesh, vol, object_id).add_done_callback(
+        # For MeshSource
+        if isinstance(vol, mesh.MeshSource):
+            print("Before parsing meshSource mesh to executor")
+            self.server.executor.submit(vol.get_object_mesh, object_id).add_done_callback(
                 lambda f: self.server.ioloop.add_callback(lambda: handle_mesh_result(f)))
+
+        else:
+            # mesh as a subsource of local volume
+            if vol.precomputedMesh is True:
+                logger.info('Loading precomputed mesh')
+                self.server.executor.submit(vol.get_object_mesh_precomputed,
+                                            object_id).add_done_callback(
+                    lambda f: self.server.ioloop.add_callback(lambda: handle_mesh_result(f)))
+            else:
+                print('Loading generated mesh')
+                self.server.executor.submit(vol.get_object_mesh, vol, object_id).add_done_callback(
+                    lambda f: self.server.ioloop.add_callback(lambda: handle_mesh_result(f)))
 
 
 class SkeletonHandler(BaseRequestHandler):
@@ -287,7 +295,7 @@ class SkeletonHandler(BaseRequestHandler):
 
         self.server.executor.submit(
             get_encoded_skeleton, vol, object_id).add_done_callback(
-                lambda f: self.server.ioloop.add_callback(lambda: handle_result(f)))
+            lambda f: self.server.ioloop.add_callback(lambda: handle_result(f)))
 
 
 global_server = None
@@ -316,8 +324,10 @@ def stop():
     global global_server
     if global_server is not None:
         ioloop = global_server.ioloop
+
         def stop_ioloop():
             ioloop.stop()
+
         global_server.ioloop.add_callback(stop_ioloop)
         global_server = None
 
@@ -360,6 +370,7 @@ def start():
 def register_viewer(viewer):
     start()
     global_server.viewers[viewer.token] = viewer
+
 
 def defer_callback(callback, *args, **kwargs):
     """Register `callback` to run in the server event loop thread."""

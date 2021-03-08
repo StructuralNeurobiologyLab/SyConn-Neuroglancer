@@ -5,7 +5,6 @@ from . import random_token
 from . import trackable_state
 
 class MeshSource(trackable_state.ChangeNotifier):
-    # TODO(hashir): independent mesh source
     
     def __init__(self, dimensions, voxel_offset=None):
         super(MeshSource, self).__init__()
@@ -21,7 +20,7 @@ class MeshSource(trackable_state.ChangeNotifier):
             voxelOffset=self.voxel_offset,
         )
 
-    def get_mesh(self, object_id):
+    def get_object_mesh(self, object_id):
         """Retrieves the encoded mesh corresponding to the specified `object_id`.
 
         @param object_id: uint64 object id.
