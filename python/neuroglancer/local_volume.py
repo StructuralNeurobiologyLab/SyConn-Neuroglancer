@@ -277,6 +277,24 @@ class LocalVolume(trackable_state.ChangeNotifier):
 
         return encoded_mesh
 
+    def get_object_mesh_precomputed_experimental(self, object_id):
+        """
+        Gets precomputed meshes(cell mesh, mitochondria, synapses, vesticle clouds) for a specific object id from the SyConn backend and encodes it in bytes.
+        :param object_id: int
+        :return: bytes
+        """
+        cellMesh = self.buildMeshDict(object_id, 'sv')
+        miMesh = self.buildMeshDict(object_id, 'mi')
+        synMesh = self.buildMeshDict(object_id, 'syn_ssv')
+        vcMesh = self.buildMeshDict(object_id, 'vc')
+        encoded_mesh = self._get_flattened_mesh(cellMesh)
+        encoded_mesh += self._get_flattened_mesh(miMesh)
+        encoded_mesh += self._get_flattened_mesh(synMesh)
+        encoded_mesh += self._get_flattened_mesh(vcMesh)
+        self.backend.logger.info('Precomputed encoding of meshes done')
+
+        return encoded_mesh
+
     def _get_mesh_generator(self):
         if self._mesh_generator is not None:
             return self._mesh_generator

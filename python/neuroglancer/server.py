@@ -185,7 +185,7 @@ class MeshInfoHandler(BaseRequestHandler):
     def get(self, token):
         vol = self.server.get_volume(token)
         # print('In MeshInfoHandler')
-        # print(type(vol))
+        print(type(vol))
         if vol is None or not isinstance(vol, mesh.MeshSource):
             self.send_error(404)
             return
@@ -228,6 +228,7 @@ class MeshHandler(BaseRequestHandler):
         print(type(vol))
         if vol is None or not isinstance(vol, (local_volume.LocalVolume, mesh.MeshSource)):
             self.send_error(404)
+            return
 
         def handle_mesh_result(f):
             try:
@@ -248,10 +249,13 @@ class MeshHandler(BaseRequestHandler):
             self.set_header('Content-type', 'application/octet-stream')
             self.finish(encoded_mesh)
 
+        # print("Before parsing meshSource mesh to executor")
+        # self.server.executor.submit(vol.get_mesh, object_id).add_done_callback(
+        #     lambda f: self.server.ioloop.add_callback(lambda: handle_mesh_result(f)))
         # For MeshSource
         if isinstance(vol, mesh.MeshSource):
             print("Before parsing meshSource mesh to executor")
-            self.server.executor.submit(vol.get_object_mesh, object_id).add_done_callback(
+            self.server.executor.submit(vol.get_mesh, object_id).add_done_callback(
                 lambda f: self.server.ioloop.add_callback(lambda: handle_mesh_result(f)))
 
         else:

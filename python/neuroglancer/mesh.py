@@ -20,7 +20,7 @@ class MeshSource(trackable_state.ChangeNotifier):
             voxelOffset=self.voxel_offset,
         )
 
-    def get_object_mesh(self, object_id):
+    def get_mesh(self, object_id):
         """Retrieves the encoded mesh corresponding to the specified `object_id`.
 
         @param object_id: uint64 object id.

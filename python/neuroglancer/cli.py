@@ -20,6 +20,7 @@ def add_server_arguments(ap):
                         help='IP address to SyConn Gate')
     g.add_argument('--wd', type=str, default='',
                         help='Working directory of SyConn')
+
 def add_state_arguments(ap, required=False, dest='state'):
     """Defines options for specifying a Neuroglancer state."""
     g = ap.add_mutually_exclusive_group(required=required)
@@ -39,6 +40,7 @@ def add_state_arguments(ap, required=False, dest='state'):
                    type=json_state,
                    dest=dest,
                    help='Path to file containing Neuroglancer JSON state.')
+                   
 def handle_server_arguments(args):
     """Handles the options defined by `add_server_arguments`."""
     from . import server

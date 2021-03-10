@@ -6,6 +6,7 @@ import numpy as np
 
 import neuroglancer
 import neuroglancer.cli
+from syconn.analysis.backend import SyConnBackend
 
 
 def add_example_layers(state):

@@ -392,6 +392,7 @@ function getVolumeDataSource(
       const response = await (await fetchOk(`../../neuroglancer/info/${key}`)).json();
       const volume = new PythonMultiscaleVolumeChunkSource(
         dataSourceProvider, options.chunkManager, key, response);
+      console.log('volume source')
       const dataSource: DataSource = {
         modelTransform: makeIdentityTransform(volume.modelSpace),
         subsources: [
@@ -431,20 +432,20 @@ function getVolumeDataSource(
             })
           },
         });
-        dataSource.subsources.push({
-          id: 'test',
-          default: true,
-          subsourceToModelSubspaceTransform,
-          subsource: {
-            mesh: options.chunkManager.getChunkSource(PythonMeshSource, {
-              dataSource: dataSourceProvider,
-              generation: volume.generation,
-              parameters: {
-                key: key,
-              }
-            })
-          },
-        });
+        // dataSource.subsources.push({
+        //   id: 'mi mesh',
+        //   default: true,
+        //   subsourceToModelSubspaceTransform,
+        //   subsource: {
+        //     mesh: options.chunkManager.getChunkSource(PythonMeshSource, {
+        //       dataSource: dataSourceProvider,
+        //       generation: volume.generation,
+        //       parameters: {
+        //         key: key,
+        //       }
+        //     })
+        //   },
+        // });
       }
       return dataSource;
     });
@@ -459,23 +460,28 @@ function getMeshDataSource(
       const {baseModelSpace, subsourceToModelTransform} =
         parseCoordinateSpaceAndVoxelOffset(response);
       const generation = verifyObjectProperty(response, 'generation', x => x);
+      // const volume = new PythonMultiscaleVolumeChunkSource(
+      //   dataSourceProvider, options.chunkManager, key, response);
+      // console.log(volume)
+      console.log(dataSourceProvider)
+      const meshSource = options.chunkManager.getChunkSource(PythonMeshSource, {
+        dataSource: dataSourceProvider,
+        generation: generation,
+        parameters: {
+          key,
+        }
+      });
       const dataSource: DataSource = {
         modelTransform: makeIdentityTransform(baseModelSpace),
         subsources: [
           {
-            id: 'mi mesh',
+            id: 'ssvmesh',
             default: true,
             subsourceToModelSubspaceTransform: subsourceToModelTransform,
             subsource: {
-              mesh: options.chunkManager.getChunkSource(PythonMeshSource, {
-                dataSource: dataSourceProvider,
-                generation: generation,
-                parameters: {
-                  key: key,
-                }
-              })
-            },
-          },
+              mesh: meshSource
+            }
+          }
         ],
       };
       return dataSource;
@@ -500,6 +506,8 @@ function getSkeletonDataSource(
           vertexAttributes,
         }
       });
+      console.log('skeleton source')
+      console.log(skeletonSource)
       const dataSource: DataSource = {
         modelTransform: makeIdentityTransform(baseModelSpace),
         subsources: [
