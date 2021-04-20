@@ -20,6 +20,7 @@ import struct
 import threading
 
 import numpy as np
+from scipy import ndimage
 import six
 import syconn
 
@@ -28,6 +29,7 @@ from .chunks import encode_jpeg, encode_npz, encode_raw
 from .coordinate_space import CoordinateSpace
 from . import trackable_state
 from .random_token import make_random_token
+from knossos_utils import KnossosDataset
 
 
 class MeshImplementationNotAvailable(Exception):
@@ -44,13 +46,15 @@ class InvalidObjectIdForMesh(Exception):
 
 class LocalVolume(trackable_state.ChangeNotifier):
     def __init__(self,
-                 data,
+                 dataset,  # TODO(Andrei): KnossosDataset
+                 # data=None,
                  dimensions=None,
                  volume_type=None,
                  voxel_offset=None,
                  encoding='npz',
                  max_voxels_per_chunk_log2=None,
                  precomputedMesh=False,  # added for precomputed meshes
+                 task_type='lowest_then_downsample',
                  mesh_options=None,
                  backend=None,
                  object_type='sv',
@@ -82,65 +86,103 @@ class LocalVolume(trackable_state.ChangeNotifier):
         """
         super(LocalVolume, self).__init__()
         self.token = make_random_token()
-        self.data = data
-        self.shape = data.shape
-        rank = self.rank = len(self.shape)
+        if not isinstance(dataset, KnossosDataset):
+            raise ValueError('Dataset parameter is not a KnossosDatset object')
+        self.dataset = dataset
+        boundaries = dataset.boundary
+        self.shape = [boundaries[2], boundaries[1], boundaries[0]]  # data.shape TODO(Andrei)
+        
+        rank = self.rank = len(self.shape)  # TODO(Andrei)
+        print(f'Shape: {self.shape}')
+        print(f'Rank: {self.rank}')
+        
         if dimensions is None:
             dimensions = CoordinateSpace(
                 names=['d%d' % d for d in range(rank)],
                 units=[''] * rank,
                 scales=[1] * rank,
             )
+        
         if rank != dimensions.rank:
             raise ValueError('rank of data (%d) must match rank of coordinate space (%d)' %
                              (rank, dimensions.rank))
+        
         if voxel_offset is None:
             voxel_offset = np.zeros(rank, dtype=np.int64)
+        
         else:
             voxel_offset = np.array(voxel_offset, dtype=np.int64)
+        
         if voxel_offset.shape != (rank,):
             raise ValueError('voxel_offset must have shape of (%d,)' % (rank,))
+        
         self.voxel_offset = voxel_offset
         self.dimensions = dimensions
-        self.data_type = np.dtype(data.dtype).name
+        
+        if volume_type == 'image':
+            self.data_type = 'uint8'  # TODO(Andrei) np.dtype(data.dtype).name
+        
+        else:
+            self.data_type = 'uint64'
+        
         if self.data_type == 'float64':
             self.data_type = 'float32'
+        
         self.encoding = encoding
+        
         if volume_type is None:
+            
             if self.rank == 3 and (self.data_type == 'uint16' or
                                    self.data_type == 'uint32' or
                                    self.data_type == 'uint64'):
                 volume_type = 'segmentation'
+        
             else:
                 volume_type = 'image'
+
         self.volume_type = volume_type
+        self.subvol_task_types = tuple(['highest_then_upsample', 'lowest_then_downsample'])
+
+        if task_type not in self.subvol_task_types:
+            raise ValueError('Invalid downsampling task type, should be one of {}'.format(self.subvol_task_types))
+
+        self.task_type = task_type
         self._precomputedMesh = precomputedMesh
         self._mesh_generator = None
         self._mesh_generator_pending = None
         self._mesh_generator_lock = threading.Condition()
         self._mesh_options = mesh_options.copy() if mesh_options is not None else dict()
         self.obj_type = object_type
+        
         if backend is None or not isinstance(backend, syconn.analysis.backend.SyConnBackend):
             raise ValueError('backend must be a SyConnBackend object')
+        
         else:
             self.backend = backend
+        
         self.max_voxels_per_chunk_log2 = max_voxels_per_chunk_log2
         self.downsampling_layout = downsampling
+        
         if chunk_layout is None:
+            
             if downsampling == '2d':
                 chunk_layout = 'flat'
+            
             else:
                 chunk_layout = 'isotropic'
+        
         self.chunk_layout = chunk_layout
         self.max_downsampling = max_downsampling
         self.max_downsampled_size = max_downsampled_size
         self.max_downsampling_scales = max_downsampling_scales
-
+    
     @property
     def precomputedMesh(self):
+        
         return self._precomputedMesh
-
+    
     def info(self):
+        
         info = dict(dataType=self.data_type,
                     encoding=self.encoding,
                     generation=self.change_count,
@@ -157,46 +199,162 @@ class LocalVolume(trackable_state.ChangeNotifier):
                     maxDownsamplingScales=None if math.isinf(
                         self.max_downsampling_scales) else self.max_downsampling_scales,
                     )
+        
         if self.max_voxels_per_chunk_log2 is not None:
             info['maxVoxelsPerChunkLog2'] = self.max_voxels_per_chunk_log2
-
+        
         return info
-
+    
     def get_encoded_subvolume(self, data_format, start, end, scale_key):
+
         rank = self.rank
+        
         if len(start) != rank or len(end) != rank:
             raise ValueError('Invalid request')
+        
         downsample_factor = np.array(scale_key.split(','), dtype=np.int64)
+        # print(downsample_factor)
+        
         if (len(downsample_factor) != rank or np.any(downsample_factor < 1)
             or np.any(downsample_factor > self.max_downsampling)
             or np.prod(downsample_factor) > self.max_downsampling):
             raise ValueError('Invalid downsampling factor.')
+        
         downsampled_shape = np.cast[np.int64](np.ceil(self.shape / downsample_factor))
+        
         if np.any(end < start) or np.any(start < 0) or np.any(end > downsampled_shape):
             raise ValueError('Out of bounds data request.')
+        
+        # if(np.all(downsample_factor)==1):
+        #     print("MAG 1")
+        # indexing_expr = tuple(
+        #     np.s_[start[i] * downsample_factor[i]:end[i] * downsample_factor[i]]  # TODO(Andrei)
+        #     for i in range(rank))
+        
+        offset = tuple(start[i] * downsample_factor[i] for i in reversed(range(rank)))
+        # offset = tuple(start[i] for i in reversed(range(rank)))
+        
+        size = tuple(end[i] * downsample_factor[i] for i in reversed(range(rank)))
+        # size = tuple(end[i] for i in reversed(range(rank)))
+        size = tuple(np.subtract(size, offset))
+        
+        # print(f'Start: {offset}')
+        # print(f'End: {end}')
+        # print(f'Size: {size}')
+        # if self.volume_type == 'segmentation':
+        #     subvol = self.dataset.load_seg(offset=offset, size=size,
+        #                                    mag=1)
+        # elif self.volume_type == 'image':
+        #     subvol = self.dataset.load_raw(offset=offset, size=size,
+        #                                mag=1)
+        
+        if np.all(downsample_factor == downsample_factor[0]):
+            
+            if self.volume_type == 'segmentation':
+                subvol = self.dataset.load_seg(offset=offset, size=size,
+                                        mag=downsample_factor[0], )
 
-        indexing_expr = tuple(np.s_[start[i] * downsample_factor[i]:end[i] * downsample_factor[i]]
-                              for i in range(rank))
-        subvol = np.array(self.data[indexing_expr], copy=False)
+            elif self.volume_type == 'image':
+                subvol = self.dataset.load_raw(offset=offset, size=size,
+                                    mag=downsample_factor[0], )                                  
+        
+            else:
+                raise ValueError('Subvolume is not of any supported volume_type')
+        
+        else:
+            subvol = self.subvol_task(downsample_factor, offset, size, type=self.task_type)
+        
+        #     lowest_factor = np.min(downsample_factor)
+        #     d2 = np.array([int(downsample_factor[i] / lowest_factor) for i in range(len(downsample_factor))])
+
+        #     if self.volume_type == 'image':
+        #         subvol = self.dataset.load_raw(offset=offset, size=size,
+        #                                 mag=lowest_factor)
+                
+        #         subvol = downsample.downsample_with_averaging(subvol, d2)
+        #     else:
+        #         subvol = self.dataset.load_seg(offset=offset, size=size,
+        #                                 mag=lowest_factor)
+
+        #         subvol = downsample.downsample_with_striding(subvol, d2)
+
+        # else:
+        #     raise ValueError('Anisotropic downsampling factor requested')
+
         if subvol.dtype == 'float64':
             subvol = np.cast[np.float32](subvol)
 
-        if np.any(downsample_factor != 1):
-            if self.volume_type == 'image':
-                subvol = downsample.downsample_with_averaging(subvol, downsample_factor)
-            else:
-                subvol = downsample.downsample_with_striding(subvol, downsample_factor)
+        # if np.any(downsample_factor != 1):
+        #     if self.volume_type == 'image':
+        #         subvol = downsample.downsample_with_averaging(subvol, downsample_factor)
+        #     else:
+        #         subvol = downsample.downsample_with_striding(subvol, downsample_factor)
+
         content_type = 'application/octet-stream'
+        
         if data_format == 'jpeg':
             data = encode_jpeg(subvol)
             content_type = 'image/jpeg'
+        
         elif data_format == 'npz':
             data = encode_npz(subvol)
+        
         elif data_format == 'raw':
             data = encode_raw(subvol)
+        
         else:
             raise ValueError('Invalid data format requested.')
+        
         return data, content_type
+
+
+    def subvol_task(self, downsample_factor, offset, size, type):
+
+        if type not in self.subvol_task_types:
+            raise ValueError("'type' argument must be one of {}. Found '{}'".format(self.subvol_task_types, type))
+
+        def tile_array(a, b0, b1, b2):
+            r, c, h = a.shape                                    # number of rows/columns
+            rs, cs, hs = a.strides                                # row/column strides 
+            x = np.lib.stride_tricks.as_strided(a, (r, b0, c, b1), (rs, 0, cs, 0)) # view a as larger 4D array
+
+            return x.reshape(r*b0, c*b1)
+
+        if type == 'highest_then_upsample':
+            highest_factor = np.max(downsample_factor)
+            up_levels = np.where(downsample_factor == highest_factor, 1, highest_factor/downsample_factor)
+            
+            if self.volume_type == 'segmentation':
+                subvol_isotropic = self.dataset.load_seg(offset=offset, size=size,
+                                        mag=highest_factor,)
+
+                subvol = ndimage.zoom(subvol_isotropic, up_levels, mode='nearest', order=0)
+                # print(subvol.shape)
+
+
+            elif self.volume_type == 'image':
+                subvol_isotropic = self.dataset.load_raw(offset=offset, size=size,
+                                    mag=highest_factor,)
+                
+                subvol = ndimage.zoom(subvol_isotropic, up_levels, mode='nearest', order=0)
+                # print(subvol.shape)
+
+        else:
+            lowest_factor = np.min(downsample_factor)
+            down_levels = np.where(downsample_factor == lowest_factor, 1, downsample_factor/lowest_factor)
+            down_levels = np.cast[np.int](down_levels)
+
+            if self.volume_type == 'segmentation':
+                subvol_isotropic = self.dataset.load_seg(offset=offset, size=size,
+                                        mag=lowest_factor)
+                subvol = downsample.downsample_with_striding(subvol_isotropic, down_levels)
+
+            elif self.volume_type == 'image':
+                subvol_isotropic = self.dataset.load_raw(offset=offset, size=size,
+                                    mag=lowest_factor)
+                subvol = downsample.downsample_with_averaging(subvol_isotropic, down_levels)
+
+        return subvol
 
     def buildMeshDict(self, object_id):
         """
