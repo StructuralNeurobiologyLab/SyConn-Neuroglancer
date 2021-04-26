@@ -23,6 +23,7 @@ import numpy as np
 from scipy import ndimage
 import six
 import syconn
+from numba import njit
 
 from . import downsample, downsample_scales
 from .chunks import encode_jpeg, encode_npz, encode_raw
@@ -247,39 +248,75 @@ class LocalVolume(trackable_state.ChangeNotifier):
         # elif self.volume_type == 'image':
         #     subvol = self.dataset.load_raw(offset=offset, size=size,
         #                                mag=1)
-        
         if np.all(downsample_factor == downsample_factor[0]):
-            
+
+            if downsample_factor in self.dataset.available_mags:
+                mag = downsample_factor[0]
+            else:
+                print('ISO: Mag not available')
+                mag = np.max(self.dataset.available_mags)
+
+            print('ISO mag requested: {}'.format(mag))
+
             if self.volume_type == 'segmentation':
                 subvol = self.dataset.load_seg(offset=offset, size=size,
-                                        mag=downsample_factor[0], )
+                                        mag=mag)
 
             elif self.volume_type == 'image':
                 subvol = self.dataset.load_raw(offset=offset, size=size,
-                                    mag=downsample_factor[0], )                                  
+                                    mag=mag)                                  
         
             else:
                 raise ValueError('Subvolume is not of any supported volume_type')
         
         else:
-            subvol = self.subvol_task(downsample_factor, offset, size, type=self.task_type)
-        
-        #     lowest_factor = np.min(downsample_factor)
-        #     d2 = np.array([int(downsample_factor[i] / lowest_factor) for i in range(len(downsample_factor))])
-
-        #     if self.volume_type == 'image':
-        #         subvol = self.dataset.load_raw(offset=offset, size=size,
-        #                                 mag=lowest_factor)
+            if self.task_type == 'highest_then_upsample':
+                highest_factor = np.max(downsample_factor)
                 
-        #         subvol = downsample.downsample_with_averaging(subvol, d2)
-        #     else:
-        #         subvol = self.dataset.load_seg(offset=offset, size=size,
-        #                                 mag=lowest_factor)
+                if highest_factor in self.dataset.available_mags:
+                    mag = highest_factor
+                    up_levels = np.where(downsample_factor == mag, 1, mag/downsample_factor)
 
-        #         subvol = downsample.downsample_with_striding(subvol, d2)
+                else:
+                    print('ANISO: Mag not available')
+                    mag = np.max(self.dataset.available_mags)
+                    up_levels = mag / downsample_factor
+                    
+                print('ANISO mag requested: {}'.format(mag))
 
-        # else:
-        #     raise ValueError('Anisotropic downsampling factor requested')
+                if self.volume_type == 'segmentation':
+                    subvol_isotropic = self.dataset.load_seg(offset=offset, size=size,
+                                            mag=mag,)
+
+                    subvol = self.upsampling_with_repetition(subvol_isotropic, up_levels)
+                    # print(subvol.shape)
+
+
+                elif self.volume_type == 'image':
+                    subvol_isotropic = self.dataset.load_raw(offset=offset, size=size,
+                                        mag=mag,)
+                    
+                    subvol = self.upsampling_with_repetition(subvol_isotropic, up_levels)
+                    # print(subvol.shape)
+
+            else:
+                mag = np.min(downsample_factor)
+
+                print('ANISO mag requested: {}'.format(mag))
+
+                down_levels = np.where(downsample_factor == mag, 1, downsample_factor/mag)
+                down_levels = np.cast[np.int](down_levels)
+
+                if self.volume_type == 'segmentation':
+                    subvol_isotropic = self.dataset.load_seg(offset=offset, size=size,
+                                            mag=mag)
+                    subvol = downsample.downsample_with_striding(subvol_isotropic, down_levels)
+
+                elif self.volume_type == 'image':
+                    subvol_isotropic = self.dataset.load_raw(offset=offset, size=size,
+                                        mag=mag)
+                    subvol = downsample.downsample_with_averaging(subvol_isotropic, down_levels)
+                subvol = self.subvol_task(mag, offset, size, type=self.task_type)
 
         if subvol.dtype == 'float64':
             subvol = np.cast[np.float32](subvol)
@@ -307,6 +344,8 @@ class LocalVolume(trackable_state.ChangeNotifier):
         
         return data, content_type
 
+    def upsampling_with_repetition(self, subvol_isotropic, up_levels, mode='nearest', order=0):
+        return ndimage.zoom(subvol_isotropic, up_levels, mode='nearest', order=0)
 
     def subvol_task(self, downsample_factor, offset, size, type):
 
