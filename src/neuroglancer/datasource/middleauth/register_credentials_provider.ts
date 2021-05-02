@@ -14,10 +14,11 @@
  * limitations under the License.
  */
 
-.neuroglancer-checkbox-icon.light-background[data-checked="true"] {
-  background-color: rgba(0, 0, 0, 0.5);
-}
+import {defaultCredentialsManager} from 'neuroglancer/credentials_provider/default_manager';
+import {MiddleAuthCredentialsProvider, MiddleAuthAppCredentialsProvider} from 'neuroglancer/datasource/middleauth/credentials_provider';
+import { CredentialsManager } from 'src/neuroglancer/credentials_provider';
 
-.neuroglancer-checkbox-icon.dark-background[data-checked="true"] {
-  background-color: rgba(255, 255, 255, 0.2);
-}
+defaultCredentialsManager.register('middleauth', serverUrl => new MiddleAuthCredentialsProvider(serverUrl));
+
+defaultCredentialsManager.register('middleauthapp', (serverUrl: string, credentialsManager: CredentialsManager) => 
+    new MiddleAuthAppCredentialsProvider(serverUrl, credentialsManager));
