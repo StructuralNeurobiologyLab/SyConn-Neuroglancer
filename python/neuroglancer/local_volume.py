@@ -214,7 +214,6 @@ class LocalVolume(trackable_state.ChangeNotifier):
             raise ValueError('Invalid request')
         
         downsample_factor = np.array(scale_key.split(','), dtype=np.int64)
-        # print(downsample_factor)
         
         if (len(downsample_factor) != rank or np.any(downsample_factor < 1)
             or np.any(downsample_factor > self.max_downsampling)
@@ -226,28 +225,11 @@ class LocalVolume(trackable_state.ChangeNotifier):
         if np.any(end < start) or np.any(start < 0) or np.any(end > downsampled_shape):
             raise ValueError('Out of bounds data request.')
         
-        # if(np.all(downsample_factor)==1):
-        #     print("MAG 1")
-        # indexing_expr = tuple(
-        #     np.s_[start[i] * downsample_factor[i]:end[i] * downsample_factor[i]]  # TODO(Andrei)
-        #     for i in range(rank))
-        
         offset = tuple(start[i] * downsample_factor[i] for i in reversed(range(rank)))
-        # offset = tuple(start[i] for i in reversed(range(rank)))
         
         size = tuple(end[i] * downsample_factor[i] for i in reversed(range(rank)))
-        # size = tuple(end[i] for i in reversed(range(rank)))
         size = tuple(np.subtract(size, offset))
         
-        # print(f'Start: {offset}')
-        # print(f'End: {end}')
-        # print(f'Size: {size}')
-        # if self.volume_type == 'segmentation':
-        #     subvol = self.dataset.load_seg(offset=offset, size=size,
-        #                                    mag=1)
-        # elif self.volume_type == 'image':
-        #     subvol = self.dataset.load_raw(offset=offset, size=size,
-        #                                mag=1)
         if np.all(downsample_factor == downsample_factor[0]):
 
             if downsample_factor in self.dataset.available_mags:
@@ -289,7 +271,6 @@ class LocalVolume(trackable_state.ChangeNotifier):
                                             mag=mag,)
 
                     subvol = self.upsampling_with_repetition(subvol_isotropic, up_levels)
-                    # print(subvol.shape)
 
 
                 elif self.volume_type == 'image':
@@ -297,7 +278,6 @@ class LocalVolume(trackable_state.ChangeNotifier):
                                         mag=mag,)
                     
                     subvol = self.upsampling_with_repetition(subvol_isotropic, up_levels)
-                    # print(subvol.shape)
 
             else:
                 mag = np.min(downsample_factor)
@@ -321,12 +301,6 @@ class LocalVolume(trackable_state.ChangeNotifier):
         if subvol.dtype == 'float64':
             subvol = np.cast[np.float32](subvol)
 
-        # if np.any(downsample_factor != 1):
-        #     if self.volume_type == 'image':
-        #         subvol = downsample.downsample_with_averaging(subvol, downsample_factor)
-        #     else:
-        #         subvol = downsample.downsample_with_striding(subvol, downsample_factor)
-
         content_type = 'application/octet-stream'
         
         if data_format == 'jpeg':
@@ -346,54 +320,6 @@ class LocalVolume(trackable_state.ChangeNotifier):
 
     def upsampling_with_repetition(self, subvol_isotropic, up_levels, mode='nearest', order=0):
         return ndimage.zoom(subvol_isotropic, up_levels, mode='nearest', order=0)
-
-    def subvol_task(self, downsample_factor, offset, size, type):
-
-        if type not in self.subvol_task_types:
-            raise ValueError("'type' argument must be one of {}. Found '{}'".format(self.subvol_task_types, type))
-
-        def tile_array(a, b0, b1, b2):
-            r, c, h = a.shape                                    # number of rows/columns
-            rs, cs, hs = a.strides                                # row/column strides 
-            x = np.lib.stride_tricks.as_strided(a, (r, b0, c, b1), (rs, 0, cs, 0)) # view a as larger 4D array
-
-            return x.reshape(r*b0, c*b1)
-
-        if type == 'highest_then_upsample':
-            highest_factor = np.max(downsample_factor)
-            up_levels = np.where(downsample_factor == highest_factor, 1, highest_factor/downsample_factor)
-            
-            if self.volume_type == 'segmentation':
-                subvol_isotropic = self.dataset.load_seg(offset=offset, size=size,
-                                        mag=highest_factor,)
-
-                subvol = ndimage.zoom(subvol_isotropic, up_levels, mode='nearest', order=0)
-                # print(subvol.shape)
-
-
-            elif self.volume_type == 'image':
-                subvol_isotropic = self.dataset.load_raw(offset=offset, size=size,
-                                    mag=highest_factor,)
-                
-                subvol = ndimage.zoom(subvol_isotropic, up_levels, mode='nearest', order=0)
-                # print(subvol.shape)
-
-        else:
-            lowest_factor = np.min(downsample_factor)
-            down_levels = np.where(downsample_factor == lowest_factor, 1, downsample_factor/lowest_factor)
-            down_levels = np.cast[np.int](down_levels)
-
-            if self.volume_type == 'segmentation':
-                subvol_isotropic = self.dataset.load_seg(offset=offset, size=size,
-                                        mag=lowest_factor)
-                subvol = downsample.downsample_with_striding(subvol_isotropic, down_levels)
-
-            elif self.volume_type == 'image':
-                subvol_isotropic = self.dataset.load_raw(offset=offset, size=size,
-                                    mag=lowest_factor)
-                subvol = downsample.downsample_with_averaging(subvol_isotropic, down_levels)
-
-        return subvol
 
     def buildMeshDict(self, object_id):
         """
