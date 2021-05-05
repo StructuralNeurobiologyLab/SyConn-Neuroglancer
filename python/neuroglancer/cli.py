@@ -20,6 +20,11 @@ def add_server_arguments(ap):
                         help='IP address to SyConn Gate')
     g.add_argument('--wd', type=str, default='',
                         help='Working directory of SyConn')
+    g.add_argument('--static-content-url',
+                   help='Obtain the Neuroglancer client code from the specified URL.')
+    g.add_argument('--debug-server',
+                   action='store_true',
+                   help='Log requests to web server used for Neuroglancer Python API')
 
 def add_state_arguments(ap, required=False, dest='state'):
     """Defines options for specifying a Neuroglancer state."""
@@ -47,3 +52,7 @@ def handle_server_arguments(args):
 
     if args.host and args.port:
         server.set_server_bind_address(args.host, args.port)
+    if args.static_content_url:
+        server.set_static_content_source(url=args.static_content_url)
+    if args.debug_server:
+        server.debug = True
