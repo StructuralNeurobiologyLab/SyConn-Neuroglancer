@@ -47,8 +47,7 @@ class InvalidObjectIdForMesh(Exception):
 
 class LocalVolume(trackable_state.ChangeNotifier):
     def __init__(self,
-                 dataset,  # TODO(Andrei): KnossosDataset
-                 # data=None,
+                 dataset,
                  dimensions=None,
                  volume_type=None,
                  voxel_offset=None,
@@ -65,13 +64,15 @@ class LocalVolume(trackable_state.ChangeNotifier):
                  max_downsampled_size=downsample_scales.DEFAULT_MAX_DOWNSAMPLED_SIZE,
                  max_downsampling_scales=downsample_scales.DEFAULT_MAX_DOWNSAMPLING_SCALES):
         """Initializes a LocalVolume.
-        @param data: Source data.
+        @param dataset: Knossos Dataset object, where all the server requests are handled
         @param downsampling: '3d' to use isotropic downsampling, '2d' to downsample separately in
             XY, XZ, and YZ, None to use no downsampling.
-        @param max_downsampling: Maximum amount by which on-the-fly downsampling may reduce the
-            volume of a chunk.  For example, 4x4x4 downsampling reduces the volume by 64.
+        @param task_type: Specifies whether to downsample or upsample in function 'get_encoded_subvolume'
+        @param object_type: Type of data the LocalVolume holds ('sv', 'mi', 'sj', 'vc', ...)
         @param volume_type: either 'image' or 'segmentation'.  If not specified, guessed from the
             data type.
+        @param max_downsampling: Maximum amount by which on-the-fly downsampling may reduce the
+            volume of a chunk.  For example, 4x4x4 downsampling reduces the volume by 64.
         @param voxel_size: Sequence [x, y, z] of floats.  Specifies the voxel size.
         @param mesh_options: A dict with the following keys specifying options for mesh
             simplification for 'segmentation' volumes:
@@ -91,53 +92,51 @@ class LocalVolume(trackable_state.ChangeNotifier):
             raise ValueError('Dataset parameter is not a KnossosDatset object')
         self.dataset = dataset
         boundaries = dataset.boundary
-        self.shape = [boundaries[2], boundaries[1], boundaries[0]]  # data.shape TODO(Andrei)
-        
-        rank = self.rank = len(self.shape)  # TODO(Andrei)
-        print(f'Shape: {self.shape}')
-        print(f'Rank: {self.rank}')
-        
+        self.shape = [boundaries[2], boundaries[1], boundaries[0]]  # data.shape
+
+        rank = self.rank = len(self.shape)
+
         if dimensions is None:
             dimensions = CoordinateSpace(
                 names=['d%d' % d for d in range(rank)],
                 units=[''] * rank,
                 scales=[1] * rank,
             )
-        
+
         if rank != dimensions.rank:
             raise ValueError('rank of data (%d) must match rank of coordinate space (%d)' %
                              (rank, dimensions.rank))
-        
+
         if voxel_offset is None:
             voxel_offset = np.zeros(rank, dtype=np.int64)
-        
+
         else:
             voxel_offset = np.array(voxel_offset, dtype=np.int64)
-        
+
         if voxel_offset.shape != (rank,):
             raise ValueError('voxel_offset must have shape of (%d,)' % (rank,))
-        
+
         self.voxel_offset = voxel_offset
         self.dimensions = dimensions
-        
+
         if volume_type == 'image':
-            self.data_type = 'uint8'  # TODO(Andrei) np.dtype(data.dtype).name
-        
+            self.data_type = 'uint8'
+
         else:
             self.data_type = 'uint64'
-        
+
         if self.data_type == 'float64':
             self.data_type = 'float32'
-        
+
         self.encoding = encoding
-        
+
         if volume_type is None:
-            
+
             if self.rank == 3 and (self.data_type == 'uint16' or
                                    self.data_type == 'uint32' or
                                    self.data_type == 'uint64'):
                 volume_type = 'segmentation'
-        
+
             else:
                 volume_type = 'image'
 
@@ -145,7 +144,8 @@ class LocalVolume(trackable_state.ChangeNotifier):
         self.subvol_task_types = tuple(['highest_then_upsample', 'lowest_then_downsample'])
 
         if task_type not in self.subvol_task_types:
-            raise ValueError('Invalid downsampling task type, should be one of {}'.format(self.subvol_task_types))
+            raise ValueError('Invalid downsampling task type, should be one of {}'.format(
+                self.subvol_task_types))
 
         self.task_type = task_type
         self._precomputedMesh = precomputedMesh
@@ -154,36 +154,36 @@ class LocalVolume(trackable_state.ChangeNotifier):
         self._mesh_generator_lock = threading.Condition()
         self._mesh_options = mesh_options.copy() if mesh_options is not None else dict()
         self.obj_type = object_type
-        
+
         if backend is None or not isinstance(backend, syconn.analysis.backend.SyConnBackend):
             raise ValueError('backend must be a SyConnBackend object')
-        
+
         else:
             self.backend = backend
-        
+
         self.max_voxels_per_chunk_log2 = max_voxels_per_chunk_log2
         self.downsampling_layout = downsampling
-        
+
         if chunk_layout is None:
-            
+
             if downsampling == '2d':
                 chunk_layout = 'flat'
-            
+
             else:
                 chunk_layout = 'isotropic'
-        
+
         self.chunk_layout = chunk_layout
         self.max_downsampling = max_downsampling
         self.max_downsampled_size = max_downsampled_size
         self.max_downsampling_scales = max_downsampling_scales
-    
+
     @property
     def precomputedMesh(self):
-        
+
         return self._precomputedMesh
-    
+
     def info(self):
-        
+
         info = dict(dataType=self.data_type,
                     encoding=self.encoding,
                     generation=self.change_count,
@@ -200,36 +200,45 @@ class LocalVolume(trackable_state.ChangeNotifier):
                     maxDownsamplingScales=None if math.isinf(
                         self.max_downsampling_scales) else self.max_downsampling_scales,
                     )
-        
+
         if self.max_voxels_per_chunk_log2 is not None:
             info['maxVoxelsPerChunkLog2'] = self.max_voxels_per_chunk_log2
-        
+
         return info
-    
+
     def get_encoded_subvolume(self, data_format, start, end, scale_key):
+        '''
+        Gets a chunk of the whole volume with desired downsampling
+
+        :param data_format:
+        :param start:
+        :param end:
+        :param scale_key: downsampling sizes
+        :return: downsampled subvolume chunk
+        '''
 
         rank = self.rank
-        
+
         if len(start) != rank or len(end) != rank:
             raise ValueError('Invalid request')
-        
+
         downsample_factor = np.array(scale_key.split(','), dtype=np.int64)
-        
+
         if (len(downsample_factor) != rank or np.any(downsample_factor < 1)
             or np.any(downsample_factor > self.max_downsampling)
             or np.prod(downsample_factor) > self.max_downsampling):
             raise ValueError('Invalid downsampling factor.')
-        
+
         downsampled_shape = np.cast[np.int64](np.ceil(self.shape / downsample_factor))
-        
+
         if np.any(end < start) or np.any(start < 0) or np.any(end > downsampled_shape):
             raise ValueError('Out of bounds data request.')
-        
+
         offset = tuple(start[i] * downsample_factor[i] for i in reversed(range(rank)))
-        
+
         size = tuple(end[i] * downsample_factor[i] for i in reversed(range(rank)))
         size = tuple(np.subtract(size, offset))
-        
+
         if np.all(downsample_factor == downsample_factor[0]):
 
             if downsample_factor in self.dataset.available_mags:
@@ -238,63 +247,57 @@ class LocalVolume(trackable_state.ChangeNotifier):
                 print('ISO: Mag not available')
                 mag = np.max(self.dataset.available_mags)
 
-            print('ISO mag requested: {}'.format(mag))
-
             if self.volume_type == 'segmentation':
                 subvol = self.dataset.load_seg(offset=offset, size=size,
-                                        mag=mag)
+                                               mag=mag)
 
             elif self.volume_type == 'image':
                 subvol = self.dataset.load_raw(offset=offset, size=size,
-                                    mag=mag)                                  
-        
+                                               mag=mag)
+
             else:
                 raise ValueError('Subvolume is not of any supported volume_type')
-        
+
         else:
             if self.task_type == 'highest_then_upsample':
                 highest_factor = np.max(downsample_factor)
-                
+
                 if highest_factor in self.dataset.available_mags:
                     mag = highest_factor
-                    up_levels = np.where(downsample_factor == mag, 1, mag/downsample_factor)
+                    up_levels = np.where(downsample_factor == mag, 1, mag / downsample_factor)
 
                 else:
                     print('ANISO: Mag not available')
                     mag = np.max(self.dataset.available_mags)
                     up_levels = mag / downsample_factor
-                    
-                print('ANISO mag requested: {}'.format(mag))
 
                 if self.volume_type == 'segmentation':
                     subvol_isotropic = self.dataset.load_seg(offset=offset, size=size,
-                                            mag=mag,)
+                                                             mag=mag, )
 
                     subvol = self.upsampling_with_repetition(subvol_isotropic, up_levels)
 
 
                 elif self.volume_type == 'image':
                     subvol_isotropic = self.dataset.load_raw(offset=offset, size=size,
-                                        mag=mag,)
-                    
+                                                             mag=mag, )
+
                     subvol = self.upsampling_with_repetition(subvol_isotropic, up_levels)
 
             else:
                 mag = np.min(downsample_factor)
 
-                print('ANISO mag requested: {}'.format(mag))
-
-                down_levels = np.where(downsample_factor == mag, 1, downsample_factor/mag)
+                down_levels = np.where(downsample_factor == mag, 1, downsample_factor / mag)
                 down_levels = np.cast[np.int](down_levels)
 
                 if self.volume_type == 'segmentation':
                     subvol_isotropic = self.dataset.load_seg(offset=offset, size=size,
-                                            mag=mag)
+                                                             mag=mag)
                     subvol = downsample.downsample_with_striding(subvol_isotropic, down_levels)
 
                 elif self.volume_type == 'image':
                     subvol_isotropic = self.dataset.load_raw(offset=offset, size=size,
-                                        mag=mag)
+                                                             mag=mag)
                     subvol = downsample.downsample_with_averaging(subvol_isotropic, down_levels)
                 subvol = self.subvol_task(mag, offset, size, type=self.task_type)
 
@@ -302,20 +305,20 @@ class LocalVolume(trackable_state.ChangeNotifier):
             subvol = np.cast[np.float32](subvol)
 
         content_type = 'application/octet-stream'
-        
+
         if data_format == 'jpeg':
             data = encode_jpeg(subvol)
             content_type = 'image/jpeg'
-        
+
         elif data_format == 'npz':
             data = encode_npz(subvol)
-        
+
         elif data_format == 'raw':
             data = encode_raw(subvol)
-        
+
         else:
             raise ValueError('Invalid data format requested.')
-        
+
         return data, content_type
 
     def upsampling_with_repetition(self, subvol_isotropic, up_levels, mode='nearest', order=0):
@@ -329,14 +332,14 @@ class LocalVolume(trackable_state.ChangeNotifier):
         """
         mesh = {}
 
-        #obj_type = 'sv'
+        # obj_type = 'sv'
         if self.obj_type == 'sv':
             try:
                 mesh = self.backend.ssv_mesh(object_id)
             except:
                 raise InvalidObjectIdForMesh(
                     'Precomputed mesh not available for ssv_id: {}'.format(object_id))
-        #obj_type is 'mi'/'syn_ssv'/'sj'/'vc'
+        # obj_type is 'mi'/'syn_ssv'/'sj'/'vc'
         else:
             try:
                 obj_vert = self.backend.ssv_obj_vert(object_id, self.obj_type)
