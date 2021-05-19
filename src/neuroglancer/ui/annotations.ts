@@ -23,8 +23,7 @@ import './annotations.css';
 import {Annotation, AnnotationId, AnnotationReference, AnnotationSource, annotationToJson, AnnotationType, annotationTypeHandlers, AxisAlignedBoundingBox, Ellipsoid, Line} from 'neuroglancer/annotation';
 import {AnnotationDisplayState, AnnotationLayerState} from 'neuroglancer/annotation/annotation_layer_state';
 import {MultiscaleAnnotationSource} from 'neuroglancer/annotation/frontend_source';
-import {AnnotationLayer, PerspectiveViewAnnotationLayer, SliceViewAnnotationLayer} from 'neuroglancer/annotation/renderlayer';
-import {SpatiallyIndexedPerspectiveViewAnnotationLayer, SpatiallyIndexedSliceViewAnnotationLayer} from 'neuroglancer/annotation/renderlayer';
+import {AnnotationLayer, PerspectiveViewAnnotationLayer, SliceViewAnnotationLayer, SpatiallyIndexedPerspectiveViewAnnotationLayer, SpatiallyIndexedSliceViewAnnotationLayer} from 'neuroglancer/annotation/renderlayer';
 import {CoordinateSpace} from 'neuroglancer/coordinate_transform';
 import {MouseSelectionState, UserLayer} from 'neuroglancer/layer';
 import {LoadedDataSubsource} from 'neuroglancer/layer_data_source';
@@ -37,7 +36,7 @@ import {AggregateWatchableValue, makeCachedLazyDerivedWatchableValue, registerNe
 import {getDefaultAnnotationListBindings} from 'neuroglancer/ui/default_input_event_bindings';
 import {registerTool, Tool} from 'neuroglancer/ui/tool';
 import {animationFrameDebounce} from 'neuroglancer/util/animation_frame_debounce';
-import {arraysEqual, ArraySpliceOp, gatherUpdate} from 'neuroglancer/util/array';
+import {arraysEqual, ArraySpliceOp} from 'neuroglancer/util/array';
 import {setClipboard} from 'neuroglancer/util/clipboard';
 import {serializeColor, unpackRGB, unpackRGBA, useWhiteBackground} from 'neuroglancer/util/color';
 import {Borrowed, disposableOnce, RefCounted} from 'neuroglancer/util/disposable';
@@ -49,7 +48,6 @@ import * as matrix from 'neuroglancer/util/matrix';
 import {MouseEventBinder} from 'neuroglancer/util/mouse_bindings';
 import {formatScaleWithUnitAsString} from 'neuroglancer/util/si_units';
 import {NullarySignal, Signal} from 'neuroglancer/util/signal';
-import {formatIntegerBounds, formatIntegerPoint} from 'neuroglancer/util/spatial_units';
 import {Uint64} from 'neuroglancer/util/uint64';
 import * as vector from 'neuroglancer/util/vector';
 import {makeAddButton} from 'neuroglancer/widget/add_button';
@@ -119,58 +117,6 @@ export class MergedAnnotationStates extends RefCounted implements
   }
 }
 
-function makePointLink(
-    chunkPosition: Float32Array, chunkTransform: ChunkTransformParameters,
-    setViewPosition?: (layerPosition: Float32Array) => void) {
-  const layerRank = chunkTransform.layerRank;
-  const layerPosition = new Float32Array(layerRank);
-  const paddedChunkPosition = new Float32Array(layerRank);
-  paddedChunkPosition.set(chunkPosition);
-  matrix.transformPoint(
-      layerPosition, chunkTransform.chunkToLayerTransform, layerRank + 1, paddedChunkPosition,
-      layerRank);
-  const positionText = formatIntegerPoint(layerPosition);
-  if (setViewPosition !== undefined) {
-    const element = document.createElement('span');
-    element.className = 'neuroglancer-voxel-coordinates-link';
-    element.textContent = positionText;
-    element.title = `Center view on coordinates ${positionText}.`;
-    element.addEventListener('click', () => {
-      setViewPosition(layerPosition);
-    });
-    return element;
-  } else {
-    return document.createTextNode(positionText);
-  }
-}
-
-export function getPositionSummary(
-    element: HTMLElement, annotation: Annotation, chunkTransform: ChunkTransformParameters,
-    setViewPosition?: (layerPosition: Float32Array) => void) {
-  const makePointLinkWithTransform = (point: Float32Array) =>
-      makePointLink(point, chunkTransform, setViewPosition);
-
-  switch (annotation.type) {
-    case AnnotationType.AXIS_ALIGNED_BOUNDING_BOX:
-    case AnnotationType.LINE:
-      element.appendChild(makePointLinkWithTransform(annotation.pointA));
-      element.appendChild(document.createTextNode('–'));
-      element.appendChild(makePointLinkWithTransform(annotation.pointB));
-      break;
-    case AnnotationType.POINT:
-      element.appendChild(makePointLinkWithTransform(annotation.point));
-      break;
-    case AnnotationType.ELLIPSOID:
-      element.appendChild(makePointLinkWithTransform(annotation.center));
-      const rank = chunkTransform.layerRank;
-      const layerRadii = new Float32Array(rank);
-      matrix.transformVector(
-          layerRadii, chunkTransform.chunkToLayerTransform, rank + 1, annotation.radii, rank);
-      element.appendChild(document.createTextNode('±' + formatIntegerBounds(layerRadii)));
-      break;
-  }
-}
-
 function getCenterPosition(center: Float32Array, annotation: Annotation) {
   switch (annotation.type) {
     case AnnotationType.AXIS_ALIGNED_BOUNDING_BOX:
@@ -192,13 +138,7 @@ function setLayerPosition(
     layer: UserLayer, chunkTransform: ValueOrError<ChunkTransformParameters>,
     layerPosition: Float32Array) {
   if (chunkTransform.error !== undefined) return;
-  const {globalPosition} = layer.manager.root;
-  const {localPosition} = layer;
-  const {modelTransform} = chunkTransform;
-  gatherUpdate(globalPosition.value, layerPosition, modelTransform.globalToRenderLayerDimensions);
-  gatherUpdate(localPosition.value, layerPosition, modelTransform.localToRenderLayerDimensions);
-  localPosition.changed.dispatch();
-  globalPosition.changed.dispatch();
+  layer.setLayerPosition(chunkTransform.modelTransform, layerPosition);
 }
 
 
@@ -910,7 +850,7 @@ function getMousePositionInAnnotationCoordinates(
   if (chunkTransform.error !== undefined) return undefined;
   const chunkPosition = new Float32Array(chunkTransform.modelTransform.unpaddedRank);
   if (!getChunkPositionFromCombinedGlobalLocalPositions(
-          chunkPosition, mouseState.position, annotationLayer.localPosition.value,
+          chunkPosition, mouseState.unsnappedPosition, annotationLayer.localPosition.value,
           chunkTransform.layerRank, chunkTransform.combinedGlobalLocalToChunkTransform)) {
     return undefined;
   }
@@ -1015,6 +955,21 @@ abstract class PlaceTwoCornerAnnotationTool extends TwoStepAnnotationTool {
 export class PlaceBoundingBoxTool extends PlaceTwoCornerAnnotationTool {
   get description() {
     return `annotate bounding box`;
+  }
+
+  getUpdatedAnnotation(
+      oldAnnotation: AxisAlignedBoundingBox, mouseState: MouseSelectionState,
+      annotationLayer: AnnotationLayerState) {
+    const result = super.getUpdatedAnnotation(oldAnnotation, mouseState, annotationLayer) as
+        AxisAlignedBoundingBox;
+    const {pointA, pointB} = result;
+    const rank = pointA.length;
+    for (let i = 0; i < rank; ++i) {
+      if (pointA[i] === pointB[i]) {
+        pointB[i] += 1;
+      }
+    }
+    return result;
   }
 
   toJSON() {
@@ -1244,7 +1199,7 @@ function makeRelatedSegmentList(
         listElement.appendChild(headerRow);
 
         const rows: HTMLElement[] = [];
-        const segmentWidgetFactory = new SegmentWidgetFactory(
+        const segmentWidgetFactory = SegmentWidgetFactory.make(
             segmentationDisplayState ?? undefined, /*includeMapped=*/ false);
         for (const id of segments) {
           const row = segmentWidgetFactory.get(id);
@@ -1258,7 +1213,7 @@ function makeRelatedSegmentList(
               },
             });
             deleteButton.classList.add('neuroglancer-segment-list-entry-delete');
-            row.appendChild(deleteButton);
+            row.children[0].appendChild(deleteButton);
           }
           listElement.appendChild(row);
         }

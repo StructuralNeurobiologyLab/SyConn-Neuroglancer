@@ -132,6 +132,10 @@ class Builder {
       target: 'es2019',
       plugins: this.plugins,
       loader: {'.wasm': 'dataurl'},
+      // TODO(jbms): Remove this workaround once evanw/esbuild#1202 is fixed.
+      banner: {
+        js: 'function require(x) { throw new Error(\'Cannot require \' + x) }',
+      },
     };
   }
 
@@ -187,7 +191,7 @@ class Builder {
         entryPoints: [this.getMainEntrypoint('main.bundle.js')],
         bundle: true,
         write: false,
-        metafile: 'meta.json',
+        metafile: true,
       }),
       esbuild.build({
         ...this.getBaseEsbuildConfig(),
@@ -195,8 +199,7 @@ class Builder {
         bundle: true,
       })
     ]);
-    const metaEntry = JSON.parse(
-        mainBuildResult.outputFiles.find(entry => entry.path.endsWith('meta.json')).text);
+    const metaEntry = mainBuildResult.metafile;
     const cssEntry =
         mainBuildResult.outputFiles.find(entry => entry.path.endsWith('.css')).contents;
     await fs.promises.writeFile(path.resolve(this.outDir, 'main.css'), cssEntry);
