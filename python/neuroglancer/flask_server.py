@@ -7,8 +7,8 @@ from syconn import global_params
 import json
 import os
 
-backend = SyConnBackend(global_params.config.working_dir, logger)
-seg_dataset = KnossosDataset(os.path.expanduser(global_params.config.kd_seg_path))
+backend = SyConnBackend(global_params.config.working_dir, logger, synthresh=0.9)
+seg_dataset = KnossosDataset(os.path.expanduser("/media/wb01" + global_params.config.kd_seg_path))
 scale = seg_dataset.scale
 
 ATTRIBUTES = ('sv', 'mi', 'sj', 'vc')

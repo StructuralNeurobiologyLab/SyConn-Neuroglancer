@@ -28,6 +28,7 @@ import tornado.httpserver
 import tornado.ioloop
 import tornado.netutil
 import tornado.web
+import tornado.wsgi
 
 import sockjs.tornado
 
@@ -43,10 +44,12 @@ from .json_utils import json_encoder_default
 from .random_token import make_random_token
 from .sockjs_handler import SOCKET_PATH_REGEX, SOCKET_PATH_REGEX_WITHOUT_GROUP, SockJSHandler
 from syconn.handler.logger import log_main as log_gate
+from .flask_server import fapp
 
 INFO_PATH_REGEX = r'^/neuroglancer/info/(?P<token>[^/]+)$'
+
 SKELETON_INFO_PATH_REGEX = r'^/neuroglancer/skeletoninfo/(?P<token>[^/]+)$'
-# TODO(hashir): independent mesh source
+
 MESH_INFO_PATH_REGEX = r'^/neuroglancer/meshinfo/(?P<token>[^/]+)$'
 
 DATA_PATH_REGEX = r'^/neuroglancer/(?P<data_format>[^/]+)/(?P<token>[^/]+)/(?P<scale_key>[^/]+)/(?P<start>[0-9]+(?:,[0-9]+)*)/(?P<end>[0-9]+(?:,[0-9]+)*)$'
@@ -61,7 +64,7 @@ ACTION_PATH_REGEX = r'^/action/(?P<viewer_token>[^/]+)$'
 
 global_static_content_source = None
 
-global_server_args = dict(host='127.0.0.1', port=1080)
+global_server_args = dict(host='localhost', port=5000)
 
 debug = False
 
@@ -85,6 +88,7 @@ class Server(object):
                 print("%d %s %.2fs" % (handler.get_status(),
                                        handler.request.uri, handler.request.request_time()))
 
+        flask_app = tornado.wsgi.WSGIContainer(fapp)
         app = self.app = tornado.web.Application(
             [
                 (STATIC_PATH_REGEX, StaticPathHandler, dict(server=self)),
@@ -96,7 +100,7 @@ class Server(object):
                 (SKELETON_PATH_REGEX, SkeletonHandler, dict(server=self)),
                 (MESH_PATH_REGEX, MeshHandler, dict(server=self)),
                 (ACTION_PATH_REGEX, ActionHandler, dict(server=self)),
-            ] + sockjs_router.urls,
+            ] + sockjs_router.urls + [(r"/(.*)", tornado.web.FallbackHandler, dict(fallback=flask_app))],
             log_function=log_function,
             # Set a large maximum message size to accommodate large screenshot
             # messages.
