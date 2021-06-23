@@ -44,7 +44,7 @@ from .json_utils import json_encoder_default
 from .random_token import make_random_token
 from .sockjs_handler import SOCKET_PATH_REGEX, SOCKET_PATH_REGEX_WITHOUT_GROUP, SockJSHandler
 from syconn.handler.logger import log_main as log_gate
-from .flask_server import fapp
+from .flask_server import app
 
 INFO_PATH_REGEX = r'^/neuroglancer/info/(?P<token>[^/]+)$'
 
@@ -88,13 +88,12 @@ class Server(object):
                 print("%d %s %.2fs" % (handler.get_status(),
                                        handler.request.uri, handler.request.request_time()))
 
-        flask_app = tornado.wsgi.WSGIContainer(fapp)
-        app = self.app = tornado.web.Application(
+        flask_app = tornado.wsgi.WSGIContainer(app)
+        tornado_app = self.app = tornado.web.Application(
             [
                 (STATIC_PATH_REGEX, StaticPathHandler, dict(server=self)),
                 (INFO_PATH_REGEX, VolumeInfoHandler, dict(server=self)),
                 (SKELETON_INFO_PATH_REGEX, SkeletonInfoHandler, dict(server=self)),
-                # TODO(hashir): independent mesh source
                 (MESH_INFO_PATH_REGEX, MeshInfoHandler, dict(server=self)),
                 (DATA_PATH_REGEX, SubvolumeHandler, dict(server=self)),
                 (SKELETON_PATH_REGEX, SkeletonHandler, dict(server=self)),
@@ -106,7 +105,7 @@ class Server(object):
             # messages.
             websocket_max_message_size=100 * 1024 * 1024)
         http_server = tornado.httpserver.HTTPServer(
-            app,
+            tornado_app,
             # Allow very large requests to accommodate large screenshots.
             max_buffer_size=1024 ** 3,
         )
@@ -228,8 +227,6 @@ class MeshHandler(BaseRequestHandler):
     def get(self, key, object_id):
         object_id = int(object_id)
         vol = self.server.get_volume(key)
-        print('In MeshHandler')
-        print(type(vol))
         if vol is None or not isinstance(vol, (local_volume.LocalVolume, mesh.MeshSource)):
             self.send_error(404)
             return
@@ -253,27 +250,19 @@ class MeshHandler(BaseRequestHandler):
             self.set_header('Content-type', 'application/octet-stream')
             self.finish(encoded_mesh)
 
-        # print("Before parsing meshSource mesh to executor")
-        # self.server.executor.submit(vol.get_mesh, object_id).add_done_callback(
-        #     lambda f: self.server.ioloop.add_callback(lambda: handle_mesh_result(f)))
-        # For MeshSource
-        if isinstance(vol, mesh.MeshSource):
-            print("Before parsing meshSource mesh to executor")
-            self.server.executor.submit(vol.get_mesh, object_id).add_done_callback(
-                lambda f: self.server.ioloop.add_callback(lambda: handle_mesh_result(f)))
-
+        # mesh as a subsource of local volume
+        if vol.precomputed_mesh is True:
+            logger.info('Loading precomputed mesh')
+            self.server.executor.submit(vol.get_object_mesh_precomputed, 
+                    object_id).add_done_callback(
+                            lambda f: self.server.ioloop.add_callback(lambda: handle_mesh_result(f)))
+        """
         else:
-            # mesh as a subsource of local volume
-            if vol.precomputedMesh is True:
-                logger.info('Loading precomputed mesh')
-                self.server.executor.submit(vol.get_object_mesh_precomputed,
-                                            object_id).add_done_callback(
-                    lambda f: self.server.ioloop.add_callback(lambda: handle_mesh_result(f)))
-            else:
-                print('Loading generated mesh')
-                self.server.executor.submit(vol.get_object_mesh, vol, object_id).add_done_callback(
-                    lambda f: self.server.ioloop.add_callback(lambda: handle_mesh_result(f)))
-
+            print('Loading generated mesh')
+            self.server.executor.submit(vol.get_object_mesh, vol, 
+                    object_id).add_done_callback(
+                            lambda f: self.server.ioloop.add_callback(lambda: handle_mesh_result(f)))
+        """
 
 class SkeletonHandler(BaseRequestHandler):
     @asynchronous

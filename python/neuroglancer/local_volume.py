@@ -23,7 +23,6 @@ import numpy as np
 from scipy import ndimage
 import six
 import syconn
-from numba import njit
 
 from . import downsample, downsample_scales
 from .chunks import encode_jpeg, encode_npz, encode_raw
@@ -31,6 +30,7 @@ from .coordinate_space import CoordinateSpace
 from . import trackable_state
 from .random_token import make_random_token
 from knossos_utils import KnossosDataset
+from syconn.handler.logger import log_main as logger
 
 
 class MeshImplementationNotAvailable(Exception):
@@ -148,7 +148,7 @@ class LocalVolume(trackable_state.ChangeNotifier):
                 self.subvol_task_types))
 
         self.task_type = task_type
-        self._precomputedMesh = precomputedMesh
+        self._precomputed_mesh = precomputedMesh
         self._mesh_generator = None
         self._mesh_generator_pending = None
         self._mesh_generator_lock = threading.Condition()
@@ -178,9 +178,9 @@ class LocalVolume(trackable_state.ChangeNotifier):
         self.max_downsampling_scales = max_downsampling_scales
 
     @property
-    def precomputedMesh(self):
+    def precomputed_mesh(self):
 
-        return self._precomputedMesh
+        return self._precomputed_mesh
 
     def info(self):
 
@@ -239,12 +239,13 @@ class LocalVolume(trackable_state.ChangeNotifier):
         size = tuple(end[i] * downsample_factor[i] for i in reversed(range(rank)))
         size = tuple(np.subtract(size, offset))
 
+        # isotropic downsampling
         if np.all(downsample_factor == downsample_factor[0]):
 
             if downsample_factor in self.dataset.available_mags:
                 mag = downsample_factor[0]
             else:
-                print('ISO: Mag not available')
+                logger.warn('Isotropic downsampling: {} not available in available mags. Downsampling using highest mag {}'.format(np.max(self.dataset.available_mags)))
                 mag = np.max(self.dataset.available_mags)
 
             if self.volume_type == 'segmentation':
@@ -258,6 +259,7 @@ class LocalVolume(trackable_state.ChangeNotifier):
             else:
                 raise ValueError('Subvolume is not of any supported volume_type')
 
+        # enforce isotropic downsampling and adjust for non-isotropic dimensions
         else:
             if self.task_type == 'highest_then_upsample':
                 highest_factor = np.max(downsample_factor)
@@ -267,27 +269,35 @@ class LocalVolume(trackable_state.ChangeNotifier):
                     up_levels = np.where(downsample_factor == mag, 1, mag / downsample_factor)
 
                 else:
-                    print('ANISO: Mag not available')
+                    logger.warn('Anisotropic downsampling: {} mag not available in available mags. Loading highest mag {}. Upsampling other dimensions!'.format(highest_factor, np.max(self.dataset.available_mags)))
                     mag = np.max(self.dataset.available_mags)
                     up_levels = mag / downsample_factor
 
                 if self.volume_type == 'segmentation':
                     subvol_isotropic = self.dataset.load_seg(offset=offset, size=size,
-                                                             mag=mag, )
+                                                             mag=mag)
 
                     subvol = self.upsampling_with_repetition(subvol_isotropic, up_levels)
 
 
                 elif self.volume_type == 'image':
                     subvol_isotropic = self.dataset.load_raw(offset=offset, size=size,
-                                                             mag=mag, )
+                                                             mag=mag)
 
                     subvol = self.upsampling_with_repetition(subvol_isotropic, up_levels)
 
             else:
-                mag = np.min(downsample_factor)
+                lowest_factor = np.min(downsample_factor)
 
-                down_levels = np.where(downsample_factor == mag, 1, downsample_factor / mag)
+                if lowest_factor in self.dataset.available_mags:
+                    mag = lowest_factor
+                    down_levels = np.where(downsample_factor == mag, 1, downsample_factor / mag)
+
+                else:
+                    logger.warn('Anisotropic downsampling: {} mag not available in available mags. Loading lowest mag {}. Downsampling other dimensions!'.format(lowest_factor, np.min(self.dataset.available_mags)))
+                    mag = np.min(self.dataset.available_mags)
+                    down_levels = downsample_factor / mag
+
                 down_levels = np.cast[np.int](down_levels)
 
                 if self.volume_type == 'segmentation':
@@ -299,7 +309,6 @@ class LocalVolume(trackable_state.ChangeNotifier):
                     subvol_isotropic = self.dataset.load_raw(offset=offset, size=size,
                                                              mag=mag)
                     subvol = downsample.downsample_with_averaging(subvol_isotropic, down_levels)
-                subvol = self.subvol_task(mag, offset, size, type=self.task_type)
 
         if subvol.dtype == 'float64':
             subvol = np.cast[np.float32](subvol)
@@ -322,13 +331,18 @@ class LocalVolume(trackable_state.ChangeNotifier):
         return data, content_type
 
     def upsampling_with_repetition(self, subvol_isotropic, up_levels, mode='nearest', order=0):
-        return ndimage.zoom(subvol_isotropic, up_levels, mode='nearest', order=0)
+        """
+        Upsamples non-isotropic dimensions of subvolume. Default mode: nearest neighbor of order 0
+        """
+        return ndimage.zoom(subvol_isotropic, up_levels, mode=mode, order=order)
 
     def buildMeshDict(self, object_id):
         """
         Handle the getter for mesh according to the object type of the LocalVolume
-
-        :return: mesh dict {('num_vertices',) 'vertices', 'indices'}
+        
+        :param object_id: int 
+        :return: dict ({'vertices': ..., 
+                        'indices': ...})
         """
         mesh = {}
 
@@ -357,10 +371,10 @@ class LocalVolume(trackable_state.ChangeNotifier):
         Gets mesh for an id and encodes it according to single-resolution mesh from
         neuroglancer/src/neuroglancer/datasource/precomputed/meshes.md
 
-        :param mesh: dict of {'num_vert', 'vertices', 'indices'}
-                          (int32,optional) (float32)   (int64)
+        :param mesh: dict ({'vertices': ..., 
+                            'indices': ...})
 
-        :return: Python bytes() of [num_vert, vertices, indices]
+        :return: bytes array ([num_vert, vertices, indices])
         """
 
         vertices = np.array(mesh['vertices'], dtype=np.float32).reshape(-1, 3)[:, [2, 1, 0]] * 1e-9
@@ -400,24 +414,6 @@ class LocalVolume(trackable_state.ChangeNotifier):
         """
         mesh = self.buildMeshDict(object_id)
         encoded_mesh = self._get_flattened_mesh(mesh)
-
-        return encoded_mesh
-
-    def get_object_mesh_precomputed_experimental(self, object_id):
-        """
-        Gets precomputed meshes(cell mesh, mitochondria, synapses, vesticle clouds) for a specific object id from the SyConn backend and encodes it in bytes.
-        :param object_id: int
-        :return: bytes
-        """
-        cellMesh = self.buildMeshDict(object_id, 'sv')
-        miMesh = self.buildMeshDict(object_id, 'mi')
-        synMesh = self.buildMeshDict(object_id, 'syn_ssv')
-        vcMesh = self.buildMeshDict(object_id, 'vc')
-        encoded_mesh = self._get_flattened_mesh(cellMesh)
-        encoded_mesh += self._get_flattened_mesh(miMesh)
-        encoded_mesh += self._get_flattened_mesh(synMesh)
-        encoded_mesh += self._get_flattened_mesh(vcMesh)
-        self.backend.logger.info('Precomputed encoding of meshes done')
 
         return encoded_mesh
 
