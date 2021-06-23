@@ -22,7 +22,7 @@ import {WatchableRenderLayerTransform} from 'neuroglancer/render_coordinate_tran
 import {RenderScaleHistogram} from 'neuroglancer/render_scale_statistics';
 import {RenderLayer} from 'neuroglancer/renderlayer';
 import {getCssColor, SegmentColorHash} from 'neuroglancer/segment_color';
-import {forEachVisibleSegment, onVisibleSegmentsStateChanged, VISIBLE_SEGMENTS_STATE_PROPERTIES, VisibleSegmentsState} from 'neuroglancer/segmentation_display_state/base';
+import {forEachVisibleSegment, onTemporaryVisibleSegmentsStateChanged, onVisibleSegmentsStateChanged, VISIBLE_SEGMENTS_STATE_PROPERTIES, VisibleSegmentsState} from 'neuroglancer/segmentation_display_state/base';
 import {InlineSegmentNumericalProperty, InlineSegmentProperty, PreprocessedSegmentPropertyMap} from 'neuroglancer/segmentation_display_state/property_map';
 import {SegmentationUserLayer} from 'neuroglancer/segmentation_user_layer';
 import {SharedWatchableValue} from 'neuroglancer/shared_watchable_value';
@@ -34,7 +34,7 @@ import {setClipboard} from 'neuroglancer/util/clipboard';
 import {useWhiteBackground} from 'neuroglancer/util/color';
 import {RefCounted} from 'neuroglancer/util/disposable';
 import {measureElementClone} from 'neuroglancer/util/dom';
-import {vec3, vec4} from 'neuroglancer/util/geom';
+import {kOneVec, vec3, vec4} from 'neuroglancer/util/geom';
 import {NullarySignal} from 'neuroglancer/util/signal';
 import {Uint64} from 'neuroglancer/util/uint64';
 import {withSharedVisibility} from 'neuroglancer/visibility_priority/frontend';
@@ -149,6 +149,7 @@ export interface SegmentationColorGroupState {
 export interface SegmentationDisplayState {
   segmentSelectionState: SegmentSelectionState;
   saturation: TrackableAlphaValue;
+  baseSegmentColoring: WatchableValueInterface<boolean>;
   segmentationGroupState: WatchableValueInterface<SegmentationGroupState>;
   segmentationColorGroupState: WatchableValueInterface<SegmentationColorGroupState>;
 
@@ -161,6 +162,13 @@ export interface SegmentationDisplayState {
   segmentColorHash: WatchableValueInterface<number>;
   segmentStatedColors: WatchableValueInterface<Uint64Map>;
   segmentDefaultColor: WatchableValueInterface<vec3|undefined>;
+}
+
+export function resetTemporaryVisibleSegmentsState(state: VisibleSegmentsState) {
+  state.useTemporarySegmentEquivalences.value = false;
+  state.useTemporaryVisibleSegments.value = false;
+  state.temporaryVisibleSegments.clear();
+  state.temporarySegmentEquivalences.clear();
 }
 
 /// Converts a segment id to a Uint64MapEntry or Uint64 (if Uint64MapEntry would add no additional
@@ -235,18 +243,26 @@ const segmentWidgetTemplate = (() => {
     title: `Copy segment ID`,
   });
   copyButton.classList.add('neuroglancer-segment-list-entry-copy');
-  const copyIndex = stickyContainer.childElementCount;
-  stickyContainer.appendChild(copyButton);
+  const copyContainer = document.createElement('div');
+  copyContainer.classList.add('neuroglancer-segment-list-entry-copy-container');
+  const copyIndex = copyContainer.childElementCount;
+  copyContainer.appendChild(copyButton);
+  const copyContainerIndex = stickyContainer.childElementCount;
+  stickyContainer.appendChild(copyContainer);
   const visibleIndex = stickyContainer.childElementCount;
   const checkbox = document.createElement('input');
   checkbox.type = 'checkbox';
   checkbox.title = 'Toggle segment visibility';
   checkbox.classList.add('neuroglancer-segment-list-entry-visible-checkbox');
   stickyContainer.appendChild(checkbox);
-  const idElement = document.createElement('span');
+  const idContainer = document.createElement('div');
+  idContainer.classList.add('neuroglancer-segment-list-entry-id-container');
+  const idContainerIndex = stickyContainer.childElementCount;
+  stickyContainer.appendChild(idContainer);
+  const idElement = document.createElement('div');
   idElement.classList.add('neuroglancer-segment-list-entry-id');
-  const idIndex = stickyContainer.childElementCount;
-  stickyContainer.appendChild(idElement);
+  const idIndex = idContainer.childElementCount;
+  idContainer.appendChild(idElement);
   const nameElement = document.createElement('span');
   nameElement.classList.add('neuroglancer-segment-list-entry-name');
   const labelIndex = template.childElementCount;
@@ -259,8 +275,10 @@ const segmentWidgetTemplate = (() => {
   template.appendChild(filterElement);
   return {
     template,
+    copyContainerIndex,
     copyIndex,
     visibleIndex,
+    idContainerIndex,
     idIndex,
     labelIndex,
     filterIndex,
@@ -272,13 +290,16 @@ const segmentWidgetTemplate = (() => {
 const segmentWidgetTemplateWithUnmapped = (() => {
   const t = segmentWidgetTemplate;
   const template = t.template.cloneNode(/*deep=*/ true) as HTMLDivElement;
-  const unmappedIdIndex = template.childElementCount;
+  const stickyContainer = template.children[0] as HTMLElement;
+  const idContainer = stickyContainer.children[t.idContainerIndex] as HTMLElement;
+  const unmappedIdIndex = idContainer.childElementCount;
   const unmappedIdElement =
-      template.children[0].children[t.idIndex].cloneNode(/*deep=*/ true) as HTMLElement;
+      idContainer.children[t.idIndex].cloneNode(/*deep=*/ true) as HTMLElement;
   unmappedIdElement.classList.add('neuroglancer-segment-list-entry-unmapped-id');
-  template.appendChild(unmappedIdElement);
-  const unmappedCopyIndex = template.childElementCount;
-  template.appendChild(template.children[0].children[t.copyIndex].cloneNode(/*deep=*/ true));
+  idContainer.appendChild(unmappedIdElement);
+  const copyContainer = stickyContainer.children[t.copyContainerIndex] as HTMLElement;
+  const unmappedCopyIndex = copyContainer.childElementCount;
+  copyContainer.appendChild(copyContainer.children[t.copyIndex].cloneNode(/*deep=*/ true));
   return {...t, template, unmappedIdIndex, unmappedCopyIndex};
 })();
 
@@ -379,10 +400,12 @@ function makeRegisterSegmentWidgetEventHandlers(displayState: SegmentationDispla
     const {children} = element;
     const stickyChildren = children[0].children;
     element.addEventListener('mousedown', onMousedown);
+    const copyContainer = stickyChildren[template.copyContainerIndex] as HTMLElement;
     if (template.unmappedCopyIndex !== -1) {
-      children[template.unmappedCopyIndex].addEventListener('click', unmappedCopyHandler);
+      copyContainer.children[template.unmappedCopyIndex].addEventListener(
+          'click', unmappedCopyHandler);
     }
-    stickyChildren[template.copyIndex].addEventListener('click', copyHandler);
+    copyContainer.children[template.copyIndex].addEventListener('click', copyHandler);
     element.addEventListener('mouseenter', onMouseEnter);
     element.addEventListener('mouseleave', onMouseLeave);
     stickyChildren[template.visibleIndex].addEventListener('click', visibleCheckboxHandler);
@@ -426,7 +449,8 @@ export class SegmentWidgetFactory<Template extends SegmentWidgetTemplate> {
     container.dataset.id = mappedIdString;
     const {children} = container;
     const stickyChildren = children[0].children;
-    stickyChildren[template.idIndex].textContent = mappedIdString;
+    const idContainer = stickyChildren[template.idContainerIndex] as HTMLElement;
+    idContainer.children[template.idIndex].textContent = mappedIdString;
     const {unmappedIdIndex} = template;
     if (displayState !== undefined) {
       this.registerEventHandlers!(container, template);
@@ -434,16 +458,19 @@ export class SegmentWidgetFactory<Template extends SegmentWidgetTemplate> {
       (stickyChildren[template.visibleIndex] as HTMLElement).style.display = 'none';
     }
     if (unmappedIdIndex !== -1) {
+      const unmappedIdElement = idContainer.children[unmappedIdIndex] as HTMLElement;
       if (!Uint64.equal(id, mapped)) {
         const unmappedIdString = id.toString();
         container.dataset.unmappedId = unmappedIdString;
-        children[unmappedIdIndex].textContent = unmappedIdString;
+        unmappedIdElement.textContent = unmappedIdString;
         if (displayState !== undefined) {
           updateIdStringWidth(
               displayState.segmentationGroupState.value.maxIdLength, unmappedIdString);
         }
       } else {
-        (children[unmappedIdIndex] as HTMLElement).style.display = 'none';
+        unmappedIdElement.style.display = 'none';
+        const copyContainer = stickyChildren[template.copyContainerIndex] as HTMLElement;
+        (copyContainer.children[template.unmappedCopyIndex] as HTMLElement).style.display = 'none';
       }
     }
     children[template.labelIndex].textContent = normalizedId.label ?? '';
@@ -474,15 +501,30 @@ export class SegmentWidgetFactory<Template extends SegmentWidgetTemplate> {
     container.dataset.selected = (segmentSelectionState.hasSelectedSegment &&
                                   Uint64.equal(segmentSelectionState.selectedSegment, mapped))
                                      .toString();
-    const idElement = (stickyChildren[template.idIndex] as HTMLElement);
-    const baseObjectColor = getBaseObjectColor(this.displayState, mapped);
-    idElement.style.backgroundColor = getCssColor(baseObjectColor);
-    idElement.style.color = useWhiteBackground(baseObjectColor as vec3) ? 'white' : 'black';
+    const idContainer = stickyChildren[template.idContainerIndex] as HTMLElement;
+    setSegmentIdElementStyle(
+        (idContainer.children[template.idIndex] as HTMLElement),
+        getBaseObjectColor(this.displayState, mapped) as vec3);
     const {unmappedIdIndex} = template;
     if (unmappedIdIndex !== -1) {
-      (children[unmappedIdIndex] as HTMLElement).style.backgroundColor = 'white';
+      let unmappedIdString: string|undefined;
+      let color: vec3;
+      if (displayState!.baseSegmentColoring.value &&
+          (unmappedIdString = container.dataset.unmappedId) !== undefined) {
+        const unmappedId = tempStatedColor;
+        unmappedId.parseString(unmappedIdString);
+        color = getBaseObjectColor(this.displayState, unmappedId) as vec3;
+      } else {
+        color = kOneVec;
+      }
+      setSegmentIdElementStyle(idContainer.children[unmappedIdIndex] as HTMLElement, color);
     }
   }
+}
+
+function setSegmentIdElementStyle(element: HTMLElement, color: vec3) {
+  element.style.backgroundColor = getCssColor(color);
+  element.style.color = useWhiteBackground(color) ? 'white' : 'black';
 }
 
 export class SegmentWidgetWithExtraColumnsFactory extends
@@ -557,13 +599,15 @@ export class SegmentWidgetWithExtraColumnsFactory extends
     const container = template.template.cloneNode(/*deep=*/ true) as HTMLDivElement;
     const {children} = container;
     const stickyChildren = children[0].children;
-    (stickyChildren[template.copyIndex] as HTMLElement).style.visibility = 'hidden';
+    const copyContainer = stickyChildren[template.copyContainerIndex] as HTMLElement;
+    copyContainer.style.visibility = 'hidden';
     (stickyChildren[template.visibleIndex] as HTMLElement).style.visibility = 'hidden';
     (children[template.filterIndex] as HTMLElement).style.visibility = 'hidden';
+    const idContainer = stickyChildren[template.idContainerIndex] as HTMLElement;
     const propertyLabels = [
       this.makeHeaderLabel(
           'id', '--neuroglancer-id-column-label-width',
-          stickyChildren[template.idIndex] as HTMLElement),
+          idContainer.children[template.idIndex] as HTMLElement),
       this.makeHeaderLabel(
           'label', '--neuroglancer-label-column-label-width',
           children[template.labelIndex] as HTMLElement),
@@ -616,12 +660,16 @@ export function registerCallbackWhenSegmentationDisplayStateChanged(
   }, displayState.segmentationColorGroupState));
   context.registerDisposer(displayState.saturation.changed.add(callback));
   context.registerDisposer(displayState.segmentSelectionState.changed.add(callback));
+  context.registerDisposer(displayState.baseSegmentColoring.changed.add(callback));
 }
 
 export function registerRedrawWhenSegmentationDisplayStateChanged(
     displayState: SegmentationDisplayState, renderLayer: {redrawNeeded: NullarySignal}&RefCounted) {
   const callback = renderLayer.redrawNeeded.dispatch;
   registerCallbackWhenSegmentationDisplayStateChanged(displayState, renderLayer, callback);
+  renderLayer.registerDisposer(registerNestedSync((c, groupState) => {
+    onTemporaryVisibleSegmentsStateChanged(c, groupState, callback);
+  }, displayState.segmentationGroupState));
 }
 
 export function registerRedrawWhenSegmentationDisplayStateWithAlphaChanged(
@@ -742,9 +790,12 @@ export function forEachVisibleSegmentToDraw(
         objectId: Uint64, color: vec4|undefined, pickIndex: number|undefined,
         rootObjectId: Uint64) => void) {
   const alpha = Math.min(1, displayState.objectAlpha.value);
+  const baseSegmentColoring = displayState.baseSegmentColoring.value;
   forEachVisibleSegment(displayState.segmentationGroupState.value, (objectId, rootObjectId) => {
     let pickIndex = pickIDs?.registerUint64(renderLayer, objectId);
-    let color = emitColor ? getObjectColor(displayState, rootObjectId, alpha) : undefined;
+    let color = emitColor ?
+        getObjectColor(displayState, baseSegmentColoring ? objectId : rootObjectId, alpha) :
+        undefined;
     callback(objectId, color, pickIndex, rootObjectId);
   });
 }

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {AnnotationPropertySpec, AnnotationType, ensureUniqueAnnotationPropertyIds, makeDataBoundsBoundingBoxAnnotationSet, parseAnnotationPropertyId, parseAnnotationPropertyType} from 'neuroglancer/annotation';
+import {AnnotationType, makeDataBoundsBoundingBoxAnnotationSet, parseAnnotationPropertySpecs} from 'neuroglancer/annotation';
 import {AnnotationGeometryChunkSpecification} from 'neuroglancer/annotation/base';
 import {AnnotationGeometryChunkSource, MultiscaleAnnotationSource} from 'neuroglancer/annotation/frontend_source';
 import {ChunkManager, WithParameters} from 'neuroglancer/chunk_manager/frontend';
@@ -607,21 +607,6 @@ function parseKeyAndShardingSpec(url: string, obj: any) {
     url: resolvePath(url, verifyObjectProperty(obj, 'key', verifyString)),
     sharding: verifyObjectProperty(obj, 'sharding', parseShardingParameters),
   };
-}
-
-function parseAnnotationPropertySpec(obj: unknown): AnnotationPropertySpec {
-  verifyObject(obj);
-  const identifier = verifyObjectProperty(obj, 'id', parseAnnotationPropertyId);
-  const type = verifyObjectProperty(obj, 'type', parseAnnotationPropertyType);
-  const description = verifyOptionalObjectProperty(obj, 'description', verifyString);
-  let defaultValue = 0;
-  return {type, identifier, description, default: defaultValue} as AnnotationPropertySpec;
-}
-
-function parseAnnotationPropertySpecs(obj: unknown) {
-  const properties = parseArray(obj, parseAnnotationPropertySpec);
-  ensureUniqueAnnotationPropertyIds(properties);
-  return properties;
 }
 
 interface AnnotationSpatialIndexLevelMetadata {
