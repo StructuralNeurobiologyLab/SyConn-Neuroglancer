@@ -38,9 +38,9 @@ class _ViewerHelper(object):
 
 
 class Viewer(viewer_base.ViewerBase, _ViewerHelper):
-    def __init__(self, **kwargs):
+    def __init__(self, global_srv, **kwargs):
         super(Viewer, self).__init__(**kwargs)
-        server.register_viewer(self)
+        server.register_viewer(self, global_srv)
 
     def get_viewer_url(self):
         return '%s/v/%s/' % (server.get_server_url(), self.token)

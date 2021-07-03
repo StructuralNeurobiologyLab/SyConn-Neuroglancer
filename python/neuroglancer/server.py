@@ -38,13 +38,12 @@ try:
 except ImportError:
     from tornado.web import asynchronous
 
-from . import local_volume, static
-from . import skeleton, mesh
-from .json_utils import json_encoder_default
-from .random_token import make_random_token
-from .sockjs_handler import SOCKET_PATH_REGEX, SOCKET_PATH_REGEX_WITHOUT_GROUP, SockJSHandler
-from syconn.handler.logger import log_main as log_gate
-from .flask_server import app
+from neuroglancer import local_volume, static
+from neuroglancer import skeleton
+from neuroglancer.json_utils import json_encoder_default
+from neuroglancer.random_token import make_random_token
+from neuroglancer.sockjs_handler import SOCKET_PATH_REGEX, SOCKET_PATH_REGEX_WITHOUT_GROUP, SockJSHandler
+from neuroglancer.flask_server import app
 
 INFO_PATH_REGEX = r'^/neuroglancer/info/(?P<token>[^/]+)$'
 
@@ -80,8 +79,6 @@ class Server(object):
         sockjs_router = sockjs.tornado.SockJSRouter(
             SockJSHandler, SOCKET_PATH_REGEX_WITHOUT_GROUP, io_loop=ioloop)
         sockjs_router.neuroglancer_server = self
-        global logger
-        logger = log_gate
 
         def log_function(handler):
             if debug:
@@ -294,7 +291,7 @@ class SkeletonHandler(BaseRequestHandler):
             get_encoded_skeleton, vol, object_id).add_done_callback(
             lambda f: self.server.ioloop.add_callback(lambda: handle_result(f)))
 
-
+# global global_server
 global_server = None
 
 
@@ -335,11 +332,12 @@ def get_server_url():
 
 _global_server_lock = threading.Lock()
 
+from neuroglancer import settings
 
 def start():
-    global global_server
+    # global global_server
     with _global_server_lock:
-        if global_server is not None: return
+        if settings.global_server is not None: return
 
         # Workaround https://bugs.python.org/issue37373
         # https://www.tornadoweb.org/en/stable/index.html#installation
@@ -353,7 +351,7 @@ def start():
             global global_server
             ioloop = tornado.ioloop.IOLoop()
             ioloop.make_current()
-            global_server = Server(ioloop=ioloop, **global_server_args)
+            settings.global_server = Server(ioloop=ioloop, **global_server_args)
             done.set()
             ioloop.start()
             ioloop.close()
@@ -364,12 +362,16 @@ def start():
         done.wait()
 
 
-def register_viewer(viewer):
-    start()
-    global_server.viewers[viewer.token] = viewer
+def register_viewer(viewer, global_srv):
+    # start()
+    # global_server.viewers[viewer.token] = viewer
+    global_srv.viewers[viewer.token] = viewer
 
 
 def defer_callback(callback, *args, **kwargs):
     """Register `callback` to run in the server event loop thread."""
     start()
     global_server.ioloop.add_callback(lambda: callback(*args, **kwargs))
+
+if __name__ == "__main__":
+    start()

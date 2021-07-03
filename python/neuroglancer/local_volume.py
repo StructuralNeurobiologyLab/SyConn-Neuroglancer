@@ -22,7 +22,6 @@ import threading
 import numpy as np
 from scipy import ndimage
 import six
-import syconn
 
 from . import downsample, downsample_scales
 from .chunks import encode_jpeg, encode_npz, encode_raw
@@ -30,7 +29,6 @@ from .coordinate_space import CoordinateSpace
 from . import trackable_state
 from .random_token import make_random_token
 from knossos_utils import KnossosDataset
-from syconn.handler.logger import log_main as logger
 
 
 class MeshImplementationNotAvailable(Exception):
@@ -88,8 +86,10 @@ class LocalVolume(trackable_state.ChangeNotifier):
         """
         super(LocalVolume, self).__init__()
         self.token = make_random_token()
+        
         if not isinstance(dataset, KnossosDataset):
             raise ValueError('Dataset parameter is not a KnossosDatset object')
+        
         self.dataset = dataset
         boundaries = dataset.boundary
         self.shape = [boundaries[2], boundaries[1], boundaries[0]]  # data.shape
@@ -154,16 +154,12 @@ class LocalVolume(trackable_state.ChangeNotifier):
         self._mesh_generator_lock = threading.Condition()
         self._mesh_options = mesh_options.copy() if mesh_options is not None else dict()
         self.obj_type = object_type
-
-        if backend is None or not isinstance(backend, syconn.analysis.backend.SyConnBackend):
-            raise ValueError('backend must be a SyConnBackend object')
-
-        else:
-            self.backend = backend
+        
+        self.backend = backend
 
         self.max_voxels_per_chunk_log2 = max_voxels_per_chunk_log2
         self.downsampling_layout = downsampling
-
+        print('Downsampling layout: {}'.format(downsampling))
         if chunk_layout is None:
 
             if downsampling == '2d':
@@ -238,14 +234,18 @@ class LocalVolume(trackable_state.ChangeNotifier):
 
         size = tuple(end[i] * downsample_factor[i] for i in reversed(range(rank)))
         size = tuple(np.subtract(size, offset))
+        print(f'{self.volume_type} mags: {self.dataset.available_mags}')
 
+        #scales = downsample_scales.compute_two_dimensional_near_isotropic_downsampling_scales(size, self.voxel_offset)
+        # print(f'Scales {scales}')
         # isotropic downsampling
         if np.all(downsample_factor == downsample_factor[0]):
+            #print('Isotropic downsampling')
 
-            if downsample_factor in self.dataset.available_mags:
+            if downsample_factor[0] in self.dataset.available_mags:
                 mag = downsample_factor[0]
             else:
-                logger.warn('Isotropic downsampling: {} not available in available mags. Downsampling using highest mag {}'.format(np.max(self.dataset.available_mags)))
+                print('Isotropic downsampling: {} not available in available mags. Downsampling using highest mag {}'.format(np.max(self.dataset.available_mags)))
                 mag = np.max(self.dataset.available_mags)
 
             if self.volume_type == 'segmentation':
@@ -255,12 +255,12 @@ class LocalVolume(trackable_state.ChangeNotifier):
             elif self.volume_type == 'image':
                 subvol = self.dataset.load_raw(offset=offset, size=size,
                                                mag=mag)
-
             else:
                 raise ValueError('Subvolume is not of any supported volume_type')
 
         # enforce isotropic downsampling and adjust for non-isotropic dimensions
         else:
+            #print('Anisotropic downsampling')
             if self.task_type == 'highest_then_upsample':
                 highest_factor = np.max(downsample_factor)
 
@@ -269,7 +269,7 @@ class LocalVolume(trackable_state.ChangeNotifier):
                     up_levels = np.where(downsample_factor == mag, 1, mag / downsample_factor)
 
                 else:
-                    logger.warn('Anisotropic downsampling: {} mag not available in available mags. Loading highest mag {}. Upsampling other dimensions!'.format(highest_factor, np.max(self.dataset.available_mags)))
+                    print('Anisotropic downsampling: {} mag not available in available mags. Loading highest mag {}. Upsampling other dimensions!'.format(highest_factor, np.max(self.dataset.available_mags)))
                     mag = np.max(self.dataset.available_mags)
                     up_levels = mag / downsample_factor
 
@@ -294,7 +294,7 @@ class LocalVolume(trackable_state.ChangeNotifier):
                     down_levels = np.where(downsample_factor == mag, 1, downsample_factor / mag)
 
                 else:
-                    logger.warn('Anisotropic downsampling: {} mag not available in available mags. Loading lowest mag {}. Downsampling other dimensions!'.format(lowest_factor, np.min(self.dataset.available_mags)))
+                    print('Anisotropic downsampling: {} mag not available in available mags. Loading lowest mag {}. Downsampling other dimensions!'.format(lowest_factor, np.min(self.dataset.available_mags)))
                     mag = np.min(self.dataset.available_mags)
                     down_levels = downsample_factor / mag
 
@@ -304,7 +304,7 @@ class LocalVolume(trackable_state.ChangeNotifier):
                     subvol_isotropic = self.dataset.load_seg(offset=offset, size=size,
                                                              mag=mag)
                     subvol = downsample.downsample_with_striding(subvol_isotropic, down_levels)
-
+                    
                 elif self.volume_type == 'image':
                     subvol_isotropic = self.dataset.load_raw(offset=offset, size=size,
                                                              mag=mag)

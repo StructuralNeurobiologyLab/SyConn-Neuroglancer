@@ -1,10 +1,12 @@
-from flask import Flask, abort, make_response
-from flask_cors import CORS
+from flask import Flask, abort, make_response, render_template, redirect
+#from flask_cors import CORS
 from syconn.analysis.backend import SyConnBackend
+from syconn.analysis.property_filter import PropertyFilter
 from syconn.analysis.utils import get_encoded_mesh, get_encoded_skeleton
 from syconn.handler.logger import log_main as logger
 from knossos_utils import KnossosDataset
 from syconn import global_params
+from .random_token import make_random_token
 import json
 import os
 
@@ -15,13 +17,20 @@ scale = seg_dataset.scale
 ATTRIBUTES = ('sv', 'mi', 'sj', 'vc')
 
 app = Flask(__name__)
-cors = CORS(app, resources={r"/*": {"origins": "http://localhost:5000"}})
-app.config['CORS_HEADERS'] = ['Content-Type', 'Authorization']
+# cors = CORS(app, resources={r"/*": {"origins": "*"}})
+# app.config['CORS_HEADERS'] = ['Content-Type', 'Authorization']
 # app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
 
 @app.route("/")
 def get():
-        return json.dumps("Welcome to Flask!")
+    return render_template('index.html')
+
+@app.route("/generate_token", methods=['POST'])
+def get_random_token():
+    token = make_random_token()
+    seg_path = global_params.config.kd_seg_path
+    pf = PropertyFilter(backend, seg_path, ['mi'], clargs={}, token=token)
+    return redirect(f"http://syconn.esc.mpcdf.mpg.de/v/{token}/")
 
 @app.route("/skeletons/info", methods=['GET'])
 def get_skeleton_info():

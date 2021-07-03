@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+
+<head>
+	<title>SyConn-Neuroglancer Viewer</title>
+	<meta charset=utf-8>
+	<style>
+		body {
+			background-image: url("/var/www/logo_SyConn.png")
+		}
+	</style>
+</head>
+
+<body>
+	<h1>Welcome to SyConn Neuroglancer Viewer. Please click the button to generate a random viewer token!</h1>
+	<form action="/generate_token" method="post">
+		<input type="submit" value="Generate token"/>
+	</form>
+	<img src="http://syconn.esc.mpcdf.mpg.de/var/www/logo_SyConn.png">
+</body>
