@@ -1,36 +1,31 @@
 <!DOCTYPE html>
 
 <head>
+	<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 	<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
-	
+	<link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">
 
-	<style>
-		/* h1 {text-align: center;} */
-		p {text-align: center; font-size: 24px;}
-		div {text-align: center;}
-		blockquote {text-align: center;}
-		small {font-size: large;}
-		center {display: block; margin-left: auto; margin-right: auto;}
-		</style>
 	<meta charset=utf-8>
 </head>
 
 <body>
-	<nav class="navbar navbar-light" style="background-color: #fbfdff;">
+	<nav class="navbar navbar-light">
 		<div class="container-fluid">
-		  <a class="navbar-brand" href="">
-			<img src="{{url_for('static', filename='logo_SyConn.png')}}" alt="SyConn logo" width="300" height="100" class="d-inline-block align-text-top center">
-			<!-- <p SyConn Neuroglancer Viewer></p> -->
-		  </a>
+			<a class="navbar-brand" href="">
+				<img src="{{url_for('static', filename='logo_SyConn.png')}}" alt="SyConn logo" width="300" height="100" class="d-inline-block align-text-top center">
+		  	</a>
+			<img src="{{url_for('static', filename='MPNeuro.png')}}" alt="MP Neurobiology image" class="d-inline-block align-text-top center smaller">
 		</div>
 	  </nav>
 
 	<blockquote class="blockquote text-center">
-		<p class="mb-0">Welcome to SyConn Neuroglancer Viewer!</p>
+		<p class="mb-0" style="text-align: center;font-size: 40px; font-family: Arial, Helvetica, sans-serif;">
+			Welcome to the SyConn Neuroglancer Viewer!
+		</p>
 	</blockquote>
 
-	<div class="container">
-		<small class="text-muted">Please click the button to generate a random viewer token</small>
+	<div class="container slide">
+		<small class="text-muted" style="margin-bottom: 5px; font-size: 14px;">Please click the button to generate a random viewer token</small>
 		<form action="/generate_token" method="post">
 			<div class="d-grid gap-2 col-6 mx-auto">
 				<button type="submit"  class="btn btn-secondary btn-lg">Generate token</button>
