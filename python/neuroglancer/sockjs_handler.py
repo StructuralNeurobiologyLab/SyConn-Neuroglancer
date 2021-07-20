@@ -23,6 +23,8 @@ import sockjs.tornado
 
 from . import trackable_state, viewer_config_state
 from .json_utils import decode_json, encode_json
+from syconn.handler.logger import log_main as logger
+
 
 SOCKET_PATH_REGEX_WITHOUT_GROUP = r'^/socket/(?:[^/]+)'
 SOCKET_PATH_REGEX = r'^/socket/(?P<viewer_token>[^/]+)'

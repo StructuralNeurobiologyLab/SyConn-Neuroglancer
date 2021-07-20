@@ -373,7 +373,7 @@ class CoordinateSpaceTransform(JsonObjectWrapper):
 
 
 def data_source_url(x):
-    if isinstance(x, (local_volume.LocalVolume, skeleton.SkeletonSource, mesh.MeshSource)): # TODO (hashir): independent mesh source
+    if isinstance(x, (local_volume.LocalVolume, skeleton.SkeletonSource)):
         return x
     if not isinstance(x, six.string_types):
         raise TypeError
@@ -416,7 +416,7 @@ class LayerDataSources(typed_list(LayerDataSource, validator=LayerDataSource)):
 
     def __init__(self, json_data=None, **kwargs):
         if isinstance(json_data, (LayerDataSource, six.string_types, local_volume.LocalVolume,
-                                  skeleton.SkeletonSource, mesh.MeshSource, dict)): # TODO (hashir): independent mesh source
+                                  skeleton.SkeletonSource, dict)):
             json_data = [json_data]
         elif isinstance(json_data, LayerDataSources):
             json_data = json_data.to_json()

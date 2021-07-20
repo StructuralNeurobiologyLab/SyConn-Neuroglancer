@@ -7,12 +7,10 @@ from syconn.handler.logger import log_main as logger
 from knossos_utils import KnossosDataset
 from syconn import global_params
 from .random_token import make_random_token
+from neuroglancer import config
+
 import json
 import os
-
-backend = SyConnBackend(global_params.config.working_dir, logger, synthresh=0.9)
-seg_dataset = KnossosDataset(os.path.expanduser(global_params.config.kd_seg_path))
-scale = seg_dataset.scale
 
 ATTRIBUTES = ('sv', 'mi', 'sj', 'vc')
 
@@ -29,11 +27,21 @@ def get():
 def get_random_token():
     token = make_random_token()
     seg_path = global_params.config.kd_seg_path
-    pf = PropertyFilter(backend, seg_path, ['mi'], clargs={}, token=token)
-    return redirect(f"http://syconn.esc.mpcdf.mpg.de/v/{token}/")
+    pf = PropertyFilter(config.backend, seg_path, ['mi', 'vc', 'sj'], clargs={}, token=token)
 
+    if config.dev_environ:
+        host = config.global_server_args['host']
+        port = config.global_server_args['port']
+
+        return redirect(f"http://{host}:{port}/v/{token}/")
+        
+    else:
+        return redirect(f"http://syconn.esc.mpcdf.mpg.de/v/{token}/")
+
+'''
 @app.route("/skeletons/info", methods=['GET'])
 def get_skeleton_info():
+    """Download skeleton info"""
     try:
         info = {
             "@type": "neuroglancer_skeletons",
@@ -84,9 +92,9 @@ def get_skeleton(ssv_id):
     except:
         logger.error('Error retrieving encoded skeleton of ssv_id {}'.format(ssv_id))
         abort(404)
-
+'''
 @app.route("/<string:obj_type>/info", methods=['GET'])
-def get_info(obj_type):
+def get_mesh_info(obj_type):
     """Download info."""
     try:
         response = make_response(json.dumps({"@type": "neuroglancer_legacy_mesh"}))
@@ -95,12 +103,12 @@ def get_info(obj_type):
     
         return response
 
-    except:
-        logger.error('Error retrieving {} info'.format(obj_type))
+    except Exception as e:
+        logger.error('Error retrieving cell mesh info {}'.format(e.args[0]))
         abort(404)
 
 @app.route("/<string:obj_type>/<int:ssv_id>:<int:lod>", methods=['GET'])
-def get_metadata(obj_type, ssv_id, lod):
+def get_mesh_meta(obj_type, ssv_id, lod):
     """Download metadata"""
     try:
         fragments = []
@@ -111,19 +119,19 @@ def get_metadata(obj_type, ssv_id, lod):
         
         return response
 
-    except:
-        logger.error('Error retrieving json metadata of ssv_id {}'.format(ssv_id))
+    except Exception as e:
+        logger.error('Error retrieving json metadata of ssv_id {} {}'.format(ssv_id, e.args[0]))
         abort(404)
 
 @app.route("/<string:obj_type>/<int:ssv_id_1>:<int:lod>:<int:ssv_id_2>_mesh", methods=['GET'])
-def get_seg(obj_type, ssv_id_1, lod, ssv_id_2):
+def get_mesh(obj_type, ssv_id_1, lod, ssv_id_2):
     """Download encoded mesh"""
     try:
         if obj_type not in ATTRIBUTES:
             logger.error('Invalid obj_type argument. Found {}, should be one of {}'.format(obj_type, ATTRIBUTES))
             abort(404)
 
-        encoded_mesh = get_encoded_mesh(backend, ssv_id_1, obj_type)
+        encoded_mesh = get_encoded_mesh(config.backend, ssv_id_1, obj_type)
 
         if encoded_mesh == -1:
             logger.error('{} mesh not available for ssv_id: {}'.format(obj_type, ssv_id_1))
@@ -136,9 +144,10 @@ def get_seg(obj_type, ssv_id_1, lod, ssv_id_2):
 
         return response
 
-    except:
-        logger.error('Error retrieving encoded mesh of ssv_id {}'.format(ssv_id_1))
+    except Exception as e:
+        logger.error('Error retrieving encoded mesh of ssv_id {} {}'.format(ssv_id_1, e.args[0]))
         abort(404)
+
 
 if __name__ == "__main__":
     app.run(host="127.0.0.1", port=8000)

@@ -17,7 +17,7 @@ from __future__ import division
 import numpy as np
 
 DEFAULT_MAX_DOWNSAMPLING = 64
-DEFAULT_MAX_DOWNSAMPLED_SIZE = 128
+DEFAULT_MAX_DOWNSAMPLED_SIZE = 64
 DEFAULT_MAX_DOWNSAMPLING_SCALES = float('inf')
 
 

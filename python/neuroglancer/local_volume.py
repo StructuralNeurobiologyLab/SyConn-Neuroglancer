@@ -159,7 +159,6 @@ class LocalVolume(trackable_state.ChangeNotifier):
 
         self.max_voxels_per_chunk_log2 = max_voxels_per_chunk_log2
         self.downsampling_layout = downsampling
-        print('Downsampling layout: {}'.format(downsampling))
         if chunk_layout is None:
 
             if downsampling == '2d':
@@ -215,6 +214,8 @@ class LocalVolume(trackable_state.ChangeNotifier):
 
         rank = self.rank
 
+        # print(data_format, self.volume_type)
+
         if len(start) != rank or len(end) != rank:
             raise ValueError('Invalid request')
 
@@ -234,10 +235,11 @@ class LocalVolume(trackable_state.ChangeNotifier):
 
         size = tuple(end[i] * downsample_factor[i] for i in reversed(range(rank)))
         size = tuple(np.subtract(size, offset))
-        print(f'{self.volume_type} mags: {self.dataset.available_mags}')
+        # print(f'{self.volume_type} mags: {self.dataset.available_mags}')
 
         #scales = downsample_scales.compute_two_dimensional_near_isotropic_downsampling_scales(size, self.voxel_offset)
-        # print(f'Scales {scales}')
+        # print(f'Scales {downsample_factor}')
+
         # isotropic downsampling
         if np.all(downsample_factor == downsample_factor[0]):
             #print('Isotropic downsampling')
