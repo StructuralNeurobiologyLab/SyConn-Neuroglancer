@@ -3,7 +3,9 @@
 <html lang="en">
 	<head>
 		<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
-		<link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">
+    <link rel="stylesheet" href="{{ static_url('style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+		<link rel="shortcut icon" href="{{ static_url('favicon.ico') }}">
 		<meta charset=utf-8>
 	</head>
 	
@@ -11,28 +13,116 @@
 		<nav class="navbar navbar-light">
 			<div class="container-fluid">
 				<a class="navbar-brand" href="https://structuralneurobiologylab.github.io/SyConn/">
-					<img src="{{ url_for('static', filename='logo_SyConn.png') }}" alt="SyConn logo" height="150" class="d-inline-block align-text-top center">
+					<img src="{{ static_url('syconn-logo.png') }}" alt="SyConn logo" height="150" class="d-inline-block align-text-top center">
 				  </a>
-				<a class="navbar-brand" href="https://www.neuro.mpg.de/en"><img src="{{ url_for('static', filename='MPNeuro.png') }}" alt="MP Neurobiology image" class="d-inline-block align-text-top center"></a>
+				<a class="navbar-brand" href="https://www.neuro.mpg.de/en"><img src="{{ static_url('mpi-logo.png') }}" alt="MP Neurobiology image" class="d-inline-block align-text-top center"></a>
 			</div>
-		  </nav>
+		</nav>
 	
-		<blockquote class="blockquote text-center">
+    <!--
+      <blockquote class="blockquote text-center">
 			<p class="mb-0" style="text-align: center;font-size: 40px; font-family: Arial, Helvetica, sans-serif;">
-				Welcome to the SyConn Neuroglancer Viewer!
+				
 			</p>
 		</blockquote>
-	
-		<div class="container slide">
-			<p class="text-muted text-center" style="margin-bottom: 10px; font-size: 20px;">Please click the button to generate a random viewer token</p>
-			<form action="/generate_token" method="post">
-				<div class="d-grid gap-2 col-3 mx-auto">
-					<button type="submit"  class="btn btn-secondary btn-lg">Generate token</button>
-				</div>
-			</form>
-		</div>
-	
+    -->
+		
+    <div class="jumbotron mx-4">
+      <h1 class="display-4">Welcome to the SyConn Neuroglancer Viewer!</h1>
+      
+      <p class="lead">This is an adaptation of the Google's <a href="https://github.com/google/neuroglancer">Neuroglancer</a> viewer to visualize <a href="https://github.com/knossos-project/knossos_utils">Knossos Datasets</a> and leverage the inference and analysis tools provided by <a href="https://structuralneurobiologylab.github.io/SyConn/">SyConn</a>. We support rendering of segmentation and raw datasets (3D volumes), requesting cell objects - skeletons, cell mesh, organelle meshes, and filtering segments based on properties e.g cell type, mitochondria count, ssv size and largest synaptic partner. This project is a work in progress. Feedbacks are always welcome :)</p>
+      
+      <hr class="my-4">
+
+      <p></p>
+    </div>
+
+    <div class="container mx-2">
+      <h2>Get started</h2>
+    </div>
+		
+    <form action="/_generate_token" class="mx-4" style="width: 50%; align-items: center;" method="post">
+        <div class="form-floating mb-3">
+            <select class="form-select mb-4 mt-4" name="acq_name" aria-label="Floating select example" id="acquisition"> 
+                <option value="" selected>Select an acquisition</option>
+                <option value="j0251">j0251</option>
+                <option value="j0126">j0126</option>
+                <option value="example_cube">example_cube</option>
+            </select>
+            <label for="acquisition">Acquistion</label>
+        </div>
+        
+        <div class="form-floating">
+            <select class="form-select mb-4" name="data_version" id="version">
+                <option value="" selected>Select an acquisition from the above dropdown first</option>
+            </select>
+            <label for="version">Dataset version</label>
+        </div>
+
+        <div class="d-grid gap-2 col-1">
+            <button type="submit" id="submit"  class="btn btn-success btn-lg" disabled><i></i> Submit</button>
+        </div>
+    </form>
+
+    <div class="container mx-2 my-4">
+      <h2>Tutorials</h2>
+    </div>
+
+    <div class="modal" id="viewImg">
+      <span class="close">&times;</span>
+      <img class="modal-content" id="modalImg">
+      <div id="caption"></div>
+    </div>
+
+    <div class="row mx-3 my-3">
+        <div class="col-sm-3">
+          <div class="card">
+            <div class="card-header">Welcome page</div>
+            <img src="{{ static_url('neuro-welcome.PNG') }}" id="img1" alt="Select the dataset acquisition and version" class="card-img-top">
+            <div class="card-body">
+              <p class="card-text">Select the dataset acquisition and version</p>
+            </div>
+          </div>
+        </div>
+        <div class="col-sm-3">
+          <div class="card">
+            <div class="card-header">Viewer navigation</div>
+            <img src="{{ static_url('neuro-navigation.PNG') }}" id="img2" alt="See different controls, panels and layers" class="card-img-top">
+            <div class="card-body">
+              <p class="card-text">See different controls, panels and layers</p>
+            </div>
+          </div>
+        </div>
+    </div>
+
+    <div class="row mx-3 my-3">
+        <div class="col-sm-3">
+          <div class="card">
+            <div class="card-header">Requesting segments</div>
+            <img src="{{ static_url('neuro-render.PNG') }}" id="img3" alt="Render skeletons, cell and organelle meshes" class="card-img-top">
+            <div class="card-body">
+              <p class="card-text">Render skeletons, cell and organelle meshes</p>
+            </div>
+          </div>
+        </div>
+        
+        
+        <div class="col-sm-3">
+          <div class="card">
+            <div class="card-header">Filtering segments</div>
+            <img src="{{ static_url('neuro-welcome.PNG') }}" id="img4" alt="Filter by cell type, mitochondria count, ssv size, largest synaptic partner" class="card-img-top">
+            <div class="card-body">
+              <p class="card-text">Filter by cell type, mitochondria count, ssv size, largest synaptic partner</p>
+            </div>
+          </div>
+        </div>
+      
+    </div>
+
+
 		<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-MrcW6ZMFYlzcLA8Nl+NtUVF0sA7MsXsP1UyJoMp4YLEuNSfAP+JcXn/tWtIaxVXM" crossorigin="anonymous"></script>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.1/jquery.min.js"></script>
+    <script type="module" src="{{ static_url('dataset_selection.js') }}"></script>
+    <script type="module" src="{{ static_url('gif_modal.js') }}"></script>
 	</body>
 </html>
-
