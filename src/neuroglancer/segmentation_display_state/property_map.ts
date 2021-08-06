@@ -563,7 +563,7 @@ export function parseSegmentQuery(
         continue;
       }
       if (labels === undefined) {
-        errors.push({begin: startIndex, end: endIndex, message: 'No label property'});
+        // errors.push({begin: startIndex, end: endIndex, message: 'No label property'});
         continue;
       }
       try {
@@ -580,11 +580,11 @@ export function parseSegmentQuery(
       const op = constraintMatch[2];
       const property = db?.numericalProperties.find(p => p.id.toLowerCase() === fieldId);
       if (property === undefined) {
-        errors.push({
+        /*errors.push({
           begin: startIndex,
           end: startIndex + fieldId.length,
           message: `Invalid numerical field: ${fieldId}`
-        });
+        });*/
         continue;
       }
       fieldId = property.id;
@@ -643,7 +643,7 @@ export function parseSegmentQuery(
       continue;
     }
     if (labels === undefined) {
-      errors.push({begin: startIndex, end: endIndex, message: 'No label property'});
+      // errors.push({begin: startIndex, end: endIndex, message: 'No label property'});
       continue;
     }
     if (parsed.prefix !== undefined) {

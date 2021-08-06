@@ -808,14 +808,16 @@ export class SegmentDisplayTab extends Tab {
     const {segmentQuery} = this.layer.displayState;
     const debouncedUpdateQueryModel = this.registerCancellable(debounce(() => {
       segmentQuery.value = queryElement.value;
-    }, 200));
+    }, 2000));
     queryElement.autocomplete = 'off';
     queryElement.title = keyMap.describe();
     queryElement.spellcheck = false;
-    queryElement.placeholder = 'Enter ID, name prefix or /regexp';
+    queryElement.placeholder = 'Enter cell type, #mito, ssv size or a combination';
+    
     this.registerDisposer(observeWatchable(q => {
       queryElement.value = q;
     }, segmentQuery));
+    
     this.registerDisposer(observeWatchable(t => {
       if (Date.now() - t < 100) {
         setTimeout(() => {
@@ -824,7 +826,7 @@ export class SegmentDisplayTab extends Tab {
         this.layer.segmentQueryFocusTime.value = Number.NEGATIVE_INFINITY;
       }
     }, this.layer.segmentQueryFocusTime));
-
+    
     element.appendChild(queryElement);
     element.appendChild(
         this
