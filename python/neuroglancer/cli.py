@@ -23,6 +23,7 @@ def add_server_arguments(ap):
                         Default is a production environment')
     g.add_argument('--wd', type=str, default='',
                         help='Working directory of SyConn')
+    g.add_argument('-o', '--organelles', default=[], nargs='+', help='Organelles to load')
     g.add_argument('--static-content-url',
                    help='Obtain the Neuroglancer client code from the specified URL.')
     g.add_argument('--debug-server',

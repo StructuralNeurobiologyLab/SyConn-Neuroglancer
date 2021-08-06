@@ -188,6 +188,7 @@ class SockJSHandler(sockjs.tornado.SockJSConnection):
 
     def on_close(self):
         viewer = self.viewer
+        logger.info('Closing viewer instance with token {}'.format(viewer.token))
         self.is_open = False
         if viewer is not None:
             for state_handler in six.itervalues(self._state_handlers):
@@ -195,3 +196,5 @@ class SockJSHandler(sockjs.tornado.SockJSConnection):
             if self._credentials_handler is not None:
                 self._credentials_handler.close()
         del self._state_handlers
+        # del config.clients[viewer.token]
+        # logger.info('SyConn client and state handler dereferenced')
