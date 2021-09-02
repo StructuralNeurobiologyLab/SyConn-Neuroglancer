@@ -10,26 +10,32 @@ var modal = document.getElementById("viewImg");
 var modalImg = document.getElementById("modalImg");
 var captionText = document.getElementById("caption");
 
+var navbar = document.getElementById("navBar");
+
 // Handle clicked image and insert gif inside the modal - use its "alt" text as a caption
 img1.onclick = function(){
+  navbar.classList.add("d-none");
   modal.style.display = "block";
   modalImg.src = "../static/neuro-welcome.gif";
   captionText.innerHTML = this.alt;
 }
 
 img2.onclick = function(){
+  navbar.classList.add("d-none");
   modal.style.display = "block";
   modalImg.src = "../static/neuro-navigation.gif";
   captionText.innerHTML = this.alt;
 }
 
 img3.onclick = function(){
+  navbar.classList.add("d-none");
   modal.style.display = "block";
   modalImg.src = "../static/neuro-render.gif";
   captionText.innerHTML = this.alt;
 }
 
 img4.onclick = function(){
+  navbar.classList.add("d-none");
   modal.style.display = "block";
   modalImg.src = "../static/neuro-welcome.gif";
   captionText.innerHTML = this.alt;
@@ -42,6 +48,7 @@ var span = document.getElementsByClassName("close")[0];
 span.onclick = function() {
   modal.style.display = "none";
   modal.src = "";
+  navbar.classList.remove("d-none");
 } 
 
 

@@ -4,125 +4,148 @@
 	<head>
 		<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
     <link rel="stylesheet" href="{{ static_url('style.css') }}">
+    <!-- <link rel="stylesheet" href="../static/style.css"> -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=STIX+Two+Text&family=Atkinson+Hyperlegible&family=Poppins&family=Roboto+Slab&family=Lora:wght@600&display=swap" rel="stylesheet">
 		<link rel="shortcut icon" href="{{ static_url('favicon.ico') }}">
+    <title>SyConn-Neuroglancer Viewer</title>
 		<meta charset=utf-8>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
 	</head>
 	
 	<body>
-		<nav class="navbar navbar-light">
+		<nav class="navbar navbar-light sticky-top navbar-expand-md bg-custom">
 			<div class="container-fluid">
 				<a class="navbar-brand" href="https://structuralneurobiologylab.github.io/SyConn/">
-					<img src="{{ static_url('syconn-logo.png') }}" alt="SyConn logo" height="150" class="d-inline-block align-text-top center">
-				  </a>
-				<a class="navbar-brand" href="https://www.neuro.mpg.de/en"><img src="{{ static_url('mpi-logo.png') }}" alt="MP Neurobiology image" class="d-inline-block align-text-top center"></a>
+					<img src="{{ static_url('syconn-logo.png') }}" alt="SyConn logo" height="90" class="d-inline-block align-text-top center">
+          <!-- <img src="../static/syconn-logo.png" alt="SyConn logo" height="90" class="d-inline-block align-text-top center"> -->
+        </a>
+        <div class="collapse navbar-collapse">
+          <div class="navbar-nav" id="navItems">
+            <a class="nav-link active" aria-current="page" href="index.html">Home</a>
+            <a class="nav-link" href="tutorials.html">Tutorials</a>
+            <a class="nav-link" href="about.html">About</a>
+          </div>
+        </div>
+        <a class="navbar-brand" href="https://www.neuro.mpg.de/en">
+          <img src="{{ static_url('mpi-logo.png') }}" alt="MP Neurobiology image" height="60" class="d-inline-block align-text-top center">
+          <!-- <img src="../static/mpi-logo.png" alt="MP Neurobiology image" height="60" class="d-inline-block align-text-top center"> -->
+        </a>
 			</div>
 		</nav>
-	
-    <!--
-      <blockquote class="blockquote text-center">
-			<p class="mb-0" style="text-align: center;font-size: 40px; font-family: Arial, Helvetica, sans-serif;">
-				
-			</p>
-		</blockquote>
-    -->
-		
-    <div class="jumbotron mx-4">
-      <h1 class="display-4">Welcome to the SyConn Neuroglancer Viewer!</h1>
-      
-      <p class="lead">This is an adaptation of the Google's <a href="https://github.com/google/neuroglancer">Neuroglancer</a> viewer to visualize <a href="https://github.com/knossos-project/knossos_utils">Knossos Datasets</a> and leverage the inference and analysis tools provided by <a href="https://structuralneurobiologylab.github.io/SyConn/">SyConn</a>. We support rendering of segmentation and raw datasets (3D volumes), requesting cell objects - skeletons, cell mesh, organelle meshes, and filtering segments based on properties e.g cell type, mitochondria count, ssv size and largest synaptic partner. This project is a work in progress. Feedbacks are always welcome :)</p>
-      
-      <hr class="my-4">
 
-      <p></p>
-    </div>
-
-    <div class="container mx-2">
-      <h2>Get started</h2>
-    </div>
-		
-    <form action="/_generate_token" class="mx-4" style="width: 50%; align-items: center;" method="post">
-        <div class="form-floating mb-3">
-            <select class="form-select mb-4 mt-4" name="acq_name" aria-label="Floating select example" id="acquisition"> 
-                <option value="" selected>Select an acquisition</option>
-                <option value="j0251">j0251</option>
-                <option value="j0126">j0126</option>
-                <option value="example_cube">example_cube</option>
-            </select>
-            <label for="acquisition">Acquistion</label>
+    <!-- Welcome header -->
+    <div class="container-lg my-4">
+      <div class="row justify-content-around align-items-center">
+        <div class="col-8 col-md-4 text-center text-md-start">
+          <div class="display-5">SyConn-Neuroglancer Viewer</div>
+          <p class="lead my-4 text-muted">New to this page?<br>Check out the <a class="text-success" href="tutorials.html">tutorials!</a></p>
         </div>
-        
-        <div class="form-floating">
-            <select class="form-select mb-4" name="data_version" id="version">
-                <option value="" selected>Select an acquisition from the above dropdown first</option>
-            </select>
-            <label for="version">Dataset version</label>
-        </div>
+        <div class="col-md-8 text-center d-none d-md-block">
 
-        <div class="d-grid gap-2 col-1">
-            <button type="submit" id="submit"  class="btn btn-success btn-lg" disabled><i></i> Submit</button>
-        </div>
-    </form>
-
-    <div class="container mx-2 my-4">
-      <h2>Tutorials</h2>
-    </div>
-
-    <div class="modal" id="viewImg">
-      <span class="close">&times;</span>
-      <img class="modal-content" id="modalImg">
-      <div id="caption"></div>
-    </div>
-
-    <div class="row mx-3 my-3">
-        <div class="col-sm-3">
-          <div class="card">
-            <div class="card-header">Welcome page</div>
-            <img src="{{ static_url('neuro-welcome.PNG') }}" id="img1" alt="Select the dataset acquisition and version" class="card-img-top">
-            <div class="card-body">
-              <p class="card-text">Select the dataset acquisition and version</p>
+          <!-- Image slideshow -->
+          <div class="carousel slide" data-bs-ride="carousel" id="viewerExamples">
+            <div class="carousel-indicators">
+              <button type="button" data-bs-target="#viewerExamples" data-bs-slide-to="0" class="active" aria-current="true" aria-label="Slide 1"></button>
+              <button type="button" data-bs-target="#viewerExamples" data-bs-slide-to="1" aria-label="Slide 2"></button>
+              <button type="button" data-bs-target="#viewerExamples" data-bs-slide-to="2" aria-label="Slide 3"></button>
+              <button type="button" data-bs-target="#viewerExamples" data-bs-slide-to="3" aria-label="Slide 4"></button>
+              <button type="button" data-bs-target="#viewerExamples" data-bs-slide-to="4" aria-label="Slide 5"></button>
+              <button type="button" data-bs-target="#viewerExamples" data-bs-slide-to="5" aria-label="Slide 6"></button>
             </div>
-          </div>
-        </div>
-        <div class="col-sm-3">
-          <div class="card">
-            <div class="card-header">Viewer navigation</div>
-            <img src="{{ static_url('neuro-navigation.PNG') }}" id="img2" alt="See different controls, panels and layers" class="card-img-top">
-            <div class="card-body">
-              <p class="card-text">See different controls, panels and layers</p>
+            <div class="carousel-inner">
+              <div class="carousel-item active">
+                <!-- <img src="../static/image_view.PNG" alt="First slide" class="d-block w-100"> -->
+                <img src="{{static_url('image_view.PNG')}}" alt="First slide" class="d-block w-100">
+                <div class="carousel-caption d-none d-md-block">
+                  <p class="carouselCaptions">XY cross-sectional view of the raw data</p>
+                </div>
+              </div>
+              <div class="carousel-item">
+                <!-- <img src="../static/seg_view.PNG" alt="Second slide" class="d-block w-100"> -->
+                <img src="{{static_url('seg_view.PNG')}}" alt="Second slide" class="d-block w-100">
+                <div class="carousel-caption d-none d-md-block">
+                  <p class="carouselCaptions">XY cross-sectional view of the segmentation data</p>
+                </div>
+              </div>
+              <div class="carousel-item">
+                <!-- <img src="../static/composite_view.PNG" alt="Third slide" class="d-block w-100"> -->
+                <img src="{{static_url('composite_view.PNG')}}" alt="Third slide" class="d-block w-100">
+                <div class="carousel-caption d-none d-md-block">
+                  <p class="carouselCaptions">XY composite view of the raw and segmentation data</p>
+                </div>
+              </div>
+              <div class="carousel-item">
+                <!-- <img src="../static/cell_example.PNG" alt="Fourth slide" class="d-block w-100"> -->
+                <img src="{{static_url('cell_example.PNG')}}" alt="Fourth slide" class="d-block w-100">
+                <div class="carousel-caption d-none d-md-block">
+                  <p class="carouselCaptions">Example neuron with skeleton, cell mesh and organelle meshes (blue: mitochondria, green: vesicle clouds, red: synaptic junctions)</p>
+                </div>
+              </div>
+              <div class="carousel-item">
+                <!-- <img src="../static/three_cells.PNG" alt="Fifth slide" class="d-block w-100"> -->
+                <img src="{{static_url('three_cells.PNG')}}" alt="Fifth slide" class="d-block w-100">
+                <div class="carousel-caption d-none d-md-block">
+                  <p class="carouselCaptions">TAN, GPe and NGF neurons with over 2000 mitochondria</p>
+                </div>
+              </div>
+              <div class="carousel-item">
+                <!-- <img src="../static/facade.PNG" alt="Sixth slide" class="d-block w-100"> -->
+                <img src="{{static_url('facade.PNG')}}" alt="Sixth slide" class="d-block w-100">
+                <div class="carousel-caption d-none d-md-block">
+                  <p class="carouselCaptions">Synapse between an LMAN and MSN neuron</p>
+                </div>
+              </div>
             </div>
-          </div>
+            <button class="carousel-control-prev" type="button" data-bs-target="#viewerExamples" data-bs-slide="prev">
+              <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+              <span class="visually-hidden">Previous</span>
+            </button>
+            <button class="carousel-control-next" type="button" data-bs-target="#viewerExamples" data-bs-slide="next">
+              <span class="carousel-control-next-icon" aria-hidden="true"></span>
+              <span class="visually-hidden">Next</span>
+            </button>
+          </div> 
         </div>
+      </div>
+      <hr>
     </div>
 
-    <div class="row mx-3 my-3">
-        <div class="col-sm-3">
-          <div class="card">
-            <div class="card-header">Requesting segments</div>
-            <img src="{{ static_url('neuro-render.PNG') }}" id="img3" alt="Render skeletons, cell and organelle meshes" class="card-img-top">
-            <div class="card-body">
-              <p class="card-text">Render skeletons, cell and organelle meshes</p>
+    <div class="container">
+      <div class="row">
+        <div class="col-12 col-md-8 col-lg-6 text-md-start text-center mb-3">
+          <h3 class="header display-6">Get started</h3>
+          <form action="/_generate_token" method="post">
+            <div class="form-floating">
+                <select class="form-select my-4" name="acq_name" aria-label="Floating select example" id="acquisition"> 
+                    <option value="" selected>Select an acquisition</option>
+                    <option value="j0251">j0251</option>
+                    <option value="j0126">j0126</option>
+                    <option value="example_cube">example_cube</option>
+                </select>
+                <label for="acquisition">Acquistion</label>
             </div>
-          </div>
-        </div>
-        
-        
-        <div class="col-sm-3">
-          <div class="card">
-            <div class="card-header">Filtering segments</div>
-            <img src="{{ static_url('neuro-welcome.PNG') }}" id="img4" alt="Filter by cell type, mitochondria count, ssv size, largest synaptic partner" class="card-img-top">
-            <div class="card-body">
-              <p class="card-text">Filter by cell type, mitochondria count, ssv size, largest synaptic partner</p>
+            
+            <div class="form-floating">
+                <select class="form-select" name="data_version" id="version">
+                    <option value="" selected>Select an acquisition from the above dropdown first</option>
+                </select>
+                <label for="version">Dataset version</label>
             </div>
-          </div>
+    
+            <div class="d-grid mt-4 justify-content-center justify-content-md-start">
+                <button type="submit" id="submit"  class="btn btn-outline-success btn-lg" disabled>Submit</button>
+            </div>
+          </form>
         </div>
-      
+      </div>
     </div>
-
 
 		<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-MrcW6ZMFYlzcLA8Nl+NtUVF0sA7MsXsP1UyJoMp4YLEuNSfAP+JcXn/tWtIaxVXM" crossorigin="anonymous"></script>
     <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.1/jquery.min.js"></script>
     <script type="module" src="{{ static_url('dataset_selection.js') }}"></script>
-    <script type="module" src="{{ static_url('gif_modal.js') }}"></script>
+    <!-- <script src="../static/dataset_selection.js"></script> -->
 	</body>
 </html>

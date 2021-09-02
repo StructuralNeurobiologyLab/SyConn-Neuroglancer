@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+
+<html lang="en">
+    <head>
+		<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
+        <link rel="stylesheet" href="{{ static_url('style.css') }}">
+        <!-- <link rel="stylesheet" href="../static/style.css"> -->
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=STIX+Two+Text&family=Atkinson+Hyperlegible&family=Georama&family=Roboto+Slab&display=swap" rel="stylesheet">
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.5.0/font/bootstrap-icons.css">
+        <!-- <link rel="stylesheet" href="{{ static_url('favicon.ico') }}"> -->
+        <link rel="shortcut icon" href="../static/favicon.ico">
+		<meta charset=utf-8>
+	</head>
+
+    <body>
+        <nav class="navbar navbar-light sticky-top navbar-expand-lg bg-custom" id="navBar">
+            <div class="container-fluid">
+                <a class="navbar-brand" href="https://structuralneurobiologylab.github.io/SyConn/">
+                    <img src="{{ static_url('syconn-logo.png') }}" alt="SyConn logo" height="90" class="d-inline-block align-text-top center">
+                    <!-- <img src="../static/syconn-logo.png" alt="SyConn logo" height="90" class="d-inline-block align-text-top center"> -->
+                </a>
+                <div class="collapse navbar-collapse">
+                    <div class="navbar-nav" id="navItems">
+                        <a class="nav-link" aria-current="page" href="index.html">Home</a>
+                        <a class="nav-link active" href="tutorials.html">Tutorials</a>
+                        <a class="nav-link" href="about.html">About</a>
+                    </div>
+                </div>
+                <a class="navbar-brand" href="https://www.neuro.mpg.de/en">
+                    <img src="{{ static_url('mpi-logo.png') }}" alt="MP Neurobiology image" height="60" class="d-inline-block align-text-top center">
+                    <!-- <img src="../static/mpi-logo.png" alt="MP Neurobiology image" height="60" class="d-inline-block align-text-top center"> -->
+                </a>
+            </div>
+        </nav>
+    
+        <div class="container mx-2 my-4">
+            <h3 class="display-6 header">Tutorials</h3>
+        </div>
+    
+        <!-- Accordion for tutorials -->
+        <div class="accordion m-2" id="accordionExample">
+          
+          <!-- Tutorial 1 -->
+          <div class="accordion-item">
+            <h2 class="accordion-header" id="headingOne">
+              <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseOne" aria-expanded="true" aria-controls="collapseOne">
+                <h1 class="display-6 tutorial-header"><i class="bi bi-shield-fill-check"></i> Select a dataset acquisition, version and launch the viewer</h1> 
+              </button>
+            </h2>
+            <div id="collapseOne" class="accordion-collapse collapse" aria-labelledby="headingOne" data-bs-parent="#accordionExample">
+              <div class="accordion-body">
+                <div class="row justify-content-between align-items-center">
+                  <div class="col-md-5 px-3">
+                    <p class="lead tutorial">This is pretty straightforward. Just select an acquisition and version from the dropdowns and click the Submit button to launch the viewer.<br><br>
+                    Currently, only the <strong>j0251</strong> acquisition with versions <strong>rag_flat_Jan2019_v2</strong> and <strong>rag_flat_Jan2019_v3</strong> is available.  More datasets will be added soon!</p>
+                  </div>
+                  <div class="col-md-7">
+                    <figure>
+                      <!-- <img src="../static/neuro-welcome.gif" class="img-fluid border border-dark border-3" id="img1" alt="Dataset selection"> -->
+                      <img src="{{ static_url('neuro-welcome.gif') }}" class="img-fluid border border-dark border-3" id="img1" alt="Dataset selection">
+                      <figcaption class="text-muted" style="text-align: center;">Click to expand</figcaption>
+                    </figure>
+                    
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+    
+          <!-- Tutorial 2 -->
+          <div class="accordion-item">
+            <h2 class="accordion-header" id="headingTwo">
+              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseTwo" aria-expanded="false" aria-controls="collapseTwo">
+                <h1 class="display-6 tutorial-header"><i class="bi bi-shield-fill-check"></i> Toggle different panels, controls and layers</h1>
+              </button>
+            </h2>
+            <div id="collapseTwo" class="accordion-collapse collapse" aria-labelledby="headingTwo" data-bs-parent="#accordionExample">
+              <div class="accordion-body">
+                <div class="row justify-content-between align-items-center">
+                  <div class="col-md-5 px-3">
+                    <p class="lead tutorial">
+                      There are icons at the top right of the page that can be clicked to open the different panels.
+                    </p>
+                    <ul class="lead tutorial">
+                      <li><kbd>?</kbd> : help panel (displays all the key and mouse bindings for the viewer)</li>
+                      <li><img src="{{ static_url('side_panel.PNG') }}" alt="settings panel" height="19" class="rounded"> : layer settings panel (displays the data source, rendering options, segment list and annotations)</li>
+                      <li><img src="{{ static_url('layer_list_panel.PNG') }}" alt="layer list panel" height="18" class="rounded"> : layer list panel (displays all the layers for archiving or toggling visibility)</li>
+                    </ul>
+                    <p class="lead tutorial">Neuroglancer is easy to use with a mouse but the keyboard shortcuts come in handy to quickly jump through layers. For example, layers can be toggled by pressing <kbd>layer_number</kbd> on the keyboard (not numpad) and layer side panel can be opened by hitting <kbd>Ctrl+layer_number</kbd> or <kbd>Ctrl+left_click</kbd></p>
+                  </div>
+                  <div class="col-md-7">
+                    <figure>
+                      <!-- <img src="../static/neuro-navigation.gif" class="img-fluid border border-dark border-3" id="img2" alt="Panels, layers and controls"> -->
+                      <img src="{{ static_url('neuro-navigation.gif') }}" class="img-fluid border border-dark border-3" id="img2" alt="Panels, layers and controls">
+                      <figcaption class="text-muted" style="text-align: center;">Click to expand</figcaption>
+                    </figure>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+    
+          <!-- Tutorial 3 -->
+          <div class="accordion-item">
+            <h2 class="accordion-header" id="headingThree">
+              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseThree" aria-expanded="false" aria-controls="collapseThree">
+                <h1 class="display-6 tutorial-header"><i class="bi bi-shield-fill-check"></i> Selecting a segment and rendering its skeletons, cell mesh and organelle meshes</h1>
+              </button>
+            </h2>
+            <div id="collapseThree" class="accordion-collapse collapse" aria-labelledby="headingThree" data-bs-parent="#accordionExample">
+              <div class="accordion-body">
+                <div class="row justify-content-between align-items-center">
+                  <div class="col-md-5 px-3">
+                    <p class="lead tutorial">
+                      Neuroglancer has four viewports by default. Starting from left, in the clockwise-direction, these are the <strong>XY</strong>, <strong>XZ</strong> and <strong>YZ</strong> cross-sectional views and the <strong>3D</strong> view. A segment (from the segmentation layer) is a coloured area visible in the three cross-sectional views that can be clicked to render its cell objects (if available).</p>
+                    <ul class="lead tutorial"> 
+                      <li><kbd>left-click</kbd> to select the segment</li>
+                      <li><kbd>double-click</kbd> to request the cell objects (skeleton, cell mesh and organelle meshes)</li>
+                      <li><kbd>x</kbd> to clear all segments</li>
+                    </ul>
+                    <p class="lead tutorial">With the layer toggling, one can choose to see only one cell object or a combination thereof.</p>
+                  </div>
+                  <div class="col-md-7">
+                    <figure>
+                      <!-- <img src="../static/neuro-render.gif" class="img-fluid border border-dark border-3" id="img3" alt="Segments"> -->
+                      <img src="{{ static_url('neuro-render.gif') }}" class="img-fluid border border-dark border-3" id="img3" alt="Segments">
+                      <figcaption class="text-muted" style="text-align: center;">Click to expand</figcaption>
+                    </figure>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+    
+          <!-- Tutorial 4 -->
+          <div class="accordion-item">
+            <h2 class="accordion-header" id="headingFour">
+              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseFour" aria-expanded="false" aria-controls="collapseFour">
+                <h1 class="display-6 tutorial-header"><i class="bi bi-shield-fill-check"></i> Filtering segments based on the properties</h1>
+              </button>
+            </h2>
+            <div id="collapseFour" class="accordion-collapse collapse" aria-labelledby="headingFour" data-bs-parent="#accordionExample">
+              <div class="accordion-body">
+                <div class="row justify-content-between align-items-center">
+                  <div class="col-md-5 px-3">
+                    <p class="lead tutorial">
+                      One way to select a segment is to click in the cross-sectional view. The other is to open the layer side panel and head to the <strong>Seg.</strong> tab. At the bottom is a list of all the segments with the corresponding segment ids. Any segment can be selected by checking the box left to the <strong>id</strong> column. This segment list can be modified based on the properties&mdash;cell type, mitochondria count within a cell, size of the cell.<br><br>
+                       For example, segment ids of the <strong>HVC</strong> cell type can be selected by clicking the <i class="bi bi-plus-square-fill text-secondary"></i> left to <strong>#HVC</strong>. Moreover, segment ids of all the cell types except <strong>HVC</strong> can be selected by clicking the <i class="bi bi-dash-square-fill text-secondary"></i> left to <strong>#HVC</strong>. Multiple cell types can be excluded.<br><br>
+                       Filtering by the mitochondria count and cell size can be performed by clicking the <strong>numerical properties</strong> dropdown. Checking the property box allows to display the property value as a column in the segment list. The slider bar below the property can be adjusted to set the value. <br><br>
+                       All the properties can be modified simultaneously according to one's needs.
+                    </p>
+                  </div>
+                  <div class="col-md-7">
+                    <figure>
+                      <!-- <img src="../static/neuro-navigation.gif" class="img-fluid border border-dark border-3" id="img4" alt="Filter segments by properties"> -->
+                      <img src="{{ static_url('neuro-navigation.gif') }}" class="img-fluid border border-dark border-3" id="img4" alt="Filter segments by properties">
+                      <figcaption class="text-muted" style="text-align: center;">Click to expand</figcaption>
+                    </figure>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      
+        <div class="modal" id="viewImg">
+          <span class="close">&times;</span>
+          <img class="modal-content" id="modalImg">
+          <div id="caption"></div>
+        </div>
+    
+        <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-MrcW6ZMFYlzcLA8Nl+NtUVF0sA7MsXsP1UyJoMp4YLEuNSfAP+JcXn/tWtIaxVXM" crossorigin="anonymous"></script>
+        <script type="module" src="{{ static_url('gif_modal.js') }}"></script>
+        <!-- <script src="../static/gif_modal.js"></script> -->
+      </body>
+
+</html>
