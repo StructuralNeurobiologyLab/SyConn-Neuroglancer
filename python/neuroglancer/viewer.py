@@ -15,6 +15,8 @@
 from __future__ import absolute_import
 
 from . import server, url_state, viewer_base
+from . import config
+from syconn.handler.logger import log_main as logger
 
 
 class _ViewerHelper(object):
@@ -22,6 +24,7 @@ class _ViewerHelper(object):
 
     def __init__(self, **kwargs):
         super(_ViewerHelper, self).__init__(**kwargs)
+        print(f"In viewer helper {config.global_server}")
         server.register_viewer(self)
 
     def defer_callback(self, callback, *args, **kwargs):
@@ -40,10 +43,18 @@ class _ViewerHelper(object):
 class Viewer(viewer_base.ViewerBase, _ViewerHelper):
     def __init__(self, **kwargs):
         super(Viewer, self).__init__(**kwargs)
+        print(f"In viewer {config.global_server}")
         server.register_viewer(self)
 
     def get_viewer_url(self):
         return '%s/v/%s/' % (server.get_server_url(), self.token)
+
+    def __del__(self):
+        """Viewer instance is destroyed when it is no longer referenced
+        Dereferencing is done in neuroglancer.SockJSHandler when the
+        connection is closed"""
+
+        logger.debug(f"Viewer instance {self.token} destroyed")
 
 
 class UnsynchronizedViewer(viewer_base.UnsynchronizedViewerBase, _ViewerHelper):

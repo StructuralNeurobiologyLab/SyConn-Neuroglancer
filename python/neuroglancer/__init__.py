@@ -13,8 +13,6 @@
 # limitations under the License.
 
 from __future__ import absolute_import
-from .config import initialize_server, NeuroConfig
-initialize_server()
 from .server import set_static_content_source, set_server_bind_address, is_server_running, stop
 from .viewer import Viewer, UnsynchronizedViewer
 from .local_volume import LocalVolume

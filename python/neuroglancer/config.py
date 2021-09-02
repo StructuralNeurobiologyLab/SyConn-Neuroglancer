@@ -1,4 +1,7 @@
 class NeuroConfig(object):
+    """Stores datasets, backends and npy arrays in memory when the
+    server is launched. Created once per server execution"""
+    
     _counter = 0
 
     def __init__(self):
@@ -69,8 +72,8 @@ class NeuroConfig(object):
 
 def initialize_server():
     # server variables
-    global global_server, global_server_args
-    global_server = global_server_args = None
+    global global_server
+    global_server = None
 
     # development mode
     global dev_environ

@@ -21,7 +21,7 @@ import six
 
 import sockjs.tornado
 
-from . import trackable_state, viewer_config_state
+from . import trackable_state, viewer_config_state, config
 from .json_utils import decode_json, encode_json
 from syconn.handler.logger import log_main as logger
 
@@ -112,6 +112,11 @@ class SockJSHandler(sockjs.tornado.SockJSConnection):
         return self.session.server.io_loop
 
     def on_open(self, info):
+        """Invoked when a client connection is opened
+
+        :param info: [description]
+        :type info: [type]
+        """
         server = self.session.server.neuroglancer_server
         m = re.match(SOCKET_PATH_REGEX, info.path)
         if m is None:
@@ -137,6 +142,7 @@ class SockJSHandler(sockjs.tornado.SockJSConnection):
                 dict(key='s', state=viewer.shared_state, send_updates=True, receive_updates=True))
 
         self._state_handlers = dict()
+        self._credentials_handler = None
         if viewer.allow_credentials:
             from .default_credentials_manager import default_credentials_manager
             self._credentials_handler = ClientCredentialsHandler(
@@ -187,8 +193,9 @@ class SockJSHandler(sockjs.tornado.SockJSConnection):
             # Ignore malformed JSON
 
     def on_close(self):
+        """Invoked when a client connection is closed"""
+        
         viewer = self.viewer
-        logger.info('Closing viewer instance with token {}'.format(viewer.token))
         self.is_open = False
         if viewer is not None:
             for state_handler in six.itervalues(self._state_handlers):
@@ -196,5 +203,7 @@ class SockJSHandler(sockjs.tornado.SockJSConnection):
             if self._credentials_handler is not None:
                 self._credentials_handler.close()
         del self._state_handlers
-        # del config.clients[viewer.token]
-        # logger.info('SyConn client and state handler dereferenced')
+
+        logger.debug(f"Dereferencing viewer instance {viewer.token}")
+        del config.global_server.viewers[viewer.token]
+        del self.viewer

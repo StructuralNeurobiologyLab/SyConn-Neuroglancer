@@ -1,10 +1,19 @@
+import asyncio
+from datetime import time
+import multiprocessing
+import threading
 import tornado.web
+import tornado.ioloop
 import tornado.iostream
 import tornado.concurrent
+from tornado import locks
 import os
 import json
 import numpy as np
 import compressed_segmentation as cseg
+import gzip
+import concurrent.futures
+import time
 
 try:
     # Newer versions of tornado do not have the asynchronous decorator
@@ -20,11 +29,11 @@ from syconn.handler.logger import log_main as logger
 
 import neuroglancer
 from neuroglancer import local_volume, skeleton
-from neuroglancer.config import params
 from neuroglancer import config
 from neuroglancer.random_token import make_random_token
 from neuroglancer.chunks import encode_raw
 from neuroglancer.json_utils import json_encoder_default
+
 
 INFO_PATH_REGEX = r'^/neuroglancer/info/(?P<token>[^/]+)$'
 
@@ -69,39 +78,189 @@ class MainHandler(tornado.web.RequestHandler):
         self.render("index.html")
 
 
-class TokenHandler(tornado.web.RequestHandler):
+class TutorialsHandler(tornado.web.RequestHandler):
+    def get(self):
+        self.render("tutorials.html")
+
+
+class AboutHandler(tornado.web.RequestHandler):
+    def get(self):
+        self.render("about.html")
+
+# native coroutine
+class TokenHandler(BaseRequestHandler):
     def post(self):
+        logger.info("TokenHandler invoked")
+        from neuroglancer.config import params
+        
         try:
-            acquisition = params.acquisition = self.get_argument("acq_name")
-            version = params.version = self.get_argument("data_version")
+            params.acquisition = self.get_argument("acq_name")
+            params.version = self.get_argument("data_version")
+            print(params.acquisition)
+            print(params.version)
         
         except tornado.web.MissingArgumentError as e:
-            logger.info(e.args[0])
+            logger.error(e.args[0])
             self.send_error(404)
             return
 
-        # global_params.wd = os.path.join("/ssdscratch/songbird", acquisition, version)
-                
         token = make_random_token()
-        # seg_path = global_params.config.kd_seg_path
-        logger.info("Starting viewer instance with token {}".format(token))
+        pf = PropertyFilter(params, ['mi', 'vc', 'sj'], token)
+        logger.debug(f"Viewer instances in memory: {len(config.global_server.viewers.keys())}")
 
-        # if version == "rag_flat_Jan2019_v2":
-        #     PropertyFilter(config1, ['mi', 'vc', 'sj'], token=token)
-        # else:
-        #     PropertyFilter(config2, ['mi', 'vc', 'sj'], token=token)
-        PropertyFilter(params, ['mi', 'vc', 'sj'], token=token)
+        try:
+            self.redirect(pf.viewer.get_viewer_url())
+        except Exception as e:
+            self.send_error(404, message=e.args[0])
+            return
+        
+        # try:
+        #     if config.dev_environ:
+        #         host = config.global_server_args['host']
+        #         port = config.global_server_args['port']
+        #         self.redirect(f"http://{host}:{port}/v/{token}/")
+                    
+        #     else:
+        #         self.redirect(f"http://syconn.esc.mpcdf.mpg.de/v/{token}/")
 
-        if config.dev_environ:
-            host = config.global_server_args['host']
-            port = config.global_server_args['port']
+        # except Exception as e:
+        #     logger.warning(f"Viewer not available")
+        #     logger.error(e)
+        #     self.send_error(404)
+        #     return
 
-            self.redirect(f"http://{host}:{port}/v/{token}/")
+# with thread pool
+# class TokenHandler(BaseRequestHandler):
+#     @asynchronous
+#     def post(self):
+#         from neuroglancer.config import params
+
+#         try:
+#             params.acquisition = self.get_argument("acq_name")
+#             params.version = self.get_argument("data_version")
+        
+#         except tornado.web.MissingArgumentError as e:
+#             logger.error(e.args[0])
+#             self.send_error(404)
+#             return
+
+#         def handle_result(f):
+#             logger.warning("Finishing")
+#             try:
+#                 pf = f.result()
+#                 if config.dev_environ:
+#                     host = config.global_server_args['host']
+#                     port = config.global_server_args['port']
+#                     time.sleep(1)
+#                     self.redirect(f"http://{host}:{port}/v/{pf.token}/")
+                        
+#                 else:
+#                     time.sleep(1)
+#                     self.redirect(f"http://syconn.esc.mpcdf.mpg.de/v/{pf.token}/")
+
+#             except Exception as e:
+#                 logger.warning(f"Viewer not available")
+#                 logger.error(e)
+#                 self.send_error(404)
+#                 return
+
+#         with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+#             logger.warning("Spawning thread")
+#             future = executor.submit(PropertyFilter, params, ['mi', 'vc', 'sj'])
+        
+#         self.server.ioloop.add_future(future, handle_result)
+
+        
+
+# without thread pool
+# class TokenHandler(BaseRequestHandler):
+#     async def post(self):
+#         from neuroglancer.config import params
+#         try:
+#             params.acquisition = self.get_argument("acq_name")
+#             params.version = self.get_argument("data_version")
+
+#         except tornado.web.MissingArgumentError as e:
+#             logger.error(e.args[0])
+#             self.send_error(404)
+#             return
+
+#         try:
+#             token = make_random_token()
+#             # t = threading.Thread(target=PropertyFilter, args=(params, ['mi', 'vc', 'sj'], token))
+#             # t.start()
+#             task = asyncio.coroutine(PropertyFilter)(params, ['mi', 'vc', 'sj'])
+#             await task
             
-        else:
-            self.redirect(f"http://syconn.esc.mpcdf.mpg.de/v/{token}/")
+#             if config.dev_environ:
+#                 host = config.global_server_args['host']
+#                 port = config.global_server_args['port']
+#                 self.redirect(f"http://{host}:{port}/v/{token}/")
+#                 # t.join()
 
+#             else:
+#                 self.redirect(f"http://syconn.esc.mpcdf.mpg.de/v/{token}/")
+#                 # t.join()
+                
 
+#         except Exception as e:
+#             logger.error(e)
+#             self.send_error(404)
+#             return
+
+# class TokenHandler(BaseRequestHandler):
+#     def post(self):
+#         m = multiprocessing.Manager()
+#         lock = m.Lock()
+
+#         def get_args(lock):
+#             with lock:
+#                 try:
+#                     acquisition = params.acquisition = self.get_argument("acq_name")
+#                     version = params.version = self.get_argument("data_version")
+#                     print('in here')
+
+#                 except tornado.web.MissingArgumentError as e:
+#                     logger.error(e.args[0])
+#                     self.send_error(404)
+#                     return
+
+#                 pf = PropertyFilter(params, ['mi', 'vc', 'sj'])
+#             return pf
+        
+#         with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
+            
+#             print('before executor')
+#             futures = [executor.submit(
+#                 get_args, lock
+#             )]
+#             print('after executor')
+
+#             for future in concurrent.futures.as_completed(futures):
+#                 try:
+#                     pf = future.result()
+#                     print('got result')
+
+#                     if config.dev_environ:
+#                         host = config.global_server_args['host']
+#                         port = config.global_server_args['port']
+
+#                         self.redirect(f"http://{host}:{port}/v/{pf.token}/")
+                        
+#                     else:
+#                         time.sleep(1)
+#                         self.redirect(f"http://syconn.esc.mpcdf.mpg.de/v/{pf.token}/")
+
+#                 except Exception as e:
+#                     logger.error(e)
+#                     self.send_error(404)
+
+class SharedURLHandler(BaseRequestHandler):
+    def get(self):
+        print(self.request.uri)
+        self.render("about.html")
+        
+            
 class PrecomputedSkeletonInfoHandler(BaseRequestHandler):
     def get(self):
         try:
@@ -136,7 +295,8 @@ class PrecomputedSkeletonInfoHandler(BaseRequestHandler):
 
 class PrecomputedSkeletonHandler(BaseRequestHandler):
     @asynchronous
-    def get(self, ssv_id): 
+    def get(self, ssv_id):
+        from neuroglancer.config import params 
         def handle_result(f):
             try:
                 encoded_skeleton = f.result()
@@ -145,13 +305,16 @@ class PrecomputedSkeletonHandler(BaseRequestHandler):
                 self.send_error(500, message=e.args[0])
                 return
 
+            # self.server.thread_executor.shutdown()
+
             if encoded_skeleton == -1:
-                logger.error('Skeleton not available for ssv_id: {}'.format(ssv_id))
+                logger.error('Skeleton not available for ssv_id: {}'.format(ssv_id)) 
                 self.send_error(404) 
                 return
 
             self.set_header('Content-type', 'application/octet-stream')
-            self.finish(encoded_skeleton)
+            self.set_header('Content-encoding', 'gzip')
+            self.finish(gzip.compress(encoded_skeleton, compresslevel=6))
 
         future = self.server.thread_executor.submit(
             get_encoded_skeleton, params["backend"], ssv_id, params["segmentation"].scale
@@ -186,6 +349,7 @@ class PrecomputedMeshMetaHandler(BaseRequestHandler):
                 return
 
             self.set_header('Content-type', 'application/json')
+            # self.set_header('Content-encoding', 'gzip')
             self.finish(meta)
 
         future = self.server.thread_executor.submit(
@@ -200,16 +364,7 @@ class PrecomputedMeshMetaHandler(BaseRequestHandler):
 class PrecomputedMeshHandler(BaseRequestHandler):
     @asynchronous
     def get(self, obj_type, ssv_id, lod):
-        # encoded_mesh = get_encoded_mesh(params["backend"], ssv_id, obj_type)
-
-        # if encoded_mesh == -1:
-        #     logger.error('{} mesh not available for ssv_id: {}'.format(obj_type, ssv_id))
-        #     self.send_error(404)
-        #     return
-
-        # self.set_header('Content-type', 'application/octet-stream')
-        # self.finish(encoded_mesh)
-        
+        from neuroglancer.config import params
         def handle_result(f):
             try:
                 encoded_mesh = f.result()
@@ -224,7 +379,8 @@ class PrecomputedMeshHandler(BaseRequestHandler):
                 return
 
             self.set_header('Content-type', 'application/octet-stream')
-            self.finish(encoded_mesh)
+            self.set_header('Content-encoding', 'gzip')
+            self.finish(gzip.compress(encoded_mesh, compresslevel=6))
 
         future = self.server.thread_executor.submit(
             get_encoded_mesh, params["backend"], ssv_id, obj_type
@@ -237,6 +393,7 @@ class PrecomputedMeshHandler(BaseRequestHandler):
 
 class PrecomputedVolumeInfoHandler(BaseRequestHandler):
     def get(self, volume_type):
+        from neuroglancer.config import params
         try:
             info = config.volume_info
             info["type"] = volume_type
@@ -253,7 +410,9 @@ class PrecomputedVolumeInfoHandler(BaseRequestHandler):
                     info["scales"][level]["encoding"] = "raw"
 
             self.set_header('Content-type', 'application/json')
-            self.finish(json.dumps(info))
+            self.set_header('Content-encoding', 'gzip')
+            info = bytes(json.dumps(info), 'utf-8')
+            self.finish(gzip.compress(info, compresslevel=6))
 
         except Exception as e:
             logger.error('Error retrieving {} info. {}'.format(volume_type, e.args[0]))
@@ -263,6 +422,7 @@ class PrecomputedVolumeInfoHandler(BaseRequestHandler):
 class PrecomputedVolumeHandler(BaseRequestHandler):
     @asynchronous
     def get(self, volume_type, scale_key, chunk):
+        from neuroglancer.config import params
         mag = np.array(scale_key.split('_'), dtype=np.int32)[0]
         x, y, z = chunk.split('_')
         xBegin, xEnd = map(int, x.split('-'))
@@ -287,12 +447,14 @@ class PrecomputedVolumeHandler(BaseRequestHandler):
                 return
 
             self.set_header('Content-type', 'application/octet-stream')
-            # self.set_header('Content-encoding', 'gzip')
+            self.set_header('Content-encoding', 'gzip')
 
             if volume_type == "segmentation":
-                self.finish(cseg.compress(data, block_size=(8,8,8), order='F'))
+                compressed_data = cseg.compress(data, block_size=(8,8,8), order='F')
+                # self.finish(compressed_data)
+                self.finish(gzip.compress(compressed_data, compresslevel=6))
             else:
-                self.finish(encode_raw(data))
+                self.finish(gzip.compress(encode_raw(data), compresslevel=6))
 
         if volume_type == "segmentation":
             future = self.server.thread_executor.submit(
@@ -309,29 +471,36 @@ class PrecomputedVolumeHandler(BaseRequestHandler):
             lambda f: self.server.ioloop.add_callback(lambda: handle_result(f))
         )
 
+def read_file(filename):
+    with open(os.path.join("/home/hashir", filename), "rb") as f:
+        data = f.read()
+
+    return data
+
 class PrecomputedSegPropsInfoHandler(BaseRequestHandler):
-    async def get(self):
-        chunk_size = 1024 * 1024 * 5 # 5MB
+    @asynchronous
+    def get(self):
+        from neuroglancer.config import params
+        def handle_result(f):
+            try:
+                data = f.result()
+
+            except Exception as e:
+                logger.error(e.args[0])
+                self.send_error(500, message=e.args[0])
+                return
+
+            self.set_header('Content-type', 'application/json')
+            self.set_header('Content-encoding', 'gzip')
+            self.finish(gzip.compress(data, compresslevel=6))
+
         filename = params.acquisition + "_" + params.version + ".json"
-        self.set_header('Content-type', 'application/json')
-        # self.set_header('Content-encoding', 'gzip')
-        with open(os.path.join("/home/hashir", filename), "r") as f:
-            
-            while True:
-                chunk = f.read(chunk_size)
-                
-                if not chunk:
-                    break
+        future = self.server.thread_executor.submit(read_file, filename)
 
-                try:
-                    self.write(chunk)
-                    await self.flush()
-
-                except tornado.iostream.StreamClosedError:
-                    break
-
-                finally:
-                    del chunk
+        tornado.concurrent.future_add_done_callback(
+            future,
+            lambda f: self.server.ioloop.add_callback(lambda: handle_result(f))
+        )
 
 
 class ActionHandler(BaseRequestHandler):
