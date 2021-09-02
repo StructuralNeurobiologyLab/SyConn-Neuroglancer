@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+
+<html lang="en">
+    <head>
+		<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
+        <link rel="stylesheet" href="{{ static_url('style.css') }}">
+        <!-- <link rel="stylesheet" href="../static/style.css"> -->
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=STIX+Two+Text&family=Atkinson+Hyperlegible&family=Poppins&family=Roboto+Slab&display=swap" rel="stylesheet">
+        <!-- <link rel="stylesheet" href="{{ static_url('favicon.ico') }}"> -->
+        <link rel="shortcut icon" href="../static/favicon.ico">
+		<meta charset=utf-8>
+	</head>
+
+    <body>
+      <nav class="navbar navbar-light sticky-top navbar-expand-lg bg-custom">
+			  <div class="container-fluid">
+          <a class="navbar-brand" href="https://structuralneurobiologylab.github.io/SyConn/">
+            <img src="{{ static_url('syconn-logo.png') }}" alt="SyConn logo" height="90" class="d-inline-block align-text-top center">
+            <!-- <img src="../static/syconn-logo.png" alt="SyConn logo" height="90" class="d-inline-block align-text-top center"> -->
+          </a>
+          <div class="collapse navbar-collapse">
+            <div class="navbar-nav" id="navItems">
+              <a class="nav-link" aria-current="page" href="index.html">Home</a>
+              <a class="nav-link" href="tutorials.html">Tutorials</a>
+              <a class="nav-link active" href="about.html">About</a>
+            </div>
+          </div>
+				  <a class="navbar-brand" href="https://www.neuro.mpg.de/en">
+            <img src="{{ static_url('mpi-logo.png') }}" alt="MP Neurobiology image" height="60" class="d-inline-block align-text-top center">
+            <!-- <img src="../static/mpi-logo.png" alt="MP Neurobiology image" height="60" class="d-inline-block align-text-top center"> -->
+          </a>
+			  </div>
+		  </nav>
+
+      <div class="container m-3">
+        <h3 class="display-6 header">Project</h3>
+        <p class="lead" style="text-align: justify;">SyConn-Neuroglancer viewer helps to visualize EM volumetric data (3D segmentation and raw volumes). It is based on a fork of the original <a href="#">google/neuroglancer</a> project developed and maintained by Jeremy Maitin-Shepard. It is capable of rendering line-segment based skeletons and triangular mesh representations. Additionally, it can also render organelle meshes that follow the same triangular representation.</p>
+        <p class="lead" style="text-align: justify;">The datasets used by the viewer are in the <a href="#">Knossos</a> format which allows reading the data chunk-wise and forwarding to the Neuroglancer client. The skeleton and mesh representations are made available by <a href="#">SyConn</a>, modified to the precomputed format for rendering. As part of the rendering options, one can change the visual look and feel of these cell objects directly from the browser.</p>
+        <p class="lead" style="text-align: justify;">The viewer also supports filtering the cells based on some properties. Currently, we support filtering by the cell type, number of mitochondria within a cell and the size of the cell. Additionally, one can request the synaptic partner of a cell based on the largest synapse area.</p>
+        <h3 class="display-6 header">The Team</h3>
+        <p class="lead" style="text-align: justify;">This project is currently developed in Prof. Winfried Denk's department <a href="https://www.neuro.mpg.de/denk">Electrons - Photons - Neurons</a> at the Max Planck Institute of Neurobiology in Martinsried, Germany.</p>
+        <div class="row">
+          <div class="col-sm-3">
+            <div class="card">
+              <div class="card-body">
+                <h5 class="card-title">Hashir Ahmad</h5>
+                <h6 class="card-subtitle text-muted">Developer</h6>
+                <p class="card-text"></p>
+                <a href="mailto:hashir@neuro.mpg.de" class="btn btn-primary">Contact</a>
+                </div>
+            </div>
+          </div>
+          <div class="col-sm-3">
+            <div class="card">
+              <div class="card-body">
+                <h5 class="card-title">Andrei Mancu</h5>
+                <h6 class="card-subtitle text-muted">Developer</h6>
+                <p class="card-text"></p>
+                <a href="mailto:amancu@neuro.mpg.de" class="btn btn-primary">Contact</a>
+                </div>
+            </div>
+          </div>
+          <div class="col-sm-3">
+            <div class="card">
+              <div class="card-body">
+                <h5 class="card-title">Jörgen Kornfeld</h5>
+                <h6 class="card-subtitle text-muted">Supervisor</h6>
+                <p class="card-text"></p>
+                <a href="mailto:kornfeld@neuro.mpg.de" class="btn btn-primary">Contact</a>
+                </div>
+            </div>
+          </div>
+          <div class="col-sm-3">
+            <div class="card">
+              <div class="card-body">
+                <h5 class="card-title">Philipp Schubert</h5>
+                <h6 class="card-subtitle text-muted">Supervisor</h6>
+                <p class="card-text"></p>
+                <a href="mailto:pschubert@neuro.mpg.de" class="btn btn-primary">Contact</a>
+                </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </body>
+</html>
