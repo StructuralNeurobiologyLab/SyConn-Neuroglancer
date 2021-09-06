@@ -95,6 +95,8 @@ class Server(object):
                 # (MESH_PATH_REGEX, MeshHandler, dict(server=self)),
                 (ACTION_PATH_REGEX, ActionHandler, dict(server=self)),
             ] + sockjs_router.urls,
+            # + [(r"/(.*)", tornado.web.FallbackHandler, dict(fallback=flask_app))],
+            default_handler_class=NotFoundHandler,
             log_function=log_function,
             # Set a large maximum message size to accommodate large screenshot
             # messages.
