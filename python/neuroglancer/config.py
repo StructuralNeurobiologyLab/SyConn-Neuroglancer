@@ -101,6 +101,7 @@ def initialize_server():
     sd = seg.SegmentationDataset(obj_type='syn_ssv', working_dir=global_params.config.working_dir)
     params["backend"] = SyConnBackend(global_params.config.working_dir, logger)
     params["segmentation"] = KnossosDataset(global_params.config.kd_seg_path)
+    params["segmentation_path"] = global_params.config.kd_seg_path
     params["image"] = KnossosDataset("/wholebrain/songbird/j0251/j0251_72_clahe2")
 
     logger.info("Initializing npy arrays for j0251_rag_flat_Jan2019_v2")
@@ -123,6 +124,7 @@ def initialize_server():
     sd = seg.SegmentationDataset(obj_type='syn_ssv', working_dir=global_params.config.working_dir)
     params["backend"] = SyConnBackend(global_params.config.working_dir, logger)
     params["segmentation"] = KnossosDataset(global_params.config.kd_seg_path)
+    params["segmentation_path"] = global_params.config.kd_seg_path
     params["image"] = KnossosDataset("/wholebrain/songbird/j0251/j0251_72_clahe2")
 
     logger.info("Initializing npy arrays for j0251_rag_flat_Jan2019_v3")

@@ -8,6 +8,7 @@ import tornado.iostream
 import tornado.concurrent
 from tornado import locks
 import os
+import time
 import json
 import numpy as np
 import compressed_segmentation as cseg
@@ -24,11 +25,12 @@ except ImportError:
 
 from syconn import global_params
 from syconn.analysis.property_filter import PropertyFilter
-from syconn.analysis.utils import get_encoded_mesh, get_encoded_skeleton, get_mesh_meta
+from syconn.analysis.utils import get_encoded_mesh, get_encoded_skeleton, get_mesh_meta, load_segmentation
 from syconn.handler.logger import log_main as logger
 
 import neuroglancer
 from neuroglancer import local_volume, skeleton
+from neuroglancer.config import params, tokenLock
 from neuroglancer import config
 from neuroglancer.random_token import make_random_token
 from neuroglancer.chunks import encode_raw
@@ -67,9 +69,9 @@ PRECOMPUTED_VOLUME_REGEX = r'^/volume/(?P<volume_type>[a-zA-Z]+)/(?P<scale_key>[
 
 PRECOMPUTED_SEG_PROPS_INFO_REGEX = r'^/properties/info$'
 
-
 class BaseRequestHandler(tornado.web.RequestHandler):
     def initialize(self, server):
+        # self.set_secure_cookie("session_id", session_key, samesite="None")
         self.server = server
 
 
@@ -77,6 +79,12 @@ class MainHandler(tornado.web.RequestHandler):
     def get(self):
         self.render("index.html")
 
+class NotFoundHandler(tornado.web.RequestHandler):
+    def prepare(self):  # for all methods
+        raise tornado.web.HTTPError(
+            status_code=404,
+            reason="Invalid resource path. Test!"
+        )
 
 class TutorialsHandler(tornado.web.RequestHandler):
     def get(self):
@@ -129,132 +137,6 @@ class TokenHandler(BaseRequestHandler):
         #     self.send_error(404)
         #     return
 
-# with thread pool
-# class TokenHandler(BaseRequestHandler):
-#     @asynchronous
-#     def post(self):
-#         from neuroglancer.config import params
-
-#         try:
-#             params.acquisition = self.get_argument("acq_name")
-#             params.version = self.get_argument("data_version")
-        
-#         except tornado.web.MissingArgumentError as e:
-#             logger.error(e.args[0])
-#             self.send_error(404)
-#             return
-
-#         def handle_result(f):
-#             logger.warning("Finishing")
-#             try:
-#                 pf = f.result()
-#                 if config.dev_environ:
-#                     host = config.global_server_args['host']
-#                     port = config.global_server_args['port']
-#                     time.sleep(1)
-#                     self.redirect(f"http://{host}:{port}/v/{pf.token}/")
-                        
-#                 else:
-#                     time.sleep(1)
-#                     self.redirect(f"http://syconn.esc.mpcdf.mpg.de/v/{pf.token}/")
-
-#             except Exception as e:
-#                 logger.warning(f"Viewer not available")
-#                 logger.error(e)
-#                 self.send_error(404)
-#                 return
-
-#         with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-#             logger.warning("Spawning thread")
-#             future = executor.submit(PropertyFilter, params, ['mi', 'vc', 'sj'])
-        
-#         self.server.ioloop.add_future(future, handle_result)
-
-        
-
-# without thread pool
-# class TokenHandler(BaseRequestHandler):
-#     async def post(self):
-#         from neuroglancer.config import params
-#         try:
-#             params.acquisition = self.get_argument("acq_name")
-#             params.version = self.get_argument("data_version")
-
-#         except tornado.web.MissingArgumentError as e:
-#             logger.error(e.args[0])
-#             self.send_error(404)
-#             return
-
-#         try:
-#             token = make_random_token()
-#             # t = threading.Thread(target=PropertyFilter, args=(params, ['mi', 'vc', 'sj'], token))
-#             # t.start()
-#             task = asyncio.coroutine(PropertyFilter)(params, ['mi', 'vc', 'sj'])
-#             await task
-            
-#             if config.dev_environ:
-#                 host = config.global_server_args['host']
-#                 port = config.global_server_args['port']
-#                 self.redirect(f"http://{host}:{port}/v/{token}/")
-#                 # t.join()
-
-#             else:
-#                 self.redirect(f"http://syconn.esc.mpcdf.mpg.de/v/{token}/")
-#                 # t.join()
-                
-
-#         except Exception as e:
-#             logger.error(e)
-#             self.send_error(404)
-#             return
-
-# class TokenHandler(BaseRequestHandler):
-#     def post(self):
-#         m = multiprocessing.Manager()
-#         lock = m.Lock()
-
-#         def get_args(lock):
-#             with lock:
-#                 try:
-#                     acquisition = params.acquisition = self.get_argument("acq_name")
-#                     version = params.version = self.get_argument("data_version")
-#                     print('in here')
-
-#                 except tornado.web.MissingArgumentError as e:
-#                     logger.error(e.args[0])
-#                     self.send_error(404)
-#                     return
-
-#                 pf = PropertyFilter(params, ['mi', 'vc', 'sj'])
-#             return pf
-        
-#         with concurrent.futures.ThreadPoolExecutor(max_workers=20) as executor:
-            
-#             print('before executor')
-#             futures = [executor.submit(
-#                 get_args, lock
-#             )]
-#             print('after executor')
-
-#             for future in concurrent.futures.as_completed(futures):
-#                 try:
-#                     pf = future.result()
-#                     print('got result')
-
-#                     if config.dev_environ:
-#                         host = config.global_server_args['host']
-#                         port = config.global_server_args['port']
-
-#                         self.redirect(f"http://{host}:{port}/v/{pf.token}/")
-                        
-#                     else:
-#                         time.sleep(1)
-#                         self.redirect(f"http://syconn.esc.mpcdf.mpg.de/v/{pf.token}/")
-
-#                 except Exception as e:
-#                     logger.error(e)
-#                     self.send_error(404)
-
 class SharedURLHandler(BaseRequestHandler):
     def get(self):
         print(self.request.uri)
@@ -267,9 +149,9 @@ class PrecomputedSkeletonInfoHandler(BaseRequestHandler):
             info = {
                 "@type": "neuroglancer_skeletons",
                 "transform": [  # identity (no) transformation
-                    1, 
-                    0, 
-                    0, 
+                    1,
+                    0,
+                    0,
                     0,
                     0, 
                     1, 
@@ -457,8 +339,9 @@ class PrecomputedVolumeHandler(BaseRequestHandler):
                 self.finish(gzip.compress(encode_raw(data), compresslevel=6))
 
         if volume_type == "segmentation":
+            kwargs.update({'cube_type': 'segmentation', 'path': params['segmentation_path']})
             future = self.server.thread_executor.submit(
-                params["segmentation"].load_seg, **kwargs
+                load_segmentation, **kwargs
             )
 
         elif volume_type == "image":
