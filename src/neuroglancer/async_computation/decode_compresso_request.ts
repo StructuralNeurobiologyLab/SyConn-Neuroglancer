@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2018 Google Inc.
+ * Copyright 2021 William Silversmith
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -14,12 +14,6 @@
  * limitations under the License.
  */
 
+import {asyncComputation} from 'neuroglancer/async_computation';
 
-.neuroglancer-state-editor {
-  width: 80%;
-}
-
-.close-button {
-  position: absolute;
-  right: 15px;
-}
+export const decodeCompresso = asyncComputation<(data: Uint8Array) => Uint8Array>('decodeCompresso');

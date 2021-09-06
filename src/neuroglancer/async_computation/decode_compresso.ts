@@ -1,6 +1,6 @@
 /**
  * @license
- * Copyright 2018 Google Inc.
+ * Copyright 2021 William Silversmith
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
@@ -14,12 +14,13 @@
  * limitations under the License.
  */
 
+import {decompressCompresso} from 'neuroglancer/sliceview/compresso';
+import {decodeCompresso} from 'neuroglancer/async_computation/decode_compresso_request';
+import {registerAsyncComputation} from 'neuroglancer/async_computation/handler';
 
-.neuroglancer-state-editor {
-  width: 80%;
-}
-
-.close-button {
-  position: absolute;
-  right: 15px;
-}
+registerAsyncComputation(
+    decodeCompresso,
+    async function(data: Uint8Array) {      
+      const result = await decompressCompresso(data);
+      return { value: result, transfer: [result.buffer] };
+    });
