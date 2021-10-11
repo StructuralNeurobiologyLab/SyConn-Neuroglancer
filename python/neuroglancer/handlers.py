@@ -1,41 +1,36 @@
-import asyncio
-from datetime import time
-import multiprocessing
-import threading
 import tornado.web
 import tornado.ioloop
 import tornado.iostream
 import tornado.concurrent
-from tornado import locks
 import os
-import time
 import json
 import numpy as np
 import compressed_segmentation as cseg
 import gzip
 import concurrent.futures
-import time
+import zipfile
+import urllib
 
 try:
     # Newer versions of tornado do not have the asynchronous decorator
     from sockjs.tornado.util import asynchronous
 except ImportError:
     from tornado.web import asynchronous
-# from tornado.web import asynchronous
 
-from syconn import global_params
 from syconn.analysis.property_filter import PropertyFilter
-from syconn.analysis.utils import get_encoded_mesh, get_encoded_skeleton, get_mesh_meta, load_segmentation
+from syconn.analysis.utils import get_encoded_mesh, get_encoded_skeleton, get_mesh_meta
 from syconn.handler.logger import log_main as logger
 
 import neuroglancer
-from neuroglancer import local_volume, skeleton
-from neuroglancer.config import params, tokenLock
+from neuroglancer import local_volume, skeleton, trackable_state
+from neuroglancer import url_state
 from neuroglancer import config
 from neuroglancer.random_token import make_random_token
 from neuroglancer.chunks import encode_raw
 from neuroglancer.json_utils import json_encoder_default
 
+
+SHARED_URL_REGEX = r'^/share/(?P<acquisition>[^/]+)/(?P<version>[^/]+)/.+'
 
 INFO_PATH_REGEX = r'^/neuroglancer/info/(?P<token>[^/]+)$'
 
@@ -80,16 +75,14 @@ class MainHandler(tornado.web.RequestHandler):
         self.render("index.html")
 
 class NotFoundHandler(tornado.web.RequestHandler):
-    def prepare(self):  # for all methods
-        raise tornado.web.HTTPError(
-            status_code=404,
-            reason="Invalid resource path. Test!"
-        )
+    def get(self):  # for all methods
+        logger.info('In Not Found Handler')
+        logger.info(self.request.uri)
+        self.render("notFound.html")
 
 class TutorialsHandler(tornado.web.RequestHandler):
     def get(self):
         self.render("tutorials.html")
-
 
 class AboutHandler(tornado.web.RequestHandler):
     def get(self):
@@ -138,11 +131,29 @@ class TokenHandler(BaseRequestHandler):
         #     return
 
 class SharedURLHandler(BaseRequestHandler):
-    def get(self):
-        print(self.request.uri)
-        self.render("about.html")
-        
-            
+    def get(self, acquisition, version):
+        logger.info('In Shared URL Handler')
+        uri = urllib.parse.unquote(self.request.uri)
+        no_a_umlaut_url = uri.replace("ä","!")
+        decoded_url = no_a_umlaut_url.replace("ß","#")
+        state = url_state.parse_url(decoded_url)
+
+        from neuroglancer.config import params
+        params.acquisition = acquisition
+        params.version = version
+
+        # create new viewer with
+        token = make_random_token()
+        pf = PropertyFilter(params, ['mi', 'vc', 'sj'], token)
+        pf.viewer.set_state(state)
+
+        # render the new viewer
+        try:
+            self.redirect(pf.viewer.get_viewer_url())
+        except Exception as e:
+            self.send_error(404, message=e.args[0])
+            return
+
 class PrecomputedSkeletonInfoHandler(BaseRequestHandler):
     def get(self):
         try:
@@ -191,7 +202,7 @@ class PrecomputedSkeletonHandler(BaseRequestHandler):
 
             if encoded_skeleton == -1:
                 logger.error('Skeleton not available for ssv_id: {}'.format(ssv_id)) 
-                self.send_error(404) 
+                self.send_error(404)
                 return
 
             self.set_header('Content-type', 'application/octet-stream')
@@ -339,9 +350,9 @@ class PrecomputedVolumeHandler(BaseRequestHandler):
                 self.finish(gzip.compress(encode_raw(data), compresslevel=6))
 
         if volume_type == "segmentation":
-            kwargs.update({'cube_type': 'segmentation', 'path': params['segmentation_path']})
+            # kwargs.update({'cube_type': 'segmentation', 'path': params['segmentation_path']})
             future = self.server.thread_executor.submit(
-                load_segmentation, **kwargs
+                params["segmentation"].load_seg, **kwargs
             )
 
         elif volume_type == "image":
@@ -353,6 +364,99 @@ class PrecomputedVolumeHandler(BaseRequestHandler):
             future,
             lambda f: self.server.ioloop.add_callback(lambda: handle_result(f))
         )
+
+from_overlay = True
+# _ordinal_mags = True
+scales = [np.array([10., 10., 25.], dtype=np.float32), np.array([20., 20., 50.], dtype=np.float32), np.array([ 40.,  40., 100.], dtype=np.float32), np.array([ 80.,  80., 200.], dtype=np.float32), np.array([160., 160., 400.], dtype=np.float32), np.array([320., 320., 800.], dtype=np.float32), np.array([ 640.,  640., 1600.], dtype=np.float32), np.array([1280., 1280., 3200.], dtype=np.float32)]
+cube_shape = [128, 128, 128]
+
+def is_mag_ordinal(mag):
+    if mag == 1 or mag == 2:
+        return True
+    else:
+        return False
+
+def scale_ratio(mag, base_mag): # ratio between scale in mag and scale in base_mag
+    return (mag_scale(mag) / mag_scale(base_mag)) if is_mag_ordinal(mag) else np.array(3 * [float(mag) / base_mag])
+
+def mag_scale(mag): # get scale in specific mag
+    index = mag - 1 if is_mag_ordinal(mag) else int(np.log2(mag))
+    # print(index)
+    return scales[index]
+
+def get_first_blocks(offset):
+        return offset // cube_shape
+
+def get_last_blocks(offset, size):
+    return ((offset + size - 1) // cube_shape) + 1
+
+class PrecompSnappyVolHandler(BaseRequestHandler):
+    @asynchronous
+    def get(self, volume_type, scale_key, chunk):
+        from neuroglancer.config import params
+        boundary = [27119, 27350, 15494]
+
+        mag = np.array(scale_key.split('_'), dtype=np.int32)[0]
+        x, y, z = chunk.split('_')
+        xBegin, xEnd = map(int, x.split('-'))
+        yBegin, yEnd = map(int, y.split('-'))
+        zBegin, zEnd = map(int, z.split('-'))
+
+        begin_offset = tuple(np.s_[xBegin * mag, yBegin * mag, zBegin * mag])
+        end_offset = tuple(np.s_[xEnd * mag, yEnd * mag, zEnd * mag])
+
+        size = tuple(np.subtract(end_offset, begin_offset))
+        ratio = scale_ratio(mag, 1)
+
+        size = (np.array(size, dtype=int) // ratio).astype(int)
+        offset = (np.array(begin_offset, dtype=int) // ratio).astype(int)
+        boundary = (np.array(boundary, dtype=int) // ratio).astype(int)
+
+        start = get_first_blocks(offset).astype(int)
+        end = get_last_blocks(offset, size).astype(int)
+
+        cube_coordinates = []
+
+        for z in range(start[2], end[2]):
+            for y in range(start[1], end[1]):
+                for x in range(start[0], end[0]):
+                    cube_coordinates.append([x, y, z])
+
+        def read_snappy_cube(c):
+            # local_offset = np.subtract([c[0], c[1], c[2]], start) * cube_shape
+            # print(c)
+            filename = f'{params["segmentation"].experiment_name}_{params["segmentation"].name_mag_folder}{mag}_x{c[0]:04d}_y{c[1]:04d}_z{c[2]:04d}.{"seg.sz.zip" if from_overlay else params["segmentation"]._raw_ext}'
+            path = f'{params["segmentation"].knossos_path}/{params["segmentation"].name_mag_folder}{mag}/x{c[0]:04d}/y{c[1]:04d}/z{c[2]:04d}/{filename}'
+
+            if os.path.exists(path):
+                if from_overlay:
+                    with zipfile.ZipFile(path, 'r') as zf:
+                        snappy_cube = zf.read(os.path.basename(path[:-4]))
+
+                    return snappy_cube
+
+        futures = list(map(lambda x: self.server.thread_executor.submit(
+            read_snappy_cube, x
+        ), cube_coordinates))
+
+        for f in concurrent.futures.as_completed(futures):
+            try:
+                snappy_cube = f.result()
+                # print(type(snappy_cube))
+
+                if snappy_cube is not None:
+                    # content-encoding snappy
+                    self.set_header('Content-encoding', 'gzip')
+                    self.finish(gzip.compress(snappy_cube))
+                else:
+                    logger.error('Snappy cube is None')
+                    self.send_error(404)
+
+            except Exception as e:
+                logger.error(e, e.args[0])
+                self.send_error(404)
+                return
+
 
 def read_file(filename):
     with open(os.path.join("/home/hashir", filename), "rb") as f:

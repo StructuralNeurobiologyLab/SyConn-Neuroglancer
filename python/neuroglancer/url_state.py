@@ -21,6 +21,7 @@ import re
 from six.moves import urllib
 
 from . import viewer_state
+from neuroglancer import config
 from .json_utils import json_encoder_default
 from .json_wrappers import to_json
 
@@ -89,7 +90,8 @@ def json_to_url_safe(x):
     return _convert_json_helper(x, u'_', u'\'')
 
 def url_fragment_to_json(fragment_value):
-    unquoted = urllib.parse.unquote(fragment_value)
+    # print(f'fragment value \n {fragment_value} \n')
+    unquoted = fragment_value # urllib.parse.unquote(fragment_value)
     if unquoted.startswith('!'):
         unquoted = unquoted[1:]
     return url_safe_to_json(unquoted)
@@ -97,6 +99,7 @@ def url_fragment_to_json(fragment_value):
 
 def parse_url_fragment(fragment_value):
     json_string = url_fragment_to_json(fragment_value)
+    # print(f'json string:\n {json_string} \n')
     return viewer_state.ViewerState(
         json.loads(json_string, object_pairs_hook=collections.OrderedDict))
 
@@ -109,7 +112,9 @@ def to_url_fragment(state):
     json_string = json.dumps(to_json(state), separators=(u',', u':'), default=json_encoder_default)
     return urllib.parse.quote(json_string, safe=u'~@#$&()*!+=:;,.?/\'')
 
-default_neuroglancer_url = u'https://neuroglancer-demo.appspot.com'
+default_neuroglancer_url = u'https://syconn.esc.mpcdf.mpg.de'           # TODO Andrei sharable links
+# default_neuroglancer_url = u'localhost:8000/share/'
+# default_neuroglancer_url = u'https://neuroglancer-demo.appspot.com'
 
 def to_url(state, prefix=default_neuroglancer_url):
     return u'%s#!%s' % (prefix, to_url_fragment(state))
