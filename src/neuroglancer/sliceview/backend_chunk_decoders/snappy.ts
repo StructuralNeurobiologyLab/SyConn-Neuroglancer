@@ -13,7 +13,7 @@ import {CancellationToken} from 'neuroglancer/util/cancellation';
 import {decodeSnappy} from 'neuroglancer/async_computation/decode_snappy_request';
 import {requestAsyncComputation} from 'neuroglancer/async_computation/request';
 
-export async function decodeSnappyChunk(
+export async function decodeKnossosSnappyChunk(
     chunk: VolumeChunk, cancellationToken: CancellationToken, response: ArrayBuffer) {
 
   let image : TypedArray = await requestAsyncComputation(
