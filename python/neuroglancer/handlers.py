@@ -29,7 +29,6 @@ from neuroglancer.random_token import make_random_token
 from neuroglancer.chunks import encode_raw
 from neuroglancer.json_utils import json_encoder_default
 
-
 SHARED_URL_REGEX = r'^/share/(?P<acquisition>[^/]+)/(?P<version>[^/]+)/.+'
 
 INFO_PATH_REGEX = r'^/neuroglancer/info/(?P<token>[^/]+)$'
@@ -64,6 +63,9 @@ PRECOMPUTED_VOLUME_REGEX = r'^/volume/(?P<volume_type>[a-zA-Z]+)/(?P<scale_key>[
 
 PRECOMPUTED_SEG_PROPS_INFO_REGEX = r'^/properties/info$'
 
+KNOSSOS_METADATA = r'^/knossos://(?P<acquisition>[^/]+)/(?P<version>[^/]+)/metadata'  # TODO Andrei source for static seg metadata
+
+
 class BaseRequestHandler(tornado.web.RequestHandler):
     def initialize(self, server):
         # self.set_secure_cookie("session_id", session_key, samesite="None")
@@ -74,32 +76,36 @@ class MainHandler(tornado.web.RequestHandler):
     def get(self):
         self.render("index.html")
 
+
 class NotFoundHandler(tornado.web.RequestHandler):
     def get(self):  # for all methods
         logger.info('In Not Found Handler')
         logger.info(self.request.uri)
         self.render("notFound.html")
 
+
 class TutorialsHandler(tornado.web.RequestHandler):
     def get(self):
         self.render("tutorials.html")
 
+
 class AboutHandler(tornado.web.RequestHandler):
     def get(self):
         self.render("about.html")
+
 
 # native coroutine
 class TokenHandler(BaseRequestHandler):
     def post(self):
         logger.info("TokenHandler invoked")
         from neuroglancer.config import params
-        
+
         try:
             params.acquisition = self.get_argument("acq_name")
             params.version = self.get_argument("data_version")
             print(params.acquisition)
             print(params.version)
-        
+
         except tornado.web.MissingArgumentError as e:
             logger.error(e.args[0])
             self.send_error(404)
@@ -114,28 +120,13 @@ class TokenHandler(BaseRequestHandler):
         except Exception as e:
             self.send_error(404, message=e.args[0])
             return
-        
-        # try:
-        #     if config.dev_environ:
-        #         host = config.global_server_args['host']
-        #         port = config.global_server_args['port']
-        #         self.redirect(f"http://{host}:{port}/v/{token}/")
-                    
-        #     else:
-        #         self.redirect(f"http://syconn.esc.mpcdf.mpg.de/v/{token}/")
-
-        # except Exception as e:
-        #     logger.warning(f"Viewer not available")
-        #     logger.error(e)
-        #     self.send_error(404)
-        #     return
 
 class SharedURLHandler(BaseRequestHandler):
     def get(self, acquisition, version):
         logger.info('In Shared URL Handler')
         uri = urllib.parse.unquote(self.request.uri)
-        no_a_umlaut_url = uri.replace("ä","!")
-        decoded_url = no_a_umlaut_url.replace("ß","#")
+        no_a_umlaut_url = uri.replace("ä", "!")
+        decoded_url = no_a_umlaut_url.replace("ß", "#")
         state = url_state.parse_url(decoded_url)
 
         from neuroglancer.config import params
@@ -154,6 +145,7 @@ class SharedURLHandler(BaseRequestHandler):
             self.send_error(404, message=e.args[0])
             return
 
+
 class PrecomputedSkeletonInfoHandler(BaseRequestHandler):
     def get(self):
         try:
@@ -164,19 +156,19 @@ class PrecomputedSkeletonInfoHandler(BaseRequestHandler):
                     0,
                     0,
                     0,
-                    0, 
-                    1, 
-                    0, 
                     0,
-                    0, 
-                    0, 
-                    1, 
+                    1,
+                    0,
+                    0,
+                    0,
+                    0,
+                    1,
                     0
                 ],
                 "vertex_attributes": [],
                 "spatial_index": None
             }
-                
+
             self.set_header('Content-type', 'application/json')
             self.finish(json.dumps(info))
 
@@ -189,7 +181,7 @@ class PrecomputedSkeletonInfoHandler(BaseRequestHandler):
 class PrecomputedSkeletonHandler(BaseRequestHandler):
     @asynchronous
     def get(self, ssv_id):
-        from neuroglancer.config import params 
+        from neuroglancer.config import params
         def handle_result(f):
             try:
                 encoded_skeleton = f.result()
@@ -201,7 +193,7 @@ class PrecomputedSkeletonHandler(BaseRequestHandler):
             # self.server.thread_executor.shutdown()
 
             if encoded_skeleton == -1:
-                logger.error('Skeleton not available for ssv_id: {}'.format(ssv_id)) 
+                logger.error('Skeleton not available for ssv_id: {}'.format(ssv_id))
                 self.send_error(404)
                 return
 
@@ -214,14 +206,14 @@ class PrecomputedSkeletonHandler(BaseRequestHandler):
         )
 
         tornado.concurrent.future_add_done_callback(
-            future, 
+            future,
             lambda f: self.server.ioloop.add_callback(lambda: handle_result(f))
         )
-        
+
 
 class PrecomputedMeshInfoHandler(BaseRequestHandler):
     def get(self, obj_type):
-        try:    
+        try:
             self.set_header('Content-type', 'application/json')
             self.finish(json.dumps({"@type": "neuroglancer_legacy_mesh"}))
 
@@ -230,12 +222,13 @@ class PrecomputedMeshInfoHandler(BaseRequestHandler):
             self.send_error(404)
             return
 
+
 class PrecomputedMeshMetaHandler(BaseRequestHandler):
     @asynchronous
     def get(self, obj_type, ssv_id, lod):
         def handle_result(f):
             try:
-                meta = f.result() 
+                meta = f.result()
 
             except Exception as e:
                 self.send_error(500, message=e.args[0])
@@ -248,12 +241,13 @@ class PrecomputedMeshMetaHandler(BaseRequestHandler):
         future = self.server.thread_executor.submit(
             get_mesh_meta, ssv_id, lod
         )
-        
+
         tornado.concurrent.future_add_done_callback(
             future,
             lambda f: self.server.ioloop.add_callback(lambda: handle_result(f))
         )
-        
+
+
 class PrecomputedMeshHandler(BaseRequestHandler):
     @asynchronous
     def get(self, obj_type, ssv_id, lod):
@@ -278,11 +272,12 @@ class PrecomputedMeshHandler(BaseRequestHandler):
         future = self.server.thread_executor.submit(
             get_encoded_mesh, params["backend"], ssv_id, obj_type
         )
-        
+
         tornado.concurrent.future_add_done_callback(
             future,
             lambda f: self.server.ioloop.add_callback(lambda: handle_result(f))
         )
+
 
 class PrecomputedVolumeInfoHandler(BaseRequestHandler):
     def get(self, volume_type):
@@ -312,6 +307,7 @@ class PrecomputedVolumeInfoHandler(BaseRequestHandler):
             self.send_error(404)
             return
 
+
 class PrecomputedVolumeHandler(BaseRequestHandler):
     @asynchronous
     def get(self, volume_type, scale_key, chunk):
@@ -322,7 +318,7 @@ class PrecomputedVolumeHandler(BaseRequestHandler):
         yBegin, yEnd = map(int, y.split('-'))
         zBegin, zEnd = map(int, z.split('-'))
 
-        begin_offset = tuple(np.s_[xBegin * mag, yBegin * mag, zBegin * mag] )
+        begin_offset = tuple(np.s_[xBegin * mag, yBegin * mag, zBegin * mag])
         end_offset = tuple(np.s_[xEnd * mag, yEnd * mag, zEnd * mag])
 
         size = tuple(np.subtract(end_offset, begin_offset))
@@ -343,7 +339,7 @@ class PrecomputedVolumeHandler(BaseRequestHandler):
             self.set_header('Content-encoding', 'gzip')
 
             if volume_type == "segmentation":
-                compressed_data = cseg.compress(data, block_size=(8,8,8), order='F')
+                compressed_data = cseg.compress(data, block_size=(8, 8, 8), order='F')
                 # self.finish(compressed_data)
                 self.finish(gzip.compress(compressed_data, compresslevel=6))
             else:
@@ -359,16 +355,24 @@ class PrecomputedVolumeHandler(BaseRequestHandler):
             future = self.server.thread_executor.submit(
                 params["image"].load_raw, **kwargs
             )
-            
+
         tornado.concurrent.future_add_done_callback(
             future,
             lambda f: self.server.ioloop.add_callback(lambda: handle_result(f))
         )
 
+
 from_overlay = True
 # _ordinal_mags = True
-scales = [np.array([10., 10., 25.], dtype=np.float32), np.array([20., 20., 50.], dtype=np.float32), np.array([ 40.,  40., 100.], dtype=np.float32), np.array([ 80.,  80., 200.], dtype=np.float32), np.array([160., 160., 400.], dtype=np.float32), np.array([320., 320., 800.], dtype=np.float32), np.array([ 640.,  640., 1600.], dtype=np.float32), np.array([1280., 1280., 3200.], dtype=np.float32)]
+scales = [np.array([10., 10., 25.], dtype=np.float32), np.array([20., 20., 50.], dtype=np.float32),
+          np.array([40., 40., 100.], dtype=np.float32),
+          np.array([80., 80., 200.], dtype=np.float32),
+          np.array([160., 160., 400.], dtype=np.float32),
+          np.array([320., 320., 800.], dtype=np.float32),
+          np.array([640., 640., 1600.], dtype=np.float32),
+          np.array([1280., 1280., 3200.], dtype=np.float32)]
 cube_shape = [128, 128, 128]
+
 
 def is_mag_ordinal(mag):
     if mag == 1 or mag == 2:
@@ -376,19 +380,25 @@ def is_mag_ordinal(mag):
     else:
         return False
 
-def scale_ratio(mag, base_mag): # ratio between scale in mag and scale in base_mag
-    return (mag_scale(mag) / mag_scale(base_mag)) if is_mag_ordinal(mag) else np.array(3 * [float(mag) / base_mag])
 
-def mag_scale(mag): # get scale in specific mag
+def scale_ratio(mag, base_mag):  # ratio between scale in mag and scale in base_mag
+    return (mag_scale(mag) / mag_scale(base_mag)) if is_mag_ordinal(mag) else np.array(
+        3 * [float(mag) / base_mag])
+
+
+def mag_scale(mag):  # get scale in specific mag
     index = mag - 1 if is_mag_ordinal(mag) else int(np.log2(mag))
     # print(index)
     return scales[index]
 
+
 def get_first_blocks(offset):
-        return offset // cube_shape
+    return offset // cube_shape
+
 
 def get_last_blocks(offset, size):
     return ((offset + size - 1) // cube_shape) + 1
+
 
 class PrecompSnappyVolHandler(BaseRequestHandler):
     @asynchronous
@@ -464,6 +474,7 @@ def read_file(filename):
 
     return data
 
+
 class PrecomputedSegPropsInfoHandler(BaseRequestHandler):
     @asynchronous
     def get(self):
@@ -519,101 +530,30 @@ class SkeletonInfoHandler(BaseRequestHandler):
         self.finish(json.dumps(vol.info(), default=json_encoder_default).encode())
 
 
-# class SubvolumeHandler(BaseRequestHandler):
-#     @asynchronous
-#     def get(self, data_format, token, scale_key, start, end):
-#         start_pos = np.array(start.split(','), dtype=np.int64)
-#         end_pos = np.array(end.split(','), dtype=np.int64)
-#         vol = self.server.get_volume(token)
-#         if vol is None or not isinstance(vol, local_volume.LocalVolume):
-#             self.send_error(404)
-#             return
+class KnossosMetadataHandler(BaseRequestHandler):
+    def get(self, acquisition, version):
+        # TODO get this from config.py
+        file_path = '/ssdscratch/songbird/j0251/segmentation/j0251_72_seg_20210127_agglo2/j0251_72_seg_20210127_agglo2.pyk.conf'
+        # try:
+        attr_dic = {}
+        with open(file_path, 'r') as f:
+            for line in f:
+                words = line.split()
+                if words[0] == '[Dataset]':
+                    continue
+                print(words)
+                attr_dic[words[0][1:]] = words[2]
+            # data = f.read()
+            # self.write(data)
 
-#         def handle_subvolume_result(f):
-#             try:
-#                 data, content_type = f.result()
-#             except ValueError as e:
-#                 self.send_error(400, message=e.args[0])
-#                 return
+        print(attr_dic)
+        self.set_header('Content-type', 'application/json')
+        self.set_header('Cache-control', 'no-cache')                    # TODO remove this afterwards
+        self.set_header('Content-encoding', 'knossos')
 
-#             self.set_header('Content-type', content_type)
-#             self.finish(data)
+        self.finish(json.dumps(attr_dic, default=json_encoder_default).encode())
 
-#         self.server.thread_executor.submit(
-#             vol.get_encoded_subvolume,
-#             data_format=data_format, start=start_pos, end=end_pos,
-#             scale_key=scale_key).add_done_callback(
-#             lambda f: self.server.ioloop.add_callback(lambda: handle_subvolume_result(f)))
-
-
-# class MeshHandler(BaseRequestHandler):
-#     @asynchronous
-#     def get(self, key, object_id):
-#         object_id = int(object_id)
-#         vol = self.server.get_volume(key)
-#         if vol is None or not isinstance(vol, (local_volume.LocalVolume)):
-#             self.send_error(404)
-#             return
-
-#         def handle_mesh_result(f):
-#             try:
-#                 encoded_mesh = f.result()
-#             except local_volume.MeshImplementationNotAvailable:
-#                 self.send_error(501, message='Mesh implementation not available')
-#                 return
-#             except local_volume.MeshesNotSupportedForVolume:
-#                 self.send_error(405, message='Meshes not supported for volume')
-#                 return
-#             except local_volume.InvalidObjectIdForMesh:
-#                 self.send_error(404, message='Mesh not available for specified object id')
-#                 return
-#             except ValueError as e:
-#                 self.send_error(400, message=e.args[0])
-#                 return
-
-#             self.set_header('Content-type', 'application/octet-stream')
-#             self.finish(encoded_mesh)
-
-#         # mesh as a subsource of local volume
-#         if vol.precomputed_mesh is True:
-#             logger.info('Loading precomputed mesh')
-#             self.server.thread_executor.submit(vol.get_object_mesh_precomputed, 
-#                     object_id).add_done_callback(
-#                             lambda f: self.server.ioloop.add_callback(lambda: handle_mesh_result(f)))
-#         """
-#         else:
-#             print('Loading generated mesh')
-#             self.server.executor.submit(vol.get_object_mesh, vol, 
-#                     object_id).add_done_callback(
-#                             lambda f: self.server.ioloop.add_callback(lambda: handle_mesh_result(f)))
-#         """
-
-# class SkeletonHandler(BaseRequestHandler):
-#     @asynchronous
-#     def get(self, key, object_id):
-#         object_id = int(object_id)
-#         vol = self.server.get_volume(key)
-#         if vol is None or not isinstance(vol, skeleton.SkeletonSource):
-#             self.send_error(404)
-
-#         def handle_result(f):
-#             try:
-#                 encoded_skeleton = f.result()
-#             except Exception as e:
-#                 self.send_error(500, message=e.args[0])
-#                 return
-#             if encoded_skeleton is None:
-#                 self.send_error(404, message='Skeleton not available for specified object id')
-#                 return
-#             self.set_header('Content-type', 'application/octet-stream')
-#             self.finish(encoded_skeleton)
-
-#         def get_encoded_skeleton(skeletons, object_id):
-#             skeleton = skeletons.get_skeleton(object_id)
-#             if skeleton is None:
-#                 return None
-#             return skeleton.encode(skeletons)
-
-#         self.server.thread_executor.submit(
-#             get_encoded_skeleton, vol, object_id).add_done_callback(
-#             lambda f: self.server.ioloop.add_callback(lambda: handle_result(f)))
+        # except Exception as e:
+        #     logger.error(f'Error retrieving metadata. {e}')
+        #     self.send_error(404)
+        #     return

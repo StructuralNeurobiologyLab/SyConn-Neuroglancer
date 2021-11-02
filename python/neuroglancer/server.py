@@ -15,13 +15,11 @@
 from __future__ import absolute_import, print_function
 
 import concurrent.futures
-import multiprocessing
-import os
 import socket
 import sys
-import threading
-import weakref
 import argparse
+import threading
+import multiprocessing
 
 import tornado.httpserver
 import tornado.ioloop
@@ -73,12 +71,13 @@ class Server(object):
 
         tornado_app = self.app = tornado.web.Application(
             [
+                (SHARED_URL_REGEX, SharedURLHandler, dict(server=self)),
                 (r'/', MainHandler),
                 (r'^/_generate_token', TokenHandler, dict(server=self)),
                 (r'^/index.html', MainHandler),
                 (r'^/tutorials.html', TutorialsHandler),
                 (r'^/about.html', AboutHandler),
-                # (r'^/#(*)', SharedURLHandler, dict(server=self)),
+                # (SHARED_URL_REGEX, SharedURLHandler, dict(server=self)),
                 (PRECOMPUTED_SKELETON_INFO_REGEX, PrecomputedSkeletonInfoHandler, dict(server=self)), 
                 (PRECOMPUTED_SKELETON_REGEX, PrecomputedSkeletonHandler, dict(server=self)),
                 (PRECOMPUTED_MESH_INFO_REGEX, PrecomputedMeshInfoHandler, dict(server=self)),
@@ -94,6 +93,7 @@ class Server(object):
                 # (SKELETON_PATH_REGEX, SkeletonHandler, dict(server=self)),
                 # (MESH_PATH_REGEX, MeshHandler, dict(server=self)),
                 (ACTION_PATH_REGEX, ActionHandler, dict(server=self)),
+                (KNOSSOS_METADATA, KnossosMetadataHandler, dict(server=self)),
             ] + sockjs_router.urls,
             # + [(r"/(.*)", tornado.web.FallbackHandler, dict(fallback=flask_app))],
             default_handler_class=NotFoundHandler,
@@ -142,7 +142,7 @@ class Server(object):
 
 class StaticPathHandler(BaseRequestHandler):
     def get(self, viewer_token, path):
-        logger.info("StaticPathHandler invoked")
+        # logger.info("StaticPathHandler invoked")
         # if viewer_token != self.server.token and viewer_token not in self.server.viewers:
         if viewer_token not in self.server.viewers:
             logger.error("viewer not registered")
@@ -150,7 +150,7 @@ class StaticPathHandler(BaseRequestHandler):
             return
         try:
             data, content_type = global_static_content_source.get(path)
-            logger.warning(f"Data sent by StaticPathHandler {content_type}")
+            # logger.warning(f"Data sent by StaticPathHandler {content_type}")
         except ValueError as e:
             logger.error("Error sending files")
             self.send_error(404, message=e.args[0])
@@ -246,7 +246,7 @@ if __name__ == "__main__":
 
     initialize_server()
 
-    # config.global_server_args = global_server_args
+    config.global_server_args = global_server_args
     config.dev_environ = args.dev
 
     start()
