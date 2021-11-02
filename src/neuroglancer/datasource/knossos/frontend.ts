@@ -6,675 +6,461 @@
 
 import {makeDataBoundsBoundingBoxAnnotationSet} from 'neuroglancer/annotation';
 import {ChunkManager, WithParameters} from 'neuroglancer/chunk_manager/frontend';
-import {makeCoordinateSpace, makeIdentityTransform, makeIdentityTransformedBoundingBox} from 'neuroglancer/coordinate_transform';
-import {CredentialsManager, CredentialsProvider} from 'neuroglancer/credentials_provider';
+import {
+  CoordinateArray,
+  CoordinateSpace,
+  makeCoordinateSpace,
+  makeIdentityTransform,
+  // makeIdentityTransformedBoundingBox
+} from 'neuroglancer/coordinate_transform';
+// import {CredentialsManager, CredentialsProvider} from 'neuroglancer/credentials_provider';
 import {WithCredentialsProvider} from 'neuroglancer/credentials_provider/chunk_source_frontend';
-import {CompleteUrlOptions, CompletionResult, DataSource, DataSourceProvider, GetDataSourceOptions} from 'neuroglancer/datasource';
-import {KnossosToken, credentialsKey, fetchWithKnossosCredentials} from 'neuroglancer/datasource/knossos/api';
-import {SkeletonSourceParameters, MeshSourceParameters, VolumeChunkSourceParameters} from 'neuroglancer/datasource/knossos/base';
-import {MeshSource} from 'neuroglancer/mesh/frontend';
-import {SkeletonSource} from 'neuroglancer/skeleton/frontend';
+import {CompleteUrlOptions, DataSource, DataSourceProvider, GetDataSourceOptions} from 'neuroglancer/datasource';
+import {KnossosToken,
+  // credentialsKey,
+  // fetchWithKnossosCredentials
+} from 'neuroglancer/datasource/knossos/api';
+import {
+  // SkeletonSourceParameters,
+  // MeshSourceParameters,
+  VolumeChunkSourceParameters} from 'neuroglancer/datasource/knossos/base';
+// import {MeshSource} from 'neuroglancer/mesh/frontend';
+// import {SkeletonSource} from 'neuroglancer/skeleton/frontend';
 import {DataType, makeDefaultVolumeChunkSpecifications, VolumeSourceOptions, VolumeType} from 'neuroglancer/sliceview/volume/base';
-import {MultiscaleVolumeChunkSource, VolumeChunkSource} from 'neuroglancer/sliceview/volume/frontend';
+import {
+  MultiscaleVolumeChunkSource as GenericMultiscaleVolumeChunkSource,
+  // MultiscaleVolumeChunkSource,
+  VolumeChunkSource
+} from 'neuroglancer/sliceview/volume/frontend';
 import {transposeNestedArrays} from 'neuroglancer/util/array';
-import {applyCompletionOffset, getPrefixMatchesWithDescriptions} from 'neuroglancer/util/completion';
-import {mat4, vec2, vec3} from 'neuroglancer/util/geom';
-import {responseJson} from 'neuroglancer/util/http_request';
-import {parseArray, parseQueryStringParameters, verify3dDimensions, verify3dScale, verifyEnumString, verifyFiniteFloat, verifyFinitePositiveFloat, verifyInt, verifyObject, verifyObjectAsMap, verifyObjectProperty, verifyOptionalString, verifyString} from 'neuroglancer/util/json';
+// import {applyCompletionOffset, getPrefixMatchesWithDescriptions} from 'neuroglancer/util/completion';
+// import {mat4, vec2, vec3} from 'neuroglancer/util/geom';
+import {isNotFoundError, parseUrl, responseJson} from 'neuroglancer/util/http_request';
+import {
+  expectArray,
+  parseArray, parseFixedLengthArray,
+  // parseQueryStringParameters,
+  // verify3dDimensions,
+  // verify3dScale,
+  verifyEnumString,
+  // verifyFiniteFloat,
+  verifyFinitePositiveFloat,
+  // verifyInt,
+  verifyObject,
+  // verifyObjectAsMap,
+  verifyObjectProperty, verifyOptionalObjectProperty,
+  // verifyOptionalString,
+  verifyPositiveInt,
+  verifyString, verifyStringArray
+} from 'neuroglancer/util/json';
+import {Borrowed} from "neuroglancer/util/disposable";
+import {
+  cancellableFetchSpecialOk, parseSpecialUrl,
+  SpecialProtocolCredentialsProvider
+} from "neuroglancer/util/special_protocol_request";
+import {createHomogeneousScaleMatrix} from "neuroglancer/util/matrix";
+import {SliceViewSingleResolutionSource} from "neuroglancer/sliceview/frontend";
+import {VolumeChunkEncoding} from "neuroglancer/datasource/knossos/base";
+import {getObjectId} from "neuroglancer/util/object_id";
+import {scaleByExp10, unitFromJson} from "neuroglancer/util/si_units";
+import {completeHttpPath} from "neuroglancer/util/http_path_completion";
 
 class KnossosVolumeChunkSource extends
 (WithParameters(WithCredentialsProvider<KnossosToken>()(VolumeChunkSource), VolumeChunkSourceParameters)) {}
 
-class KnossosMeshSource extends
-(WithParameters(WithCredentialsProvider<KnossosToken>()(MeshSource), MeshSourceParameters)) {}
+//TODO add skeleton and mesh here
 
-//TODO add skeleton here
-class KnossosSkeletonSource extends
-(WithParameters(WithCredentialsProvider<KnossosToken>()(SkeletonSource), SkeletonSourceParameters)) {}
-
-let serverVolumeTypes = new Map<string, VolumeType>();
-serverVolumeTypes.set('image', VolumeType.IMAGE);
-serverVolumeTypes.set('annotation', VolumeType.SEGMENTATION);
-
-const VALID_ENCODINGS = new Set<string>(['snappy', 'zip']);
-
-const DEFAULT_CUBOID_SIZE = Uint32Array.of(512, 512, 16);         //TODO out size
-
-interface ChannelInfo {
-  channelType: string;
-  volumeType: VolumeType;
+export class MultiscaleVolumeChunkSource extends GenericMultiscaleVolumeChunkSource {
   dataType: DataType;
-  downsampled: boolean;
-  scales: ScaleInfo[];
-  description: string;
-  key: string;
-}
+  volumeType: VolumeType;
+  baseScaleIndex: number;
 
-interface CoordinateFrameInfo {
-  names: string[];
-  voxelSizeBaseInOriginalUnits: Float32Array;
-  voxelSizeBaseInMeters: Float64Array;
-  voxelOffsetBase: Float64Array;
-  imageSizeBase: Float64Array;
-  voxelUnit: VoxelUnitType;
-}
-
-enum VoxelUnitType {
-  NANOMETERS = 0,
-  MICROMETERS = 1,
-  MILLIMETERS = 2,
-  CENTIMETERS = 3
-}
-
-interface ScaleInfo {
-  downsampleFactors: Float32Array;
-  imageSize: vec3;
-  key: string;
-}
-
-interface ExperimentInfo {
-  channels: Map<string, ChannelInfo>;         //TODO Andrei what are these channels?
-  scalingLevels: number;
-  coordFrameKey: string;
-  coordFrame?: CoordinateFrameInfo;
-  key: string;
-  collection: string;
-}
-
-function getVoxelUnitInvScale(voxelUnit: VoxelUnitType): number {
-  switch (voxelUnit) {
-    case VoxelUnitType.MICROMETERS:
-      return 1e6;
-    case VoxelUnitType.MILLIMETERS:
-      return 1e3;
-    case VoxelUnitType.CENTIMETERS:
-      return 1e2;
-    case VoxelUnitType.NANOMETERS:
-      return 1e9;
-  }
-}
-
-/**
- * This function adds scaling info by processing coordinate frame object and adding it to the
- * experiment.
- */
-function parseCoordinateFrame(coordFrame: any, experimentInfo: ExperimentInfo): ExperimentInfo {
-  verifyObject(coordFrame);
-
-  const voxelUnit =
-      verifyObjectProperty(coordFrame, 'voxel_unit', x => verifyEnumString(x, VoxelUnitType));
-
-  const voxelSizeBaseInvScale = getVoxelUnitInvScale(voxelUnit);
-
-  const voxelSizeBaseInOriginalUnits = new Float32Array(3),
-        voxelSizeBaseInMeters = new Float64Array(3), voxelOffsetBase = new Float64Array(3),
-        imageSizeBase = new Float64Array(3);
-  const dimNames = ['x', 'y', 'z'];
-  for (let i = 0; i < 3; ++i) {
-    const dimName = dimNames[i];
-    voxelSizeBaseInOriginalUnits[i] =
-        verifyObjectProperty(coordFrame, `${dimName}_voxel_size`, verifyFinitePositiveFloat);
-    voxelSizeBaseInMeters[i] = voxelSizeBaseInOriginalUnits[i] / voxelSizeBaseInvScale;
-    voxelOffsetBase[i] = verifyObjectProperty(coordFrame, `${dimName}_start`, verifyInt);
-    imageSizeBase[i] = verifyObjectProperty(coordFrame, `${dimName}_stop`, verifyInt);
-  }
-  experimentInfo.coordFrame = {
-    voxelSizeBaseInMeters,
-    voxelSizeBaseInOriginalUnits,
-    voxelOffsetBase,
-    imageSizeBase,
-    voxelUnit,
-    names: dimNames
-  };
-  return experimentInfo;
-}
-
-function getVolumeTypeFromChannelType(channelType: string) {
-  let volumeType = serverVolumeTypes.get(channelType);
-  if (volumeType === undefined) {
-    volumeType = VolumeType.UNKNOWN;
-  }
-  return volumeType;
-}
-
-function parseChannelInfo(obj: any): ChannelInfo {
-  verifyObject(obj);
-  let channelType = verifyObjectProperty(obj, 'type', verifyString);
-  let downsampleStatus: boolean = false;
-  let downsampleStr = verifyObjectProperty(obj, 'downsample_status', verifyString);
-  if (downsampleStr === 'DOWNSAMPLED') {
-    downsampleStatus = true;
-  }
-
-  return {
-    channelType,
-    description: verifyObjectProperty(obj, 'description', verifyString),
-    volumeType: getVolumeTypeFromChannelType(channelType),
-    dataType: verifyObjectProperty(obj, 'datatype', x => verifyEnumString(x, DataType)),
-    downsampled: downsampleStatus,
-    scales: [],
-    key: verifyObjectProperty(obj, 'name', verifyString),
-  };
-}
-
-function parseExperimentInfo(
-    obj: any, chunkManager: ChunkManager, hostname: string,
-    credentialsProvider: CredentialsProvider<KnossosToken>, collection: string,
-    experiment: string): Promise<ExperimentInfo> {
-  verifyObject(obj);
-
-  let channelPromiseArray = verifyObjectProperty(
-      obj, 'channels',
-      x => parseArray(
-          x,
-          ch => getChannelInfo(
-              chunkManager, hostname, credentialsProvider, experiment, collection, ch)));
-  return Promise.all(channelPromiseArray).then(channelArray => {
-    // Parse out channel information
-    let channels: Map<string, ChannelInfo> = new Map<string, ChannelInfo>();
-    channelArray.forEach(channel => {
-      channels.set(channel.key, channel);
-    });
-
-    let experimentInfo = {
-      channels: channels,
-      scalingLevels: verifyObjectProperty(obj, 'num_hierarchy_levels', verifyInt),
-      coordFrameKey: verifyObjectProperty(obj, 'coord_frame', verifyString),
-      coordFrame: undefined,
-      key: verifyObjectProperty(obj, 'name', verifyString),
-      collection: verifyObjectProperty(obj, 'collection', verifyString),
-    };
-
-    // Get and parse the coordinate frame
-    return getCoordinateFrame(chunkManager, hostname, credentialsProvider, experimentInfo);
-  });
-}
-
-export class KnossosMultiscaleVolumeChunkSource extends MultiscaleVolumeChunkSource {
-  get dataType() {
-    if (this.channelInfo.dataType === DataType.UINT16) {
-      // 16-bit channels automatically rescaled to uint8 by The Boss    //TODO ..... ?
-      return DataType.UINT8;
-    }
-    return this.channelInfo.dataType;
-  }
-  get volumeType() {
-    return this.channelInfo.volumeType;
-  }
-
-  /**
-   * The Knossos experiment name
-   */
-  acquisition: string;
-
-  /**
-   * The Knossos acquisition name
-   */
-  acquisition: string;
-
-  /**
-   * The Knossos channel/layer name.
-   */
-  channel: string;
-
-  /**
-   * Parameters for getting 3D meshes alongside segmentations
-   */
-  meshPath?: string = undefined;
-  meshUrl?: string = undefined;
-
-  /**
-   * Parameters for getting 3D skeletons alongside segmentations
-   */
-  skeletonPath?: string = undefined;
-  skeletonUrl?: string = undefined;
-
-  channelInfo: ChannelInfo;
-  scales: ScaleInfo[];
-  coordinateFrame: CoordinateFrameInfo;
-
-  encoding: string;
-  window: vec2|undefined;
+  modelSpace: CoordinateSpace;
 
   get rank() {
-    return 3;
+    return this.modelSpace.rank;
   }
 
   constructor(
-      chunkManager: ChunkManager, public baseUrl: string,
-      public credentialsProvider: CredentialsProvider<KnossosToken>,
-      public experimentInfo: ExperimentInfo, channel: string|undefined,
-      public parameters: {[index: string]: any}) {
+      chunkManager: Borrowed<ChunkManager>,
+      public credentialsProvider: SpecialProtocolCredentialsProvider,
+      public multiscaleMetadata: MultiscaleMetadata, public scales: (ScaleMetadata|undefined)[]) {
     super(chunkManager);
-    if (channel === undefined) {
-      const channelNames = Array.from(experimentInfo.channels.keys());
-      if (channelNames.length !== 1) {
-        throw new Error(`Experiment contains multiple channels: ${JSON.stringify(channelNames)}`);
+    let dataType: DataType|undefined;
+    let baseScaleIndex: number|undefined;
+    scales.forEach((scale, i) => {
+      if (scale === undefined) return;
+      if (baseScaleIndex === undefined) {
+        baseScaleIndex = i;
       }
-      channel = channelNames[0];
-    }
-    const channelInfo = experimentInfo.channels.get(channel);
-    if (channelInfo === undefined) {
-      throw new Error(
-          `Specified channel ${JSON.stringify(channel)} is not one of the supported channels ${
-              JSON.stringify(Array.from(experimentInfo.channels.keys()))}`);
-    }
-    this.channel = channel;
-    this.channelInfo = channelInfo;
-    this.scales = channelInfo.scales;
-
-    if (experimentInfo.coordFrame === undefined) {
-      throw new Error(`Specified experiment ${
-          JSON.stringify(experimentInfo.key)} does not have a valid coordinate frame`);
-    }
-    this.coordinateFrame = experimentInfo.coordFrame;
-
-    if (this.channelInfo.downsampled === false) {
-      this.scales = [channelInfo.scales[0]];
-    }
-    this.experiment = experimentInfo.key;
-
-    let window = verifyOptionalString(parameters['window']);
-    if (window !== undefined) {
-      let windowobj = vec2.create();
-      let parts = window.split(/,/);
-      if (parts.length === 2) {
-        windowobj[0] = verifyFiniteFloat(parts[0]);
-        windowobj[1] = verifyFiniteFloat(parts[1]);
-      } else if (parts.length === 1) {
-        windowobj[0] = 0.;
-        windowobj[1] = verifyFiniteFloat(parts[1]);
-      } else {
-        throw new Error(`Invalid window. Must be either one value or two comma separated values: ${
-            JSON.stringify(window)}`);
+      if (dataType !== undefined && scale.dataType !== dataType) {
+        throw new Error(`Scale s${i} has data type ${DataType[scale.dataType]} but expected ${
+            DataType[dataType]}.`);
       }
-      this.window = windowobj;
-      if (this.window[0] === this.window[1]) {
-        throw new Error(`Invalid window. First element must be different from second: ${
-            JSON.stringify(window)}.`);
-      }
+      dataType = scale.dataType;
+    });
+    if (dataType === undefined) {
+      throw new Error(`At least one scale must be specified.`);
     }
-
-    let meshUrl = verifyOptionalString(parameters['meshurl']);
-    if (meshUrl !== undefined) {
-      this.meshUrl = meshUrl;
-    }
-
-    let encoding = verifyOptionalString(parameters['encoding']);
-    if (encoding === undefined) {
-      encoding = this.volumeType === VolumeType.IMAGE ? 'jpeg' : 'npz';
-    } else {
-      if (!VALID_ENCODINGS.has(encoding)) {
-        throw new Error(`Invalid encoding: ${JSON.stringify(encoding)}.`);
-      }
-    }
-    this.encoding = encoding;
+    const baseDownsamplingInfo = multiscaleMetadata.scales[baseScaleIndex!]!;
+    const baseScale = scales[baseScaleIndex!]!;
+    this.dataType = dataType;
+    this.volumeType = VolumeType.IMAGE;
+    this.baseScaleIndex = baseScaleIndex!;
+    const baseModelSpace = multiscaleMetadata.modelSpace;
+    const {rank} = baseModelSpace;
+    this.modelSpace = makeCoordinateSpace({
+      names: baseModelSpace.names,
+      scales: baseModelSpace.scales,
+      units: baseModelSpace.units,
+      boundingBoxes: [
+        {
+          transform: createHomogeneousScaleMatrix(
+              Float64Array, baseDownsamplingInfo.downsamplingFactor, /*square=*/ false),
+          box: {
+            lowerBounds: new Float64Array(rank),
+            upperBounds: new Float64Array(baseScale.size),
+          },
+        },
+      ],
+      coordinateArrays: baseModelSpace.coordinateArrays,
+    });
   }
 
   getSources(volumeSourceOptions: VolumeSourceOptions) {
-    return transposeNestedArrays(this.scales.map(scaleInfo => {
-      let {downsampleFactors, imageSize} = scaleInfo;
-      let voxelOffset = this.coordinateFrame.voxelOffsetBase;
-      let baseVoxelOffset = vec3.create();
-      for (let i = 0; i < 3; ++i) {
-        baseVoxelOffset[i] = Math.ceil(voxelOffset[i]);
+    const {} = this;
+    const {scales, rank} = this;
+    const scalesDownsamplingInfo = this.multiscaleMetadata.scales;
+    return transposeNestedArrays(
+        (scales.filter(scale => scale !== undefined) as ScaleMetadata[]).map((scale, i) => {
+          const scaleDownsamplingInfo = scalesDownsamplingInfo[i];
+          const transform =
+              createHomogeneousScaleMatrix(Float32Array, scaleDownsamplingInfo.downsamplingFactor);
+          return makeDefaultVolumeChunkSpecifications({
+                   rank,
+                   chunkToMultiscaleTransform: transform,
+                   dataType: scale.dataType,
+                   upperVoxelBound: scale.size,
+                   volumeType: this.volumeType,
+                   chunkDataSizes: [scale.chunkSize],
+                   volumeSourceOptions,
+                 })
+              .map((spec): SliceViewSingleResolutionSource<VolumeChunkSource> => ({
+                     chunkSource: this.chunkManager.getChunkSource(KnossosVolumeChunkSource, {
+                       credentialsProvider: this.credentialsProvider,
+                       spec,
+                       parameters: {url: scaleDownsamplingInfo.url, encoding: scale.encoding}
+                     }),
+                     chunkToMultiscaleTransform: transform,
+                   }));
+        }));
+  }
+}
+
+interface MultiscaleMetadata {
+  url: string;
+  attributes: any;
+  modelSpace: CoordinateSpace;
+  scales: {readonly url: string; readonly downsamplingFactor: Float64Array;}[];
+}
+;
+
+class ScaleMetadata {
+  dataType: DataType;
+  encoding: VolumeChunkEncoding;
+  size: Float32Array;
+  chunkSize: Uint32Array;
+
+  constructor(obj: any) {
+    verifyObject(obj);
+    this.dataType = verifyObjectProperty(obj, 'dataType', x => verifyEnumString(x, DataType));
+    this.size = Float32Array.from(
+        verifyObjectProperty(obj, 'dimensions', x => parseArray(x, verifyPositiveInt)));
+    this.chunkSize = verifyObjectProperty(
+        obj, 'blockSize',
+        x => parseFixedLengthArray(new Uint32Array(this.size.length), x, verifyPositiveInt));
+
+    let encoding: VolumeChunkEncoding|undefined;
+    verifyOptionalObjectProperty(obj, 'compression', compression => {
+      encoding =
+          verifyObjectProperty(compression, 'type', x => verifyEnumString(x, VolumeChunkEncoding));
+    });
+    if (encoding === undefined) {
+      encoding = verifyObjectProperty(
+          obj, 'compressionType', x => verifyEnumString(x, VolumeChunkEncoding));
+    }
+    this.encoding = encoding;
+  }
+}
+
+function getAllScales(
+    chunkManager: ChunkManager, credentialsProvider: SpecialProtocolCredentialsProvider,
+    multiscaleMetadata: MultiscaleMetadata): Promise<(ScaleMetadata | undefined)[]> {
+  return Promise.all(multiscaleMetadata.scales.map(async scale => {
+    const attributes = await getAttributes(chunkManager, credentialsProvider, scale.url, true);
+    if (attributes === undefined) return undefined;
+    return new ScaleMetadata(attributes);
+  }));
+}
+
+function getAttributesJsonUrls(url: string): string[] {
+  let {protocol, host, path} = parseUrl(url);
+  if (path.endsWith('/')) {
+    path = path.substring(0, path.length - 1);
+  }
+  const urls: string[] = [];
+  while (true) {
+    urls.push(`${protocol}://${host}${path}/attributes.json`);
+    const index = path.lastIndexOf('/');
+    if (index === -1) break;
+    path = path.substring(0, index);
+  }
+  return urls;
+}
+
+function getIndividualAttributesJson(
+    chunkManager: ChunkManager, credentialsProvider: SpecialProtocolCredentialsProvider,
+    url: string, required: boolean): Promise<any> {
+  return chunkManager.memoize.getUncounted(
+      {type: 'knossos:attributes.json', url, credentialsProvider: getObjectId(credentialsProvider)},
+      () => cancellableFetchSpecialOk(credentialsProvider, url, {}, responseJson)
+                .then(j => {
+                  try {
+                    return verifyObject(j);
+                  } catch (e) {
+                    throw new Error(`Error reading attributes from ${url}: ${e.message}`);
+                  }
+                })
+                .catch(e => {
+                  if (isNotFoundError(e)) {
+                    if (required) return undefined;
+                    return {};
+                  }
+                  throw e;
+                }));
+}
+
+async function getAttributes(
+    chunkManager: ChunkManager, credentialsProvider: SpecialProtocolCredentialsProvider,
+    url: string, required: boolean): Promise<unknown> {
+  const attributesJsonUrls = getAttributesJsonUrls(url);
+  const metadata = await Promise.all(attributesJsonUrls.map(
+      (u, i) => getIndividualAttributesJson(
+          chunkManager, credentialsProvider, u, required && i === attributesJsonUrls.length - 1)));
+  if (metadata.indexOf(undefined) !== -1) return undefined;
+  metadata.reverse();
+  return Object.assign({}, ...metadata);
+}
+
+function verifyRank(existing: number, n: number) {
+  if (existing !== -1 && n !== existing) {
+    throw new Error(`Rank mismatch, received ${n} but expected ${existing}`);
+  }
+  return n;
+}
+
+function parseSingleResolutionDownsamplingFactors(obj: any) {
+  return Float64Array.from(parseArray(obj, verifyFinitePositiveFloat));
+}
+
+function parseMultiResolutionDownsamplingFactors(obj: any) {
+  const a = expectArray(obj);
+  if (a.length === 0) throw new Error('Expected non-empty array');
+  let rank = -1;
+  const allFactors = parseArray(a, x => {
+    const f = parseSingleResolutionDownsamplingFactors(x);
+    rank = verifyRank(rank, f.length);
+    return f;
+  });
+  return {all: allFactors, single: undefined, rank};
+}
+
+function parseDownsamplingFactors(obj: any) {
+  const a = expectArray(obj);
+  if (a.length === 0) throw new Error('Expected non-empty array');
+  if (Array.isArray(a[0])) {
+    return parseMultiResolutionDownsamplingFactors(a);
+  }
+  const f = parseSingleResolutionDownsamplingFactors(obj);
+  return {all: undefined, single: f, rank: f.length};
+}
+
+const defaultAxes = ['x', 'y', 'z', 't', 'c'];
+
+function getDefaultAxes(rank: number) {
+  const axes = defaultAxes.slice(0, rank);
+  while (axes.length < rank) {
+    axes.push(`d${axes.length + 1}`);
+  }
+  return axes;
+}
+
+function getMultiscaleMetadata(url: string, attributes: any): MultiscaleMetadata {
+  verifyObject(attributes);
+  let rank = -1;
+
+  let scales = verifyOptionalObjectProperty(attributes, 'resolution', x => {
+    const scales = Float64Array.from(parseArray(x, verifyFinitePositiveFloat));
+    rank = verifyRank(rank, scales.length);
+    return scales;
+  });
+  let axes = verifyOptionalObjectProperty(attributes, 'axes', x => {
+    const names = parseArray(x, verifyString);
+    rank = verifyRank(rank, names.length);
+    return names;
+  });
+  let units = verifyOptionalObjectProperty(attributes, 'units', x => {
+    const units = parseArray(x, unitFromJson);
+    rank = verifyRank(rank, units.length);
+    return units;
+  });
+  let defaultUnit = {unit: 'm', exponent: -9};
+  let singleDownsamplingFactors: Float64Array|undefined;
+  let allDownsamplingFactors: Float64Array[]|undefined;
+  verifyOptionalObjectProperty(attributes, 'downsamplingFactors', dObj => {
+    const {single, all, rank: curRank} = parseDownsamplingFactors(dObj);
+    rank = verifyRank(rank, curRank);
+    if (single !== undefined) {
+      singleDownsamplingFactors = single;
+    }
+    if (all !== undefined) {
+      allDownsamplingFactors = all;
+    }
+  });
+  // Handle knossos-viewer "pixelResolution" attribute
+  verifyOptionalObjectProperty(attributes, 'pixelResolution', resObj => {
+    defaultUnit = verifyObjectProperty(resObj, 'unit', unitFromJson);
+    verifyOptionalObjectProperty(resObj, 'dimensions', scalesObj => {
+      scales = Float64Array.from(parseArray(scalesObj, verifyFinitePositiveFloat));
+      rank = verifyRank(rank, scales.length);
+    });
+  });
+  // Handle knossos-viewer "scales" attribute
+  verifyOptionalObjectProperty(attributes, 'scales', scalesObj => {
+    const {all, rank: curRank} = parseMultiResolutionDownsamplingFactors(scalesObj);
+    rank = verifyRank(rank, curRank);
+    allDownsamplingFactors = all;
+  });
+  const dimensions = verifyOptionalObjectProperty(attributes, 'dimensions', x => {
+    const dimensions = parseArray(x, verifyPositiveInt);
+    rank = verifyRank(rank, dimensions.length);
+    return dimensions;
+  });
+
+  if (rank === -1) {
+    throw new Error('Unable to determine rank of dataset');
+  }
+  if (units === undefined) {
+    units = new Array(rank);
+    units.fill(defaultUnit);
+  }
+  if (scales === undefined) {
+    scales = new Float64Array(rank);
+    scales.fill(1);
+  }
+  for (let i = 0; i < rank; ++i) {
+    scales[i] = scaleByExp10(scales[i], units[i].exponent);
+  }
+  // Handle coordinateArrays
+  const coordinateArrays = new Array<CoordinateArray|undefined>(rank);
+  if (axes !== undefined) {
+    verifyOptionalObjectProperty(attributes, 'coordinateArrays', coordinateArraysObj => {
+      verifyObject(coordinateArraysObj);
+      for (let i = 0; i < rank; ++i) {
+        const name = axes![i];
+        if (Object.prototype.hasOwnProperty.call(coordinateArraysObj, name)) {
+          const labels = verifyStringArray(coordinateArraysObj[name]);
+          coordinateArrays[i] = {
+            explicit: false,
+            labels,
+            coordinates: Array.from(labels, (_, i) => i)
+          };
+          units![i] = {unit: '', exponent: 0};
+          scales![i] = 1;
+        }
       }
-      const chunkToMultiscaleTransform = mat4.create();
-      for (let i = 0; i < 3; ++i) {
-        chunkToMultiscaleTransform[5 * i] = downsampleFactors[i];
-        chunkToMultiscaleTransform[12 + i] = voxelOffset[i];
-      }
-      return makeDefaultVolumeChunkSpecifications({
-               rank: 3,
-               volumeType: this.volumeType,
-               dataType: this.dataType,
-               chunkToMultiscaleTransform,
-               chunkDataSizes: [DEFAULT_CUBOID_SIZE],
-               baseVoxelOffset,
-               upperVoxelBound: imageSize,
-               volumeSourceOptions,
-             })
-          .map(spec => ({
-                 chunkSource: this.chunkManager.getChunkSource(KnossosVolumeChunkSource, {
-                   credentialsProvider: this.credentialsProvider,
-                   spec,
-                   parameters: {
-                     baseUrl: this.baseUrl,
-                     collection: this.experimentInfo.collection,
-                     experiment: this.experimentInfo.key,
-                     channel: this.channel,
-                     resolution: scaleInfo.key,
-                     encoding: this.encoding,
-                     window: this.window,
-                   }
-                 }),
-                 chunkToMultiscaleTransform
-               }));
-    }));
-  }
-
-  getMeshSource() {
-    if (this.meshUrl !== undefined) {
-      return this.chunkManager.getChunkSource(
-          KnossosMeshSource,
-          {credentialsProvider: this.credentialsProvider, parameters: {baseUrl: this.meshUrl}});
-    }
-    return null;
-  }
-
-  getSkeletonSource() {
-    if (this.meshUrl !== undefined) {
-      return this.chunkManager.getChunkSource(
-          KnossosSkeletonSource,
-          {credentialsProvider: this.credentialsProvider, parameters: {baseUrl: this.meshUrl}});
-    }
-    return null;
-  }
-}
-
-const pathPattern = /^([^\/?]+)\/([^\/?]+)(?:\/([^\/?]+))?(?:\?(.*))?$/;
-
-export function getExperimentInfo(
-    chunkManager: ChunkManager, hostname: string,
-    credentialsProvider: CredentialsProvider<KnossosToken>, experiment: string,
-    collection: string): Promise<ExperimentInfo> {
-  return chunkManager.memoize.getUncounted(
-      {
-        hostname: hostname,
-        collection: collection,
-        experiment: experiment,
-        type: 'knossos:getExperimentInfo'
-      },
-      () =>
-          fetchWithKnossosCredentials(
-              credentialsProvider,
-              `${hostname}/latest/collection/${collection}/experiment/${experiment}/`, {},
-              responseJson)
-              .then(
-                  value => parseExperimentInfo(
-                      value, chunkManager, hostname, credentialsProvider, collection, experiment)));
-}
-
-export function getChannelInfo(
-    chunkManager: ChunkManager, hostname: string,
-    credentialsProvider: CredentialsProvider<KnossosToken>, experiment: string, collection: string,
-    channel: string): Promise<ChannelInfo> {
-  return chunkManager.memoize.getUncounted(
-      {
-        hostname: hostname,
-        collection: collection,
-        experiment: experiment,
-        channel: channel,
-        type: 'knossos:getChannelInfo'
-      },
-      () => fetchWithKnossosCredentials(
-                credentialsProvider,
-                `${hostname}/latest/collection/${collection}/experiment/${experiment}/channel/${
-                    channel}/`,
-                {}, responseJson)
-                .then(parseChannelInfo));
-}
-
-export function getDownsampleInfoForChannel(
-    chunkManager: ChunkManager, hostname: string,
-    credentialsProvider: CredentialsProvider<KnossosToken>, collection: string,
-    experimentInfo: ExperimentInfo, channel: string): Promise<ExperimentInfo> {
-  return chunkManager.memoize
-      .getUncounted(
-          {
-            hostname: hostname,
-            collection: collection,
-            experiment: experimentInfo.key,
-            channel: channel,
-            downsample: true,
-            type: 'knossos:getDownsampleInfoForChannel'
-          },
-          () => fetchWithKnossosCredentials(
-              credentialsProvider,
-              `${hostname}/latest/downsample/${collection}/${experimentInfo.key}/${channel}/`, {},
-              responseJson))
-      .then(downsampleObj => {
-        return parseDownsampleInfoForChannel(downsampleObj, experimentInfo, channel);
-      });
-}
-
-export function parseDownsampleScales(
-    downsampleObj: any, voxelSizeBaseInOriginalUnits: Float32Array): ScaleInfo[] {
-  verifyObject(downsampleObj);
-
-  let voxelSizes =
-      verifyObjectProperty(downsampleObj, 'voxel_size', x => verifyObjectAsMap(x, verify3dScale));
-
-  let imageSizes =
-      verifyObjectProperty(downsampleObj, 'extent', x => verifyObjectAsMap(x, verify3dDimensions));
-
-  let num_hierarchy_levels = verifyObjectProperty(downsampleObj, 'num_hierarchy_levels', verifyInt);
-
-  let scaleInfo = new Array<ScaleInfo>();
-  for (let i = 0; i < num_hierarchy_levels; i++) {
-    let key: string = String(i);
-    const voxelSize = voxelSizes.get(key);
-    const imageSize = imageSizes.get(key);
-    if (voxelSize === undefined || imageSize === undefined) {
-      throw new Error(`Missing voxel_size/extent for resolution ${key}.`);
-    }
-    const downsampleFactors = new Float32Array(3);
-    for (let i = 0; i < 3; ++i) {
-      downsampleFactors[i] = voxelSize[i] = voxelSizeBaseInOriginalUnits[i];
-    }
-    scaleInfo[i] = {downsampleFactors, imageSize, key};
-  }
-  return scaleInfo;
-}
-
-export function parseDownsampleInfoForChannel(
-    downsampleObj: any, experimentInfo: ExperimentInfo, channel: string): ExperimentInfo {
-  let coordFrame = experimentInfo.coordFrame;
-  if (coordFrame === undefined) {
-    throw new Error(`Missing coordinate frame information for experiment ${
-        experimentInfo
-            .key}. A valid coordinate frame is required to retrieve downsampling information.`);
-  }
-  let channelInfo = experimentInfo.channels.get(channel);
-  if (channelInfo === undefined) {
-    throw new Error(
-        `Specified channel ${JSON.stringify(channel)} is not one of the supported channels ${
-            JSON.stringify(Array.from(experimentInfo.channels.keys()))}`);
-  }
-  channelInfo.scales =
-      parseDownsampleScales(downsampleObj, coordFrame.voxelSizeBaseInOriginalUnits);
-  experimentInfo.channels.set(channel, channelInfo);
-  return experimentInfo;
-}
-
-export function getDataSource(
-    chunkManager: ChunkManager, hostname: string,
-    credentialsProvider: CredentialsProvider<KnossosToken>, path: string) {
-  const match = path.match(pathPattern);
-  if (match === null) {
-    throw new Error(`Invalid volume path ${JSON.stringify(path)}`);
-  }
-  const collection = match[1];
-  const experiment = match[2];
-  const channel = match[3];
-  const parameters = parseQueryStringParameters(match[4] || '');
-  // Warning: If additional arguments are added, the cache key should be updated as well.
-  return chunkManager.memoize.getUncounted(
-      {hostname: hostname, path: path, type: 'knossos:getVolume'}, async () => {
-        const experimentInfo = await getExperimentInfo(
-            chunkManager, hostname, credentialsProvider, experiment, collection);
-        const experimentInfoWithDownsample = await getDownsampleInfoForChannel(
-            chunkManager, hostname, credentialsProvider, collection, experimentInfo, channel);
-        const volume = new KnossosMultiscaleVolumeChunkSource(
-            chunkManager, hostname, credentialsProvider, experimentInfoWithDownsample, channel,
-            parameters);
-        const coordFrame = experimentInfoWithDownsample.coordFrame!;
-        const box = {
-          lowerBounds: coordFrame.voxelOffsetBase,
-          upperBounds: Float64Array.from(
-              coordFrame.imageSizeBase, (x, i) => coordFrame.voxelOffsetBase[i] + x),
-        };
-        const modelSpace = makeCoordinateSpace({
-          rank: 3,
-          names: coordFrame.names,
-          units: ['m', 'm', 'm'],
-          scales: coordFrame.voxelSizeBaseInMeters,
-          boundingBoxes: [makeIdentityTransformedBoundingBox(box)],
-        });
-        const dataSource: DataSource = {
-          modelTransform: makeIdentityTransform(modelSpace),
-          subsources: [
-            {
-              id: 'default',
-              default: true,
-              subsource: {volume},
-            },
-            {
-              id: 'bounds',
-              default: true,
-              subsource: {staticAnnotations: makeDataBoundsBoundingBoxAnnotationSet(box)},
-            },
-          ],
-        };
-        return dataSource;
-      });
-}
-
-const urlPattern = /^((?:http|https):\/\/[^\/?]+)\/(.*)$/;
-
-export function getCollections(
-    chunkManager: ChunkManager, hostname: string,
-    credentialsProvider: CredentialsProvider<KnossosToken>) {
-  return chunkManager.memoize.getUncounted(
-      {hostname: hostname, type: 'knossos:getCollections'},
-      () => fetchWithKnossosCredentials(
-                credentialsProvider, `${hostname}/latest/collection/`, {}, responseJson)
-                .then(
-                    value => verifyObjectProperty(
-                        value, 'collections', x => parseArray(x, verifyString))));
-}
-
-export function getExperiments(
-    chunkManager: ChunkManager, hostname: string,
-    credentialsProvider: CredentialsProvider<KnossosToken>, collection: string) {
-  return chunkManager.memoize.getUncounted(
-      {hostname: hostname, collection: collection, type: 'knossos:getExperiments'},
-      () => fetchWithKnossosCredentials(
-                credentialsProvider, `${hostname}/latest/collection/${collection}/experiment/`, {},
-                responseJson)
-                .then(
-                    value => verifyObjectProperty(
-                        value, 'experiments', x => parseArray(x, verifyString))));
-}
-
-export function getCoordinateFrame(
-    chunkManager: ChunkManager, hostname: string,
-    credentialsProvider: CredentialsProvider<KnossosToken>,
-    experimentInfo: ExperimentInfo): Promise<ExperimentInfo> {
-  let key = experimentInfo.coordFrameKey;
-  return chunkManager.memoize.getUncounted(
-      {
-        hostname: hostname,
-        coordinateframe: key,
-        experimentInfo: experimentInfo,
-        type: 'knossos:getCoordinateFrame'
-      },
-      () =>
-          fetchWithKnossosCredentials(
-              credentialsProvider, `${hostname}/latest/coord/${key}/`, {}, responseJson)
-              .then(
-                  coordinateFrameObj => parseCoordinateFrame(coordinateFrameObj, experimentInfo)));
-}
-
-export function collectionExperimentChannelCompleter(
-    chunkManager: ChunkManager, hostname: string,
-    credentialsProvider: CredentialsProvider<KnossosToken>, path: string): Promise<CompletionResult> {
-  let channelMatch = path.match(/^(?:([^\/]+)(?:\/?([^\/]*)(?:\/?([^\/]*)(?:\/?([^\/]*)?))?)?)?$/);
-  if (channelMatch === null) {
-    // URL has incorrect format, don't return any results.
-    return Promise.reject<CompletionResult>(null);
-  }
-  if (channelMatch[1] === undefined) {
-    // No collection. Reject.
-    return Promise.reject<CompletionResult>(null);
-  }
-  if (channelMatch[2] === undefined) {
-    let collectionPrefix = channelMatch[1] || '';
-    // Try to complete the collection.
-    return getCollections(chunkManager, hostname, credentialsProvider).then(collections => {
-      return {
-        offset: 0,
-        completions: getPrefixMatchesWithDescriptions(
-            collectionPrefix, collections, x => x + '/', () => undefined)
-      };
     });
   }
-  if (channelMatch[3] === undefined) {
-    let experimentPrefix = channelMatch[2] || '';
-    return getExperiments(chunkManager, hostname, credentialsProvider, channelMatch[1])
-        .then(experiments => {
-          return {
-            offset: channelMatch![1].length + 1,
-            completions: getPrefixMatchesWithDescriptions(
-                experimentPrefix, experiments, y => y + '/', () => undefined)
-          };
-        });
+  if (axes === undefined) {
+    axes = getDefaultAxes(rank);
   }
-  return getExperimentInfo(
-             chunkManager, hostname, credentialsProvider, channelMatch[2], channelMatch[1])
-      .then(experimentInfo => {
-        let completions = getPrefixMatchesWithDescriptions(
-            channelMatch![3], experimentInfo.channels, x => x[0], x => {
-              return `${x[1].channelType} (${DataType[x[1].dataType]})`;
-            });
-        return {offset: channelMatch![1].length + channelMatch![2].length + 2, completions};
-      });
-}
-
-function getAuthServer(endpoint: string): string {
-  let baseHostName = endpoint.match(/^(?:https:\/\/[^.]+([^\/]+))/);
-  if (baseHostName === null) {
-    throw new Error(`Unable to construct auth server hostname from base hostname ${endpoint}.`);
+  const modelSpace = makeCoordinateSpace({
+    rank,
+    valid: true,
+    names: axes,
+    scales,
+    units: units.map(x => x.unit),
+    coordinateArrays,
+  });
+  if (dimensions === undefined) {
+    if (allDownsamplingFactors === undefined) {
+      throw new Error('Not valid single-resolution or multi-resolution dataset');
+    }
+    return {
+      modelSpace,
+      url,
+      attributes,
+      scales: allDownsamplingFactors.map((f, i) => ({url: `${url}/s${i}`, downsamplingFactor: f})),
+    };
   }
-  let authServer = `https://auth${baseHostName[1]}/auth`;
-  return authServer;
+  if (singleDownsamplingFactors === undefined) {
+    singleDownsamplingFactors = new Float64Array(rank);
+    singleDownsamplingFactors.fill(1);
+  }
+  return {
+    modelSpace,
+    url,
+    attributes,
+    scales: [{url, downsamplingFactor: singleDownsamplingFactors}]
+  };
 }
 
 export class KnossosDataSource extends DataSourceProvider {
-  constructor(public credentialsManager: CredentialsManager) {
-    super();
-  }
-
   get description() {
-    return 'knossosDB: Block & Object Storage System';
+    return 'Knossos data source';
   }
-
-  getCredentialsProvider(path: string) {
-    let authServer = getAuthServer(path);
-    return this.credentialsManager.getCredentialsProvider<KnossosToken>(credentialsKey, authServer);
-  }
-
   get(options: GetDataSourceOptions): Promise<DataSource> {
-    const match = options.providerUrl.match(urlPattern);
-    if (match === null) {
-      throw new Error(`Invalid knossos volume path: ${JSON.stringify(options.providerUrl)}`);
+    let {providerUrl} = options;
+    if (providerUrl.endsWith('/')) {
+      // remove last '/'
+      providerUrl = providerUrl.substring(0, providerUrl.length - 1);
     }
-    let credentialsProvider = this.getCredentialsProvider(options.providerUrl);
-    return getDataSource(options.chunkManager, match[1], credentialsProvider, match[2]);
+    return options.chunkManager.memoize.getUncounted(
+        {'type': 'knossos:MultiscaleVolumeChunkSource', providerUrl}, async () => {
+          const {url, credentialsProvider} =
+              parseSpecialUrl(providerUrl, options.credentialsManager);
+          const attributes =
+              await getAttributes(options.chunkManager, credentialsProvider, url, false);
+          const multiscaleMetadata = getMultiscaleMetadata(url, attributes);
+          const scales =
+              await getAllScales(options.chunkManager, credentialsProvider, multiscaleMetadata);
+          const volume = new MultiscaleVolumeChunkSource(
+              options.chunkManager, credentialsProvider, multiscaleMetadata, scales);
+          return {
+            modelTransform: makeIdentityTransform(volume.modelSpace),
+            subsources: [
+              {
+                id: 'default',
+                default: true,
+                url: undefined,
+                subsource: {volume},
+              },
+              {
+                id: 'bounds',
+                default: true,
+                url: undefined,
+                subsource: {
+                  staticAnnotations:
+                      makeDataBoundsBoundingBoxAnnotationSet(volume.modelSpace.bounds)
+                },
+              },
+            ],
+          };
+        })
   }
 
-  async completeUrl(options: CompleteUrlOptions) {
-    const match = options.providerUrl.match(urlPattern);
-    if (match === null) {
-      // We don't yet have a full hostname.
-      throw null;
-    }
-    let hostname = match[1];
-    let credentialsProvider = this.getCredentialsProvider(match[1]);
-    let path = match[2];
-    const completions = await collectionExperimentChannelCompleter(
-        options.chunkManager, hostname, credentialsProvider, path);
-    return applyCompletionOffset(match![1].length + 1, completions);
+  completeUrl(options: CompleteUrlOptions) {
+    return completeHttpPath(
+        options.credentialsManager, options.providerUrl, options.cancellationToken);
   }
-}
-
+  }

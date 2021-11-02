@@ -27,6 +27,14 @@ const DEFAULT_DATA_SOURCES = exports.DEFAULT_DATA_SOURCES = [
     ],
   },
   {
+    source: 'neuroglancer/datasource/knossos',
+    // registerCredentials: 'neuroglancer/datasource/knossos/register_credentials_provider',
+    asyncComputation: [
+      'neuroglancer/async_computation/decode_snappy',
+      'neuroglancer/async_computation/decode_gzip',
+    ],
+  },
+  {
     source: 'neuroglancer/datasource/boss',
     registerCredentials: 'neuroglancer/datasource/boss/register_credentials_provider',
     asyncComputation: [
