@@ -30,7 +30,7 @@ import {decodeSkeletonChunk} from 'neuroglancer/skeleton/decode_precomputed_skel
 import {ChunkDecoder} from 'neuroglancer/sliceview/backend_chunk_decoders';
 import {decodeCompressedSegmentationChunk} from 'neuroglancer/sliceview/backend_chunk_decoders/compressed_segmentation';
 import {decodeCompressoChunk} from 'neuroglancer/sliceview/backend_chunk_decoders/compresso';
-import {decodeSnappyChunk} from 'neuroglancer/sliceview/backend_chunk_decoders/snappy';
+import {decodeKnossosChunk} from 'neuroglancer/sliceview/backend_chunk_decoders/knossos';
 import {decodeJpegChunk} from 'neuroglancer/sliceview/backend_chunk_decoders/jpeg';
 import {decodeRawChunk} from 'neuroglancer/sliceview/backend_chunk_decoders/raw';
 import {VolumeChunk, VolumeChunkSource} from 'neuroglancer/sliceview/volume/backend';
@@ -256,7 +256,7 @@ chunkDecoders.set(VolumeChunkEncoding.RAW, decodeRawChunk);
 chunkDecoders.set(VolumeChunkEncoding.JPEG, decodeJpegChunk);
 chunkDecoders.set(VolumeChunkEncoding.COMPRESSED_SEGMENTATION, decodeCompressedSegmentationChunk);
 chunkDecoders.set(VolumeChunkEncoding.COMPRESSO, decodeCompressoChunk);
-chunkDecoders.set(VolumeChunkEncoding.SNAPPY, decodeSnappyChunk);
+chunkDecoders.set(VolumeChunkEncoding.KNOSSOS, decodeKnossosChunk);
 
 // TODO SNAPPY add macro for decompression
 
