@@ -6,67 +6,26 @@
 
 import {makeDataBoundsBoundingBoxAnnotationSet} from 'neuroglancer/annotation';
 import {ChunkManager, WithParameters} from 'neuroglancer/chunk_manager/frontend';
-import {
-  CoordinateArray,
-  CoordinateSpace,
-  makeCoordinateSpace,
-  makeIdentityTransform,
-  // makeIdentityTransformedBoundingBox
-} from 'neuroglancer/coordinate_transform';
-// import {CredentialsManager, CredentialsProvider} from 'neuroglancer/credentials_provider';
+import {CoordinateArray, CoordinateSpace, makeCoordinateSpace, makeIdentityTransform} from 'neuroglancer/coordinate_transform';
 import {WithCredentialsProvider} from 'neuroglancer/credentials_provider/chunk_source_frontend';
 import {CompleteUrlOptions, DataSource, DataSourceProvider, GetDataSourceOptions} from 'neuroglancer/datasource';
-import {KnossosToken,
-  // credentialsKey,
-  // fetchWithKnossosCredentials
-} from 'neuroglancer/datasource/knossos/api';
-import {
-  // SkeletonSourceParameters,
-  // MeshSourceParameters,
-  VolumeChunkSourceParameters} from 'neuroglancer/datasource/knossos/base';
-// import {MeshSource} from 'neuroglancer/mesh/frontend';
-// import {SkeletonSource} from 'neuroglancer/skeleton/frontend';
+import {VolumeChunkEncoding, VolumeChunkSourceParameters} from 'neuroglancer/datasource/knossos/base';
+import {SliceViewSingleResolutionSource} from 'neuroglancer/sliceview/frontend';
 import {DataType, makeDefaultVolumeChunkSpecifications, VolumeSourceOptions, VolumeType} from 'neuroglancer/sliceview/volume/base';
-import {
-  MultiscaleVolumeChunkSource as GenericMultiscaleVolumeChunkSource,
-  // MultiscaleVolumeChunkSource,
-  VolumeChunkSource
-} from 'neuroglancer/sliceview/volume/frontend';
+import {MultiscaleVolumeChunkSource as GenericMultiscaleVolumeChunkSource, VolumeChunkSource} from 'neuroglancer/sliceview/volume/frontend';
 import {transposeNestedArrays} from 'neuroglancer/util/array';
-// import {applyCompletionOffset, getPrefixMatchesWithDescriptions} from 'neuroglancer/util/completion';
-// import {mat4, vec2, vec3} from 'neuroglancer/util/geom';
+import {Borrowed} from 'neuroglancer/util/disposable';
+import {completeHttpPath} from 'neuroglancer/util/http_path_completion';
 import {isNotFoundError, parseUrl, responseJson} from 'neuroglancer/util/http_request';
-import {
-  expectArray,
-  parseArray, parseFixedLengthArray,
-  // parseQueryStringParameters,
-  // verify3dDimensions,
-  // verify3dScale,
-  verifyEnumString,
-  // verifyFiniteFloat,
-  verifyFinitePositiveFloat,
-  // verifyInt,
-  verifyObject,
-  // verifyObjectAsMap,
-  verifyObjectProperty, verifyOptionalObjectProperty,
-  // verifyOptionalString,
-  verifyPositiveInt,
-  verifyString, verifyStringArray
-} from 'neuroglancer/util/json';
-import {Borrowed} from "neuroglancer/util/disposable";
-import {
-  cancellableFetchSpecialOk, parseSpecialUrl,
-  SpecialProtocolCredentialsProvider
-} from "neuroglancer/util/special_protocol_request";
-import {createHomogeneousScaleMatrix} from "neuroglancer/util/matrix";
-import {SliceViewSingleResolutionSource} from "neuroglancer/sliceview/frontend";
-import {VolumeChunkEncoding} from "neuroglancer/datasource/knossos/base";
-import {getObjectId} from "neuroglancer/util/object_id";
-import {scaleByExp10, unitFromJson} from "neuroglancer/util/si_units";
-import {completeHttpPath} from "neuroglancer/util/http_path_completion";
+import {expectArray, parseArray, parseFixedLengthArray, verifyEnumString, verifyFinitePositiveFloat, verifyObject, verifyObjectProperty, verifyOptionalObjectProperty, verifyPositiveInt, verifyString, verifyStringArray} from 'neuroglancer/util/json';
+import {createHomogeneousScaleMatrix} from 'neuroglancer/util/matrix';
+import {getObjectId} from 'neuroglancer/util/object_id';
+import {scaleByExp10, unitFromJson} from 'neuroglancer/util/si_units';
+import {cancellableFetchSpecialOk, parseSpecialUrl, SpecialProtocolCredentials, SpecialProtocolCredentialsProvider} from 'neuroglancer/util/special_protocol_request';
+
 
 class KnossosVolumeChunkSource extends
-(WithParameters(WithCredentialsProvider<KnossosToken>()(VolumeChunkSource), VolumeChunkSourceParameters)) {}
+(WithParameters(WithCredentialsProvider<SpecialProtocolCredentials>()(VolumeChunkSource), VolumeChunkSourceParameters)) {}
 
 //TODO add skeleton and mesh here
 
