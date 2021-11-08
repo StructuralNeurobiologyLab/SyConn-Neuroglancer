@@ -28,7 +28,7 @@
     "module": "ESNext"
   },
   "include": [
-    "./typings-custom/*.ts"
+    "./typings/*.ts"
   ],
   "exclude": [
     "node_modules",
