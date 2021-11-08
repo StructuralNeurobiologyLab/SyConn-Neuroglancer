@@ -63,8 +63,9 @@ PRECOMPUTED_VOLUME_REGEX = r'^/volume/(?P<volume_type>[a-zA-Z]+)/(?P<scale_key>[
 
 PRECOMPUTED_SEG_PROPS_INFO_REGEX = r'^/properties/info$'
 
-KNOSSOS_METADATA = r'^/knossos://(?P<acquisition>[^/]+)/(?P<version>[^/]+)/metadata'  # TODO Andrei source for static seg metadata
+KNOSSOS_METADATA_REGEX = r'^/(?P<acquisition>[^/]+)/(?P<version>[^/]+)/knossos.conf'  # TODO Andrei source for static seg metadata
 
+KNOSSOS_VOLUME_REGEX = r'^/(?P<acquisition>[^/]+)/(?P<version>[^/]+)/(?P<scale_key>[^/]+)/(?P<chunk>[^/]+)'
 
 class BaseRequestHandler(tornado.web.RequestHandler):
     def initialize(self, server):
@@ -533,22 +534,27 @@ class SkeletonInfoHandler(BaseRequestHandler):
 class KnossosMetadataHandler(BaseRequestHandler):
     def get(self, acquisition, version):
         # TODO get this from config.py
-        file_path = '/ssdscratch/songbird/j0251/segmentation/j0251_72_seg_20210127_agglo2/j0251_72_seg_20210127_agglo2.pyk.conf'
-        # try:
+        file_path_pyk_conf = '/ssdscratch/songbird/j0251/segmentation/j0251_72_seg_20210127_agglo2/j0251_72_seg_20210127_agglo2.pyk.conf'
+        # file_path_conf = '/ssdscratch/songbird/j0251/segmentation/j0251_72_seg_20210127_agglo2/'
+
+        # TODO quality check acquisition and version
+
+        # TODO make this static in config.py
+
         attr_dic = {}
-        with open(file_path, 'r') as f:
+        with open(file_path_pyk_conf, 'r') as f:
             for line in f:
                 words = line.split()
-                if words[0] == '[Dataset]':
+                if words[0] == '[Dataset]' or words[0] == '_BaseName':
                     continue
-                print(words)
                 attr_dic[words[0][1:]] = words[2]
-            # data = f.read()
-            # self.write(data)
+        attr_dic['Axes'] = ['x','y','z']
+        attr_dic['Units'] = ['nm','nm','nm']
+        attr_dic['downsamplingFactors'] = [[1,1,1],[2,2,2],[4,4,4],[8,8,8],[16,16,16],[32,32,32],[64,64,64]]
 
-        print(attr_dic)
+
         self.set_header('Content-type', 'application/json')
-        self.set_header('Cache-control', 'no-cache')                    # TODO remove this afterwards
+        self.set_header('Cache-control', 'no-cache')  # TODO remove this afterwards
         self.set_header('Content-encoding', 'knossos')
 
         self.finish(json.dumps(attr_dic, default=json_encoder_default).encode())

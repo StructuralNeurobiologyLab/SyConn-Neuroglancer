@@ -168,12 +168,23 @@ function getAttributesJsonUrls(url: string): string[] {
     path = path.substring(0, path.length - 1);
   }
   const urls: string[] = [];
-  while (true) {
-    urls.push(`${protocol}://${host}${path}/attributes.json`);
-    const index = path.lastIndexOf('/');
-    if (index === -1) break;
-    path = path.substring(0, index);
-  }
+  urls.push(`${protocol}://${host}${path}/knossos.conf`);
+  // var index:number;
+  // //crawl to all available knossos.conf files and get their urls
+  // while (true) {
+  //   urls.push(url_path);
+  //   console.log(urls)
+  //   if (scale == 64) break;
+  //   index = url_path.lastIndexOf("/")
+  //   if (scale < 10){
+  //     url_path = url_path.substring(0, index-1);
+  //   }
+  //   else {
+  //     url_path = url_path.substring(0, index-2);
+  //   }
+  //   scale = scale << 1;
+  //   url_path += `${scale.toString()}/knossos.conf`;
+  // }
   return urls;
 }
 
@@ -258,21 +269,39 @@ function getMultiscaleMetadata(url: string, attributes: any): MultiscaleMetadata
   verifyObject(attributes);
   let rank = -1;
 
-  let scales = verifyOptionalObjectProperty(attributes, 'resolution', x => {
+  // get json properties
+  let voxel_scale = verifyOptionalObjectProperty(attributes, 'DataScale', x => {
     const scales = Float64Array.from(parseArray(x, verifyFinitePositiveFloat));
     rank = verifyRank(rank, scales.length);
     return scales;
   });
-  let axes = verifyOptionalObjectProperty(attributes, 'axes', x => {
+  let axes = verifyOptionalObjectProperty(attributes, 'Axes', x => {
     const names = parseArray(x, verifyString);
     rank = verifyRank(rank, names.length);
     return names;
   });
-  let units = verifyOptionalObjectProperty(attributes, 'units', x => {
+  let units = verifyOptionalObjectProperty(attributes, 'Units', x => {
     const units = parseArray(x, unitFromJson);
     rank = verifyRank(rank, units.length);
     return units;
   });
+
+  // let scales = verifyOptionalObjectProperty(attributes, 'resolution', x => {
+  //   const scales = Float64Array.from(parseArray(x, verifyFinitePositiveFloat));
+  //   rank = verifyRank(rank, scales.length);
+  //   return scales;
+  // });
+  // let axes = verifyOptionalObjectProperty(attributes, 'axes', x => {
+  //   const names = parseArray(x, verifyString);
+  //   rank = verifyRank(rank, names.length);
+  //   return names;
+  // });
+  // let units = verifyOptionalObjectProperty(attributes, 'units', x => {
+  //   const units = parseArray(x, unitFromJson);
+  //   rank = verifyRank(rank, units.length);
+  //   return units;
+  // });
+
   let defaultUnit = {unit: 'm', exponent: -9};
   let singleDownsamplingFactors: Float64Array|undefined;
   let allDownsamplingFactors: Float64Array[]|undefined;
@@ -286,21 +315,21 @@ function getMultiscaleMetadata(url: string, attributes: any): MultiscaleMetadata
       allDownsamplingFactors = all;
     }
   });
-  // Handle knossos-viewer "pixelResolution" attribute
-  verifyOptionalObjectProperty(attributes, 'pixelResolution', resObj => {
-    defaultUnit = verifyObjectProperty(resObj, 'unit', unitFromJson);
-    verifyOptionalObjectProperty(resObj, 'dimensions', scalesObj => {
-      scales = Float64Array.from(parseArray(scalesObj, verifyFinitePositiveFloat));
-      rank = verifyRank(rank, scales.length);
-    });
-  });
+  // // Handle knossos-viewer "pixelResolution" attribute
+  // verifyOptionalObjectProperty(attributes, 'pixelResolution', resObj => {
+  //   defaultUnit = verifyObjectProperty(resObj, 'unit', unitFromJson);
+  //   verifyOptionalObjectProperty(resObj, 'dimensions', scalesObj => {
+  //     scales = Float64Array.from(parseArray(scalesObj, verifyFinitePositiveFloat));
+  //     rank = verifyRank(rank, scales.length);
+  //   });
+  // });
   // Handle knossos-viewer "scales" attribute
-  verifyOptionalObjectProperty(attributes, 'scales', scalesObj => {
-    const {all, rank: curRank} = parseMultiResolutionDownsamplingFactors(scalesObj);
-    rank = verifyRank(rank, curRank);
-    allDownsamplingFactors = all;
-  });
-  const dimensions = verifyOptionalObjectProperty(attributes, 'dimensions', x => {
+  // verifyOptionalObjectProperty(attributes, 'scales', scalesObj => {
+  //   const {all, rank: curRank} = parseMultiResolutionDownsamplingFactors(scalesObj);
+  //   rank = verifyRank(rank, curRank);
+  //   allDownsamplingFactors = all;
+  // });
+  const dimensions = verifyOptionalObjectProperty(attributes, 'Extent', x => {
     const dimensions = parseArray(x, verifyPositiveInt);
     rank = verifyRank(rank, dimensions.length);
     return dimensions;
@@ -320,26 +349,26 @@ function getMultiscaleMetadata(url: string, attributes: any): MultiscaleMetadata
   for (let i = 0; i < rank; ++i) {
     scales[i] = scaleByExp10(scales[i], units[i].exponent);
   }
-  // Handle coordinateArrays
-  const coordinateArrays = new Array<CoordinateArray|undefined>(rank);
-  if (axes !== undefined) {
-    verifyOptionalObjectProperty(attributes, 'coordinateArrays', coordinateArraysObj => {
-      verifyObject(coordinateArraysObj);
-      for (let i = 0; i < rank; ++i) {
-        const name = axes![i];
-        if (Object.prototype.hasOwnProperty.call(coordinateArraysObj, name)) {
-          const labels = verifyStringArray(coordinateArraysObj[name]);
-          coordinateArrays[i] = {
-            explicit: false,
-            labels,
-            coordinates: Array.from(labels, (_, i) => i)
-          };
-          units![i] = {unit: '', exponent: 0};
-          scales![i] = 1;
-        }
-      }
-    });
-  }
+  // // Handle coordinateArrays
+  // const coordinateArrays = new Array<CoordinateArray|undefined>(rank);
+  // if (axes !== undefined) {
+  //   verifyOptionalObjectProperty(attributes, 'coordinateArrays', coordinateArraysObj => {
+  //     verifyObject(coordinateArraysObj);
+  //     for (let i = 0; i < rank; ++i) {
+  //       const name = axes![i];
+  //       if (Object.prototype.hasOwnProperty.call(coordinateArraysObj, name)) {
+  //         const labels = verifyStringArray(coordinateArraysObj[name]);
+  //         coordinateArrays[i] = {
+  //           explicit: false,
+  //           labels,
+  //           coordinates: Array.from(labels, (_, i) => i)
+  //         };
+  //         units![i] = {unit: '', exponent: 0};
+  //         scales![i] = 1;
+  //       }
+  //     }
+  //   });
+  // }
   if (axes === undefined) {
     axes = getDefaultAxes(rank);
   }
@@ -390,6 +419,7 @@ export class KnossosDataSource extends DataSourceProvider {
               parseSpecialUrl(providerUrl, options.credentialsManager);
           const attributes =
               await getAttributes(options.chunkManager, credentialsProvider, url, false);
+          console.log(attributes);
           const multiscaleMetadata = getMultiscaleMetadata(url, attributes);
           const scales =
               await getAllScales(options.chunkManager, credentialsProvider, multiscaleMetadata);
