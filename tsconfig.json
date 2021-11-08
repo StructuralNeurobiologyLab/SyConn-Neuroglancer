@@ -9,6 +9,7 @@
     "experimentalDecorators": true,
     "strictNullChecks": true,
     "allowSyntheticDefaultImports": true,
+    "allowJs": true,
     "esModuleInterop": true,
     "sourceMap": true,
     "moduleResolution": "node",
@@ -26,6 +27,9 @@
     "typeRoots": [],
     "module": "ESNext"
   },
+  "include": [
+    "./typings-custom/*.ts"
+  ],
   "exclude": [
     "node_modules",
     "dist",

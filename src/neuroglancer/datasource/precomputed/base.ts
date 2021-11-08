@@ -23,7 +23,6 @@ export enum VolumeChunkEncoding {
   JPEG,
   COMPRESSED_SEGMENTATION,
   COMPRESSO,
-  KNOSSOS                      // TODO KNOSSOS
 }
 
 export class VolumeChunkSourceParameters {
