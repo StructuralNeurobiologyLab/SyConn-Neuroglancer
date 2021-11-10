@@ -307,7 +307,7 @@ function getMultiscaleMetadata(url: string, attributes: any): MultiscaleMetadata
   let defaultUnit = {unit: 'm', exponent: -9};
   let singleDownsamplingFactors: Float64Array|undefined;
   let allDownsamplingFactors: Float64Array[]|undefined;
-  verifyOptionalObjectProperty(attributes, 'downsamplingFactors', dObj => {
+  verifyOptionalObjectProperty(attributes, 'DownsamplingFactors', dObj => {
     const {single, all, rank: curRank} = parseDownsamplingFactors(dObj);
     rank = verifyRank(rank, curRank);
     if (single !== undefined) {

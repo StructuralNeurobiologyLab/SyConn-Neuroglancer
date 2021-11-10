@@ -68,10 +68,11 @@ async function decodeChunk(
     const {parameters} = this;
     const {chunkGridPosition} = chunk;
     let url = parameters.url;
-    const rank = this.spec.rank;
-    for (let i = 0; i < rank; ++i) {
-      url += `/${chunkGridPosition[i]}`;
-    }
+    let chunkPosition = this.computeChunkBounds(chunk);
+    let chunkDataSize = chunk.chunkDataSize!;
+    url = `${parameters.url}/${chunkPosition[0]}-${chunkPosition[0] + chunkDataSize[0]}_` +
+          `${chunkPosition[1]}-${chunkPosition[1] + chunkDataSize[1]}_` +
+          `${chunkPosition[2]}-${chunkPosition[2] + chunkDataSize[2]}`;
     const response = await cancellableFetchSpecialOk(
         this.credentialsProvider, url, {}, responseArrayBuffer, cancellationToken);
     await decodeChunk(chunk, cancellationToken, response, parameters.encoding);

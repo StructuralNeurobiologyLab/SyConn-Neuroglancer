@@ -547,18 +547,28 @@ class KnossosMetadataHandler(BaseRequestHandler):
                 if words[0] == '[Dataset]' or words[0] == '_BaseName':
                     continue
                 elif words[0] == '_DataScale':
-                    attr_dic[words[0][1:]] = [float(x) for x in words[2].split(",")]
+                    dataScales = []
+                    for x in words[2].split(", "):
+                        dataScales.append([float(y) for y in x.split(",")[:3]])
+                    attr_dic[words[0][1:]] = dataScales[0]
+                    # attr_dic[words[0][1:]] = [float(x[0].split(",")) for x in words[2].split(",")]
                 elif words[0] == '_Extent':
                     attr_dic[words[0][1:]] = [int(x) for x in words[2].split(",")]
                 elif words[0] == '_CubeSize':
                     attr_dic[words[0][1:]] = [int(x) for x in words[2].split(",")]
+                elif words[0] == '_Axes':
+                    attr_dic[words[0][1:]] = [x for x in words[2].split(",")]
+                elif words[0] == '_Units':
+                    attr_dic[words[0][1:]] = [x for x in words[2].split(",")]
+                elif words[0] == '_DownsamplingFactors':
+                    downsamplingArray = []
+                    for x in words[2].split(", "):
+                        downsamplingArray.append([float(y) for y in x.split(",")[:3]])
+                    attr_dic[words[0][1:]] = downsamplingArray
                 else:
                     attr_dic[words[0][1:]] = words[2]
-        attr_dic['DataType'] = "uint64"
         attr_dic['Compression'] = {"type": "KNOSSOS"}
-        attr_dic['Axes'] = ['x','y','z']
-        attr_dic['Units'] = ['nm','nm','nm']
-        attr_dic['downsamplingFactors'] = [[1,1,1],[2,2,2],[4,4,4],[8,8,8],[16,16,16],[32,32,32],[64,64,64]]
+        # attr_dic['downsamplingFactors'] = [[1,1,1],[2,2,2],[4,4,4],[8,8,8],[16,16,16],[32,32,32],[64,64,64]]
 
 
         self.set_header('Content-type', 'application/json')
