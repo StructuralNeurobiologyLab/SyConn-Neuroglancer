@@ -533,7 +533,6 @@ class SkeletonInfoHandler(BaseRequestHandler):
 
 class KnossosMetadataHandler(BaseRequestHandler):
     def get(self, acquisition, version):
-        # TODO get this from config.py
         file_path_pyk_conf = '/ssdscratch/songbird/j0251/segmentation/j0251_72_seg_20210127_agglo2/j0251_72_seg_20210127_agglo2.pyk.conf'
         # file_path_conf = '/ssdscratch/songbird/j0251/segmentation/j0251_72_seg_20210127_agglo2/'
 
@@ -547,7 +546,16 @@ class KnossosMetadataHandler(BaseRequestHandler):
                 words = line.split()
                 if words[0] == '[Dataset]' or words[0] == '_BaseName':
                     continue
-                attr_dic[words[0][1:]] = words[2]
+                elif words[0] == '_DataScale':
+                    attr_dic[words[0][1:]] = [float(x) for x in words[2].split(",")]
+                elif words[0] == '_Extent':
+                    attr_dic[words[0][1:]] = [int(x) for x in words[2].split(",")]
+                elif words[0] == '_CubeSize':
+                    attr_dic[words[0][1:]] = [int(x) for x in words[2].split(",")]
+                else:
+                    attr_dic[words[0][1:]] = words[2]
+        attr_dic['DataType'] = "uint64"
+        attr_dic['Compression'] = {"type": "KNOSSOS"}
         attr_dic['Axes'] = ['x','y','z']
         attr_dic['Units'] = ['nm','nm','nm']
         attr_dic['downsamplingFactors'] = [[1,1,1],[2,2,2],[4,4,4],[8,8,8],[16,16,16],[32,32,32],[64,64,64]]
