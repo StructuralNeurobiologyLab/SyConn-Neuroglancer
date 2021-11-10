@@ -130,17 +130,18 @@ class ScaleMetadata {
   size: Float32Array;
   chunkSize: Uint32Array;
 
-  constructor(obj: any) {
+  constructor(obj: any, downsamplingArray: Float32Array) {
     verifyObject(obj);
-    this.dataType = verifyObjectProperty(obj, 'dataType', x => verifyEnumString(x, DataType));
+    this.dataType = verifyObjectProperty(obj, 'DataType', x => verifyEnumString(x, DataType));
     this.size = Float32Array.from(
-        verifyObjectProperty(obj, 'dimensions', x => parseArray(x, verifyPositiveInt)));
+      verifyObjectProperty(obj, 'Extent', x => parseArray(x, verifyPositiveInt))).map(x => x/downsamplingArray[0]);         // TODO support  anisotropic downsampling too
+    console.log(this.size)
     this.chunkSize = verifyObjectProperty(
-        obj, 'blockSize',
+        obj, 'CubeSize',
         x => parseFixedLengthArray(new Uint32Array(this.size.length), x, verifyPositiveInt));
 
     let encoding: VolumeChunkEncoding|undefined;
-    verifyOptionalObjectProperty(obj, 'compression', compression => {
+    verifyOptionalObjectProperty(obj, 'Compression', compression => {
       encoding =
           verifyObjectProperty(compression, 'type', x => verifyEnumString(x, VolumeChunkEncoding));
     });
@@ -156,9 +157,10 @@ function getAllScales(
     chunkManager: ChunkManager, credentialsProvider: SpecialProtocolCredentialsProvider,
     multiscaleMetadata: MultiscaleMetadata): Promise<(ScaleMetadata | undefined)[]> {
   return Promise.all(multiscaleMetadata.scales.map(async scale => {
+
     const attributes = await getAttributes(chunkManager, credentialsProvider, scale.url, true);
     if (attributes === undefined) return undefined;
-    return new ScaleMetadata(attributes);
+    return new ScaleMetadata(attributes, scale.downsamplingFactor);
   }));
 }
 
@@ -270,7 +272,7 @@ function getMultiscaleMetadata(url: string, attributes: any): MultiscaleMetadata
   let rank = -1;
 
   // get json properties
-  let voxel_scale = verifyOptionalObjectProperty(attributes, 'DataScale', x => {
+  let scales = verifyOptionalObjectProperty(attributes, 'DataScale', x => {
     const scales = Float64Array.from(parseArray(x, verifyFinitePositiveFloat));
     rank = verifyRank(rank, scales.length);
     return scales;
@@ -296,7 +298,7 @@ function getMultiscaleMetadata(url: string, attributes: any): MultiscaleMetadata
   //   rank = verifyRank(rank, names.length);
   //   return names;
   // });
-  // let units = verifyOptionalObjectProperty(attributes, 'units', x => {
+  // let units = verifyOptionalObjectProperty(attributes, 'Units', x => {
   //   const units = parseArray(x, unitFromJson);
   //   rank = verifyRank(rank, units.length);
   //   return units;
@@ -349,7 +351,7 @@ function getMultiscaleMetadata(url: string, attributes: any): MultiscaleMetadata
   for (let i = 0; i < rank; ++i) {
     scales[i] = scaleByExp10(scales[i], units[i].exponent);
   }
-  // // Handle coordinateArrays
+  // Handle coordinateArrays
   // const coordinateArrays = new Array<CoordinateArray|undefined>(rank);
   // if (axes !== undefined) {
   //   verifyOptionalObjectProperty(attributes, 'coordinateArrays', coordinateArraysObj => {
@@ -378,19 +380,22 @@ function getMultiscaleMetadata(url: string, attributes: any): MultiscaleMetadata
     names: axes,
     scales,
     units: units.map(x => x.unit),
-    coordinateArrays,
   });
-  if (dimensions === undefined) {
-    if (allDownsamplingFactors === undefined) {
-      throw new Error('Not valid single-resolution or multi-resolution dataset');
-    }
-    return {
-      modelSpace,
-      url,
-      attributes,
-      scales: allDownsamplingFactors.map((f, i) => ({url: `${url}/s${i}`, downsamplingFactor: f})),
-    };
+  // TODO FIX THIS
+  // if (dimensions === undefined) {
+  if (allDownsamplingFactors === undefined) {
+    throw new Error('Not valid single-resolution or multi-resolution dataset');
   }
+  return {
+    modelSpace,
+    url,
+    attributes,
+    scales: allDownsamplingFactors.map((f) => {
+      return {url: `${url}`, downsamplingFactor: f};
+    }),
+  // (f, i) => ({url: `${url}/s${i}`, downsamplingFactor: f})),
+  };
+  // }
   if (singleDownsamplingFactors === undefined) {
     singleDownsamplingFactors = new Float64Array(rank);
     singleDownsamplingFactors.fill(1);
@@ -419,8 +424,9 @@ export class KnossosDataSource extends DataSourceProvider {
               parseSpecialUrl(providerUrl, options.credentialsManager);
           const attributes =
               await getAttributes(options.chunkManager, credentialsProvider, url, false);
-          console.log(attributes);
+          // console.log(attributes);
           const multiscaleMetadata = getMultiscaleMetadata(url, attributes);
+          console.log(multiscaleMetadata);
           const scales =
               await getAllScales(options.chunkManager, credentialsProvider, multiscaleMetadata);
           const volume = new MultiscaleVolumeChunkSource(
