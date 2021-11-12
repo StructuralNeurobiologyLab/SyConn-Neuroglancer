@@ -65,6 +65,8 @@ PRECOMPUTED_SEG_PROPS_INFO_REGEX = r'^/properties/info$'
 
 KNOSSOS_METADATA_REGEX = r'^/(?P<acquisition>[^/]+)/(?P<version>[^/]+)/knossos.conf'  # TODO Andrei source for static seg metadata
 
+KNOSSOS_METADATA_SCALES_REGEX = r'^/(?P<acquisition>[^/]+)/(?P<version>[^/]+)/(?P<scale_key>[^/]+)/knossos.conf'  # TODO Andrei source for static seg metadata
+
 KNOSSOS_VOLUME_REGEX = r'^/(?P<acquisition>[^/]+)/(?P<version>[^/]+)/(?P<scale_key>[^/]+)/(?P<chunk>[^/]+)'
 
 class BaseRequestHandler(tornado.web.RequestHandler):
@@ -401,74 +403,6 @@ def get_last_blocks(offset, size):
     return ((offset + size - 1) // cube_shape) + 1
 
 
-class PrecompSnappyVolHandler(BaseRequestHandler):
-    @asynchronous
-    def get(self, volume_type, scale_key, chunk):
-        from neuroglancer.config import params
-        boundary = [27119, 27350, 15494]
-
-        mag = np.array(scale_key.split('_'), dtype=np.int32)[0]
-        x, y, z = chunk.split('_')
-        xBegin, xEnd = map(int, x.split('-'))
-        yBegin, yEnd = map(int, y.split('-'))
-        zBegin, zEnd = map(int, z.split('-'))
-
-        begin_offset = tuple(np.s_[xBegin * mag, yBegin * mag, zBegin * mag])
-        end_offset = tuple(np.s_[xEnd * mag, yEnd * mag, zEnd * mag])
-
-        size = tuple(np.subtract(end_offset, begin_offset))
-        ratio = scale_ratio(mag, 1)
-
-        size = (np.array(size, dtype=int) // ratio).astype(int)
-        offset = (np.array(begin_offset, dtype=int) // ratio).astype(int)
-        boundary = (np.array(boundary, dtype=int) // ratio).astype(int)
-
-        start = get_first_blocks(offset).astype(int)
-        end = get_last_blocks(offset, size).astype(int)
-
-        cube_coordinates = []
-
-        for z in range(start[2], end[2]):
-            for y in range(start[1], end[1]):
-                for x in range(start[0], end[0]):
-                    cube_coordinates.append([x, y, z])
-
-        def read_snappy_cube(c):
-            # local_offset = np.subtract([c[0], c[1], c[2]], start) * cube_shape
-            # print(c)
-            filename = f'{params["segmentation"].experiment_name}_{params["segmentation"].name_mag_folder}{mag}_x{c[0]:04d}_y{c[1]:04d}_z{c[2]:04d}.{"seg.sz.zip" if from_overlay else params["segmentation"]._raw_ext}'
-            path = f'{params["segmentation"].knossos_path}/{params["segmentation"].name_mag_folder}{mag}/x{c[0]:04d}/y{c[1]:04d}/z{c[2]:04d}/{filename}'
-
-            if os.path.exists(path):
-                if from_overlay:
-                    with zipfile.ZipFile(path, 'r') as zf:
-                        snappy_cube = zf.read(os.path.basename(path[:-4]))
-
-                    return snappy_cube
-
-        futures = list(map(lambda x: self.server.thread_executor.submit(
-            read_snappy_cube, x
-        ), cube_coordinates))
-
-        for f in concurrent.futures.as_completed(futures):
-            try:
-                snappy_cube = f.result()
-                # print(type(snappy_cube))
-
-                if snappy_cube is not None:
-                    # content-encoding snappy
-                    self.set_header('Content-encoding', 'gzip')
-                    self.finish(gzip.compress(snappy_cube))
-                else:
-                    logger.error('Snappy cube is None')
-                    self.send_error(404)
-
-            except Exception as e:
-                logger.error(e, e.args[0])
-                self.send_error(404)
-                return
-
-
 def read_file(filename):
     with open(os.path.join("/home/hashir", filename), "rb") as f:
         data = f.read()
@@ -548,8 +482,8 @@ class KnossosMetadataHandler(BaseRequestHandler):
                     continue
                 elif words[0] == '_DataScale':
                     dataScales = []
-                    for x in words[2].split(", "):
-                        dataScales.append([float(y) for y in x.split(",")[:3]])
+                    for i in range(7):
+                        dataScales.append([float(x) for x in words[2+i].split(",")[:3]])
                     attr_dic[words[0][1:]] = dataScales[0]
                     # attr_dic[words[0][1:]] = [float(x[0].split(",")) for x in words[2].split(",")]
                 elif words[0] == '_Extent':
@@ -562,9 +496,10 @@ class KnossosMetadataHandler(BaseRequestHandler):
                     attr_dic[words[0][1:]] = [x for x in words[2].split(",")]
                 elif words[0] == '_DownsamplingFactors':
                     downsamplingArray = []
-                    for x in words[2].split(", "):
-                        downsamplingArray.append([float(y) for y in x.split(",")[:3]])
+                    for i in range(7):
+                        downsamplingArray.append([float(x) for x in words[2+i].split(",")[:3]])
                     attr_dic[words[0][1:]] = downsamplingArray
+                    print(f'{downsamplingArray}')
                 else:
                     attr_dic[words[0][1:]] = words[2]
         attr_dic['Compression'] = {"type": "KNOSSOS"}
@@ -581,3 +516,117 @@ class KnossosMetadataHandler(BaseRequestHandler):
         #     logger.error(f'Error retrieving metadata. {e}')
         #     self.send_error(404)
         #     return
+
+class KnossosMetadataScalesHandler(BaseRequestHandler):
+    def get(self, acquisition, version, scale_key):
+        file_path_pyk_conf = '/ssdscratch/songbird/j0251/segmentation/j0251_72_seg_20210127_agglo2/j0251_72_seg_20210127_agglo2.pyk.conf'
+        # file_path_conf = '/ssdscratch/songbird/j0251/segmentation/j0251_72_seg_20210127_agglo2/'
+
+        # TODO quality check acquisition and version
+
+        # TODO make this static in config.py
+
+        attr_dic = {}
+        with open(file_path_pyk_conf, 'r') as f:
+            for line in f:
+                words = line.split()
+                if words[0] == '[Dataset]' or words[0] == '_BaseName':
+                    continue
+                elif words[0] == '_DataScale':
+                    dataScales = []
+                    for i in range(7):
+                        dataScales.append([float(x) for x in words[2+i].split(",")[:3]])
+                    attr_dic[words[0][1:]] = dataScales[0]
+                    # attr_dic[words[0][1:]] = [float(x[0].split(",")) for x in words[2].split(",")]
+                elif words[0] == '_Extent':
+                    attr_dic[words[0][1:]] = [int(x) for x in words[2].split(",")]
+                elif words[0] == '_CubeSize':
+                    attr_dic[words[0][1:]] = [int(x) for x in words[2].split(",")]
+                elif words[0] == '_Axes':
+                    attr_dic[words[0][1:]] = [x for x in words[2].split(",")]
+                elif words[0] == '_Units':
+                    attr_dic[words[0][1:]] = [x for x in words[2].split(",")]
+                elif words[0] == '_DownsamplingFactors':
+                    downsamplingArray = []
+                    for i in range(7):
+                        downsamplingArray.append([float(x) for x in words[2+i].split(",")[:3]])
+                    attr_dic[words[0][1:]] = downsamplingArray
+                    print(f'{downsamplingArray}')
+                else:
+                    attr_dic[words[0][1:]] = words[2]
+        attr_dic['Compression'] = {"type": "KNOSSOS"}
+        # attr_dic['downsamplingFactors'] = [[1,1,1],[2,2,2],[4,4,4],[8,8,8],[16,16,16],[32,32,32],[64,64,64]]
+
+
+        self.set_header('Content-type', 'application/json')
+        self.set_header('Cache-control', 'no-cache')  # TODO remove this afterwards
+        self.set_header('Content-encoding', 'knossos')
+
+        self.finish(json.dumps(attr_dic, default=json_encoder_default).encode())
+
+class PrecompSnappyVolHandler(BaseRequestHandler):
+    @asynchronous
+    def get(self, acquisition, version, scale_key, chunk):
+        from neuroglancer.config import params
+        boundary = [27119, 27350, 15494]
+
+        mag = np.array(scale_key.split('_'), dtype=np.int32)[0]
+        x, y, z = chunk.split('_')
+        xBegin, xEnd = map(int, x.split('-'))
+        yBegin, yEnd = map(int, y.split('-'))
+        zBegin, zEnd = map(int, z.split('-'))
+
+        begin_offset = tuple(np.s_[xBegin * mag, yBegin * mag, zBegin * mag])
+        end_offset = tuple(np.s_[xEnd * mag, yEnd * mag, zEnd * mag])
+
+        size = tuple(np.subtract(end_offset, begin_offset))
+        ratio = scale_ratio(mag, 1)
+
+        size = (np.array(size, dtype=int) // ratio).astype(int)
+        offset = (np.array(begin_offset, dtype=int) // ratio).astype(int)
+        boundary = (np.array(boundary, dtype=int) // ratio).astype(int)
+
+        start = get_first_blocks(offset).astype(int)
+        end = get_last_blocks(offset, size).astype(int)
+
+        cube_coordinates = []
+
+        for z in range(start[2], end[2]):
+            for y in range(start[1], end[1]):
+                for x in range(start[0], end[0]):
+                    cube_coordinates.append([x, y, z])
+
+        def read_snappy_cube(c):
+            # local_offset = np.subtract([c[0], c[1], c[2]], start) * cube_shape
+            # print(c)
+            filename = f'{params["segmentation"].experiment_name}_{params["segmentation"].name_mag_folder}{mag}_x{c[0]:04d}_y{c[1]:04d}_z{c[2]:04d}.{"seg.sz.zip" if from_overlay else params["segmentation"]._raw_ext}'
+            path = f'{params["segmentation"].knossos_path}/{params["segmentation"].name_mag_folder}{mag}/x{c[0]:04d}/y{c[1]:04d}/z{c[2]:04d}/{filename}'
+
+            if os.path.exists(path):
+                if from_overlay:
+                    with open(path, 'rb') as zf:
+                        snappy_zipped_cube = zf.read(os.path.basename(path[:-4]))
+
+                    return snappy_zipped_cube
+
+        futures = list(map(lambda x: self.server.thread_executor.submit(
+            read_snappy_cube, x
+        ), cube_coordinates))
+
+        for f in concurrent.futures.as_completed(futures):
+            try:
+                snappy_cube = f.result()
+                # print(type(snappy_cube))
+
+                if snappy_cube is not None:
+                    # content-encoding snappy
+                    self.set_header('Content-encoding', 'application/octet-stream')
+                    self.finish(snappy_cube)
+                else:
+                    logger.error('Snappy cube is None')
+                    self.send_error(404)
+
+            except Exception as e:
+                logger.error(e, e.args[0])
+                self.send_error(404)
+                return

@@ -94,6 +94,8 @@ class Server(object):
                 # (MESH_PATH_REGEX, MeshHandler, dict(server=self)),
                 (ACTION_PATH_REGEX, ActionHandler, dict(server=self)),
                 (KNOSSOS_METADATA_REGEX, KnossosMetadataHandler, dict(server=self)),
+                (KNOSSOS_METADATA_SCALES_REGEX, KnossosMetadataScalesHandler, dict(server=self)),
+                (KNOSSOS_VOLUME_REGEX, PrecompSnappyVolHandler, dict(server=self)),
             ] + sockjs_router.urls,
             # + [(r"/(.*)", tornado.web.FallbackHandler, dict(fallback=flask_app))],
             default_handler_class=NotFoundHandler,
