@@ -171,22 +171,6 @@ function getAttributesJsonUrls(url: string): string[] {
   }
   const urls: string[] = [];
   urls.push(`${protocol}://${host}${path}/knossos.conf`);
-  // var index:number;
-  // //crawl to all available knossos.conf files and get their urls
-  // while (true) {
-  //   urls.push(url_path);
-  //   console.log(urls)
-  //   if (scale == 64) break;
-  //   index = url_path.lastIndexOf("/")
-  //   if (scale < 10){
-  //     url_path = url_path.substring(0, index-1);
-  //   }
-  //   else {
-  //     url_path = url_path.substring(0, index-2);
-  //   }
-  //   scale = scale << 1;
-  //   url_path += `${scale.toString()}/knossos.conf`;
-  // }
   return urls;
 }
 
@@ -280,6 +264,7 @@ function getMultiscaleMetadata(url: string, attributes: any): MultiscaleMetadata
     rank = verifyRank(rank, scales.length);
     return scales;
   });
+  console.log(scales)
   let axes = verifyOptionalObjectProperty(attributes, 'Axes', x => {
     const names = parseArray(x, verifyString);
     rank = verifyRank(rank, names.length);
@@ -341,26 +326,7 @@ function getMultiscaleMetadata(url: string, attributes: any): MultiscaleMetadata
   for (let i = 0; i < rank; ++i) {
     scales[i] = scaleByExp10(scales[i], units[i].exponent);
   }
-  // Handle coordinateArrays
-  // const coordinateArrays = new Array<CoordinateArray|undefined>(rank);
-  // if (axes !== undefined) {
-  //   verifyOptionalObjectProperty(attributes, 'coordinateArrays', coordinateArraysObj => {
-  //     verifyObject(coordinateArraysObj);
-  //     for (let i = 0; i < rank; ++i) {
-  //       const name = axes![i];
-  //       if (Object.prototype.hasOwnProperty.call(coordinateArraysObj, name)) {
-  //         const labels = verifyStringArray(coordinateArraysObj[name]);
-  //         coordinateArrays[i] = {
-  //           explicit: false,
-  //           labels,
-  //           coordinates: Array.from(labels, (_, i) => i)
-  //         };
-  //         units![i] = {unit: '', exponent: 0};
-  //         scales![i] = 1;
-  //       }
-  //     }
-  //   });
-  // }
+
   if (axes === undefined) {
     axes = getDefaultAxes(rank);
   }
@@ -381,11 +347,9 @@ function getMultiscaleMetadata(url: string, attributes: any): MultiscaleMetadata
     url,
     attributes,
     scales: allDownsamplingFactors.map((f) => {
-      return {url: `${url}/${f[0]}_${f[1]}_${f[2]}`, downsamplingFactor: f};
+      return {url: `${url}/mag${f[0]}`, downsamplingFactor: f};
     }),
-  // (f, i) => ({url: `${url}/s${i}`, downsamplingFactor: f})),
   };
-  // }
   if (singleDownsamplingFactors === undefined) {
     singleDownsamplingFactors = new Float64Array(rank);
     singleDownsamplingFactors.fill(1);
