@@ -135,7 +135,7 @@ class ScaleMetadata {
     this.dataType = verifyObjectProperty(obj, 'DataType', x => verifyEnumString(x, DataType));
     this.size = Float32Array.from(
       verifyObjectProperty(obj, 'Extent', x => parseArray(x, verifyPositiveInt))).map(x => x/downsamplingArray[0]);         // TODO support  anisotropic downsampling too
-    console.log(this.size)
+    // console.log(this.size)
     this.chunkSize = verifyObjectProperty(
         obj, 'CubeSize',
         x => parseFixedLengthArray(new Uint32Array(this.size.length), x, verifyPositiveInt));
@@ -248,10 +248,10 @@ function parseMultiResolutionDownsamplingFactors(obj: any) {
 }
 
 function parseDownsamplingFactors(obj: any) {
-  console.log("in parse downsample factors")
-  console.log(obj)
+  // console.log("in parse downsample factors")
+  // console.log(obj)
   const a = expectArray(obj);
-  console.log(a);
+  // console.log(a);
   if (a.length === 0) throw new Error('Expected non-empty array');
   if (Array.isArray(a[0])) {
     return parseMultiResolutionDownsamplingFactors(a);
@@ -311,7 +311,7 @@ function getMultiscaleMetadata(url: string, attributes: any): MultiscaleMetadata
   let singleDownsamplingFactors: Float64Array|undefined;
   let allDownsamplingFactors: Float64Array[]|undefined;
   verifyOptionalObjectProperty(attributes, 'DownsamplingFactors', dObj => {
-    console.log(dObj);
+    // console.log(dObj);
     const {single, all, rank: curRank} = parseDownsamplingFactors(dObj);
     rank = verifyRank(rank, curRank);
     if (single !== undefined) {
@@ -321,20 +321,6 @@ function getMultiscaleMetadata(url: string, attributes: any): MultiscaleMetadata
       allDownsamplingFactors = all;
     }
   });
-  // // Handle knossos-viewer "pixelResolution" attribute
-  // verifyOptionalObjectProperty(attributes, 'pixelResolution', resObj => {
-  //   defaultUnit = verifyObjectProperty(resObj, 'unit', unitFromJson);
-  //   verifyOptionalObjectProperty(resObj, 'dimensions', scalesObj => {
-  //     scales = Float64Array.from(parseArray(scalesObj, verifyFinitePositiveFloat));
-  //     rank = verifyRank(rank, scales.length);
-  //   });
-  // });
-  // Handle knossos-viewer "scales" attribute
-  // verifyOptionalObjectProperty(attributes, 'scales', scalesObj => {
-  //   const {all, rank: curRank} = parseMultiResolutionDownsamplingFactors(scalesObj);
-  //   rank = verifyRank(rank, curRank);
-  //   allDownsamplingFactors = all;
-  // });
   const dimensions = verifyOptionalObjectProperty(attributes, 'Extent', x => {
     const dimensions = parseArray(x, verifyPositiveInt);
     rank = verifyRank(rank, dimensions.length);
@@ -428,19 +414,19 @@ export class KnossosDataSource extends DataSourceProvider {
               parseSpecialUrl(providerUrl, options.credentialsManager);
           const attributes =
               await getAttributes(options.chunkManager, credentialsProvider, url, false);
-          console.log('attributes');
-          console.log(attributes);
+          // console.log('attributes');
+          // console.log(attributes);
           const multiscaleMetadata = getMultiscaleMetadata(url, attributes);
-          console.log(`multiscaleMetadata ${multiscaleMetadata}`);
-          console.log(multiscaleMetadata);
+          // console.log(`multiscaleMetadata ${multiscaleMetadata}`);
+          // console.log(multiscaleMetadata);
           const scales =
               await getAllScales(options.chunkManager, credentialsProvider, multiscaleMetadata);
           const volume = new MultiscaleVolumeChunkSource(
               options.chunkManager, credentialsProvider, multiscaleMetadata, scales);
-          console.log('scales');
-          console.log(scales);
-          console.log(`volume`);
-          console.log(volume);
+          // console.log('scales');
+          // console.log(scales);
+          // console.log(`volume`);
+          // console.log(volume);
           return {
             modelTransform: makeIdentityTransform(volume.modelSpace),
             subsources: [
