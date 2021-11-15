@@ -115,7 +115,7 @@ class TokenHandler(BaseRequestHandler):
             return
 
         token = make_random_token()
-        pf = PropertyFilter(params, ['mi', 'vc', 'sj'], token)
+        pf = PropertyFilter(params, token, ['mi', 'vc', 'sj'])
         logger.debug(f"Viewer instances in memory: {len(config.global_server.viewers.keys())}")
 
         try:
@@ -138,7 +138,7 @@ class SharedURLHandler(BaseRequestHandler):
 
         # create new viewer with
         token = make_random_token()
-        pf = PropertyFilter(params, ['mi', 'vc', 'sj'], token)
+        pf = PropertyFilter(params, token, ['mi', 'vc', 'sj'])
         pf.viewer.set_state(state)
 
         # render the new viewer
@@ -582,8 +582,9 @@ class PrecompSnappyVolHandler(BaseRequestHandler):
         size = tuple(np.subtract(end_offset, begin_offset))
         ratio = scale_ratio(mag, 1)
 
-        size = (np.array(size, dtype=int) // ratio).astype(int)
-        offset = (np.array(begin_offset, dtype=int) // ratio).astype(int)
+        size = (np.array(size, dtype=int) // ratio).astype('<i8')
+        offset = (np.array(begin_offset, dtype=int) // ratio).astype('<i8')
+        print(size.dtype, offset.dtype)
         boundary = (np.array(boundary, dtype=int) // ratio).astype(int)
 
         start = get_first_blocks(offset).astype(int)
@@ -596,32 +597,34 @@ class PrecompSnappyVolHandler(BaseRequestHandler):
                 for x in range(start[0], end[0]):
                     cube_coordinates.append([x, y, z])
 
+        length_of_cubes = []
+
         def read_snappy_cube(c):
-            # local_offset = np.subtract([c[0], c[1], c[2]], start) * cube_shape
-            # print(c)
-            filename = f'{params["segmentation"].experiment_name}_{params["segmentation"].name_mag_folder}{mag}_x{c[0]:04d}_y{c[1]:04d}_z{c[2]:04d}.{"seg.sz.zip" if from_overlay else params["segmentation"]._raw_ext}'
+            filename = f'{params["segmentation"].experiment_name}_{params["segmentation"].name_mag_folder}{mag}_x{c[0]:04d}_y{c[1]:04d}_z{c[2]:04d}.seg.sz.zip'
             path = f'{params["segmentation"].knossos_path}/{params["segmentation"].name_mag_folder}{mag}/x{c[0]:04d}/y{c[1]:04d}/z{c[2]:04d}/{filename}'
 
             if os.path.exists(path):
-                if from_overlay:
-                    with open(path, 'rb') as zf:
-                        snappy_zipped_cube = zf.read(os.path.basename(path[:-4]))
+                with open(path, 'rb') as zf:
+                    snappy_cube = zf.read()
 
-                    return snappy_zipped_cube
+                return snappy_cube
 
-        futures = list(map(lambda x: self.server.thread_executor.submit(
-            read_snappy_cube, x
-        ), cube_coordinates))
+        futures = {self.server.thread_executor.submit(read_snappy_cube, cube_coord) for cube_coord in cube_coordinates}
 
+        self.write(offset.tobytes())
+        self.write(size.tobytes())
+        self.write(len(cube_coordinates).to_bytes(1, byteorder="little"))
+        
         for f in concurrent.futures.as_completed(futures):
             try:
                 snappy_cube = f.result()
-                # print(type(snappy_cube))
 
                 if snappy_cube is not None:
-                    # content-encoding snappy
+                    length_of_cubes.append(len(snappy_cube))  # get length of byte string of each cube
                     self.set_header('Content-encoding', 'application/octet-stream')
-                    self.finish(snappy_cube)
+                    self.write(len(snappy_cube).to_bytes(8, byteorder='little'))
+                    print(len(snappy_cube))
+                    self.write(snappy_cube)  # send cube
                 else:
                     logger.error('Snappy cube is None')
                     self.send_error(404)
@@ -630,3 +633,17 @@ class PrecompSnappyVolHandler(BaseRequestHandler):
                 logger.error(e, e.args[0])
                 self.send_error(404)
                 return
+
+        logger.info(f"Total length of cubes: {sum(length_of_cubes)}")
+        # logger.info(f"Attaching cubes meta information to the request [#cubes: {len(length_of_cubes)}, cube_lengths: {length_of_cubes}]")
+
+        # for l in length_of_cubes:
+        #     self.write(l.to_bytes(8, "little"))  # send length of each cube
+
+        # self.write(len(length_of_cubes).to_bytes(4, "little"))  # send number of cubes to be read
+
+        self.finish()  # finish request
+
+        
+
+        

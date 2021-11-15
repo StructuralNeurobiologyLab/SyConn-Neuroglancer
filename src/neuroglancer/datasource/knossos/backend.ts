@@ -30,20 +30,46 @@ async function decodeChunk(
     chunk: VolumeChunk, cancellationToken: CancellationToken, response: ArrayBuffer,
     encoding: VolumeChunkEncoding) {
   const dv = new DataView(response);
-  const mode = dv.getUint16(0, /*littleEndian=*/ false);
-  if (mode !== 0) {
-    throw new Error(`Unsupported mode: ${mode}.`);
+  const offset = dv.getBigInt64(0, true);
+  const size = dv.getBigUint64(8, true);
+  const numCubes = dv.getInt8(16);
+
+  console.log(`size: ${size}`);
+  console.log(`numCubes: ${numCubes}`);
+
+  if (numCubes === 0) {
+    throw new Error('Retrieved zero cubes. Must be atleast 1 cube');
   }
+  console.log(`offset ${offset}`)
+  
+  
+
+  // const cubeLength = dv.getBigInt64(4, true);
+  // // if (l1 === 0) {
+  // //   throw new Error(`Found 0 cubes.`);
+  // // }
+  // console.log(`Length of cube 1: ${cubeLength}`);
+  
+  let offset_2 = 17;
+  
+  for (let i = 0; i < numCubes; ++i) {
+    const cubeLength = dv.getBigInt64(offset_2, true);
+    console.log(`Length of cube ${i}: ${cubeLength}`);
+    offset_2 += Number(cubeLength)*8;
+  }
+
   const numDimensions = dv.getUint16(2, /*littleEndian=*/ false);
   if (numDimensions !== chunk.source!.spec.rank) {
     throw new Error(`Number of dimensions must be 3.`);
   }
-  let offset = 4;
+
+  let offset_3 = 4;
   const shape = new Uint32Array(numDimensions);
   for (let i = 0; i < numDimensions; ++i) {
-    shape[i] = dv.getUint32(offset, /*littleEndian=*/ false);
-    offset += 4;
+    shape[i] = dv.getUint32(offset_3, /*littleEndian=*/ false);
+    offset_3 += 4;
   }
+
   chunk.chunkDataSize = shape;
   let buffer = new Uint8Array(response, offset);
   switch (encoding) {
@@ -75,6 +101,8 @@ async function decodeChunk(
           `${chunkPosition[2]}-${chunkPosition[2] + chunkDataSize[2]}`;
     const response = await cancellableFetchSpecialOk(
         this.credentialsProvider, url, {}, responseArrayBuffer, cancellationToken);
+    console.log(`Full response length ${response.byteLength}`);
+    
     await decodeChunk(chunk, cancellationToken, response, parameters.encoding);
   }
 }
