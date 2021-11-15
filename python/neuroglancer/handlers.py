@@ -17,6 +17,7 @@ try:
 except ImportError:
     from tornado.web import asynchronous
 
+from concurrent.futures import ThreadPoolExecutor
 from syconn.analysis.property_filter import PropertyFilter
 from syconn.analysis.utils import get_encoded_mesh, get_encoded_skeleton, get_mesh_meta
 from syconn.handler.logger import log_main as logger
@@ -410,6 +411,17 @@ def read_file(filename):
     return data
 
 
+def get_intervals(offset, size, cube_coord):
+    cube_shape = np.array([256,256,256])
+    global_end = offset + size
+    out_start = np.maximum(0, cube_coord * cube_shape - offset)
+    out_end = (cube_coord + 1) * cube_shape - global_end
+    out_end = size * (out_end >= 0) + out_end * (out_end < 0) # cube contains this output edge
+    incube_start = np.maximum(0, offset - cube_coord * cube_shape)
+    incube_end = global_end - (cube_coord + 1) * cube_shape
+    incube_end = cube_shape * (incube_end >= 0) + incube_end * (incube_end < 0) # output contains this cube edge
+    return out_start, out_end, incube_start, incube_end
+
 class PrecomputedSegPropsInfoHandler(BaseRequestHandler):
     @asynchronous
     def get(self):
@@ -590,6 +602,8 @@ class PrecompSnappyVolHandler(BaseRequestHandler):
         start = get_first_blocks(offset).astype(int)
         end = get_last_blocks(offset, size).astype(int)
 
+        output = np.zeros(size[::-1].reshape(-1), dtype=object)
+
         cube_coordinates = []
 
         for z in range(start[2], end[2]):
@@ -600,8 +614,13 @@ class PrecompSnappyVolHandler(BaseRequestHandler):
         length_of_cubes = []
 
         def read_snappy_cube(c):
-            filename = f'{params["segmentation"].experiment_name}_{params["segmentation"].name_mag_folder}{mag}_x{c[0]:04d}_y{c[1]:04d}_z{c[2]:04d}.seg.sz.zip'
+            out_start, out_end, incube_start, incube_end = get_intervals(offset, size, c)
+            # local_offset = np.subtract([c[0], c[1], c[2]], start) * cube_shape
+            # print(c)
+            filename = f'{params["segmentation"].experiment_name}_{params["segmentation"].name_mag_folder}{mag}_x{c[0]:04d}_y{c[1]:04d}_z{c[2]:04d}.{"seg.sz.zip" if from_overlay else params["segmentation"]._raw_ext}'
             path = f'{params["segmentation"].knossos_path}/{params["segmentation"].name_mag_folder}{mag}/x{c[0]:04d}/y{c[1]:04d}/z{c[2]:04d}/{filename}'
+
+            snappy_zipped_cube = None
 
             if os.path.exists(path):
                 with open(path, 'rb') as zf:
@@ -643,7 +662,3 @@ class PrecompSnappyVolHandler(BaseRequestHandler):
         # self.write(len(length_of_cubes).to_bytes(4, "little"))  # send number of cubes to be read
 
         self.finish()  # finish request
-
-        
-
-        
