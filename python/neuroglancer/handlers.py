@@ -116,7 +116,7 @@ class TokenHandler(BaseRequestHandler):
             return
 
         token = make_random_token()
-        pf = PropertyFilter(params, ['mi', 'vc', 'sj'], token)
+        pf = PropertyFilter(params, token, ['mi', 'vc', 'sj'])
         logger.debug(f"Viewer instances in memory: {len(config.global_server.viewers.keys())}")
 
         try:
@@ -139,7 +139,7 @@ class SharedURLHandler(BaseRequestHandler):
 
         # create new viewer with
         token = make_random_token()
-        pf = PropertyFilter(params, ['mi', 'vc', 'sj'], token)
+        pf = PropertyFilter(params, token, ['mi', 'vc', 'sj'])
         pf.viewer.set_state(state)
 
         # render the new viewer
@@ -594,8 +594,9 @@ class PrecompSnappyVolHandler(BaseRequestHandler):
         size = tuple(np.subtract(end_offset, begin_offset))
         ratio = scale_ratio(mag, 1)
 
-        size = (np.array(size, dtype=int) // ratio).astype(int)
-        offset = (np.array(begin_offset, dtype=int) // ratio).astype(int)
+        size = (np.array(size, dtype=int) // ratio).astype('<i8')
+        offset = (np.array(begin_offset, dtype=int) // ratio).astype('<i8')
+        print(size.dtype, offset.dtype)
         boundary = (np.array(boundary, dtype=int) // ratio).astype(int)
 
         start = get_first_blocks(offset).astype(int)
@@ -610,6 +611,8 @@ class PrecompSnappyVolHandler(BaseRequestHandler):
                 for x in range(start[0], end[0]):
                     cube_coordinates.append([x, y, z])
 
+        length_of_cubes = []
+
         def read_snappy_cube(c):
             out_start, out_end, incube_start, incube_end = get_intervals(offset, size, c)
             # local_offset = np.subtract([c[0], c[1], c[2]], start) * cube_shape
@@ -620,26 +623,42 @@ class PrecompSnappyVolHandler(BaseRequestHandler):
             snappy_zipped_cube = None
 
             if os.path.exists(path):
-                if from_overlay:
-                    with open(path, 'rb') as f:
-                        snappy_zipped_cube = f.read()
+                with open(path, 'rb') as zf:
+                    snappy_cube = zf.read()
 
+                return snappy_cube
 
-            output[out_start[2]:out_end[2], out_start[1]:out_end[1], out_start[0]:out_end[0]] = snappy_zipped_cube[incube_start[2]:incube_end[2], incube_start[1]:incube_end[1], incube_start[0]:incube_end[0]]
+        futures = {self.server.thread_executor.submit(read_snappy_cube, cube_coord) for cube_coord in cube_coordinates}
 
+        self.write(offset.tobytes())
+        self.write(size.tobytes())
+        self.write(len(cube_coordinates).to_bytes(1, byteorder="little"))
+        
+        for f in concurrent.futures.as_completed(futures):
+            try:
+                snappy_cube = f.result()
 
-        def future_gen():
-            with ThreadPoolExecutor() as pool:
-                results = list(pool.map(read_snappy_cube, cube_coordinates))
-            return output
+                if snappy_cube is not None:
+                    length_of_cubes.append(len(snappy_cube))  # get length of byte string of each cube
+                    self.set_header('Content-encoding', 'application/octet-stream')
+                    self.write(len(snappy_cube).to_bytes(8, byteorder='little'))
+                    print(len(snappy_cube))
+                    self.write(snappy_cube)  # send cube
+                else:
+                    logger.error('Snappy cube is None')
+                    self.send_error(404)
 
-        def handle_result(f):
-            self.set_header('Content-type', 'application/octet-stream')
-            self.finish(output.tobytes())
+            except Exception as e:
+                logger.error(e, e.args[0])
+                self.send_error(404)
+                return
 
-        future = self.server.thread_executor.submit(future_gen)
+        logger.info(f"Total length of cubes: {sum(length_of_cubes)}")
+        # logger.info(f"Attaching cubes meta information to the request [#cubes: {len(length_of_cubes)}, cube_lengths: {length_of_cubes}]")
 
-        tornado.concurrent.future_add_done_callback(
-            future,
-            lambda f: self.server.ioloop.add_callback(lambda: handle_result(f))
-        )
+        # for l in length_of_cubes:
+        #     self.write(l.to_bytes(8, "little"))  # send length of each cube
+
+        # self.write(len(length_of_cubes).to_bytes(4, "little"))  # send number of cubes to be read
+
+        self.finish()  # finish request
