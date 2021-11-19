@@ -511,7 +511,7 @@ class KnossosMetadataHandler(BaseRequestHandler):
                     downsamplingArray = []
                     for i in range(7):
                         downsamplingArray.append([float(x) for x in words[2+i].split(",")[:3]])
-                    attr_dic[words[0][1:]] = [downsamplingArray[-2], downsamplingArray[-1]]
+                    attr_dic[words[0][1:]] = downsamplingArray
                     # print(f'{downsamplingArray}')
                 else:
                     attr_dic[words[0][1:]] = words[2]
