@@ -59,7 +59,7 @@ async function decodeChunk(
     let yfolder = String(chunkGridPosition[1]).padStart(4,'0');
     let zfolder= String(chunkGridPosition[2]).padStart(4,'0');
     // don't forget the mags >10
-    let mag_num = parameters.url.substr(parameters.url.length-6).replace(/^\D+/g, '');
+    let mag_num = parameters.url.substr(parameters.url.length-5).replace(/^\D+/g, '');
     url = `${parameters.url}/x${xfolder}/y${yfolder}/z${zfolder}/j0251_realigned_mag${mag_num}_x${xfolder}_y${yfolder}_z${zfolder}.seg.sz.zip`;
     const response = await cancellableFetchSpecialOk(
         this.credentialsProvider, url, {}, responseArrayBuffer, cancellationToken);
