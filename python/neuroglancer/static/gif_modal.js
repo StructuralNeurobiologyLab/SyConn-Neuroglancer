@@ -2,7 +2,7 @@
 var img1 = document.getElementById("img1");
 var img2 = document.getElementById("img2");
 var img3 = document.getElementById("img3");
-var img4 = document.getElementById("img4");
+// var img4 = document.getElementById("img4");
 
 // Get the modal
 var modal = document.getElementById("viewImg");
@@ -34,12 +34,12 @@ img3.onclick = function(){
   captionText.innerHTML = this.alt;
 }
 
-img4.onclick = function(){
-  navbar.classList.add("d-none");
-  modal.style.display = "block";
-  modalImg.src = "../static/neuro-welcome.gif";
-  captionText.innerHTML = this.alt;
-}
+// img4.onclick = function(){
+//   navbar.classList.add("d-none");
+//   modal.style.display = "block";
+//   modalImg.src = "../static/neuro-welcome.gif";
+//   captionText.innerHTML = this.alt;
+// }
 
 // Get the <span> element that closes the modal
 var span = document.getElementsByClassName("close")[0];

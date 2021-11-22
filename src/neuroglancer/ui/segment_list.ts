@@ -812,7 +812,7 @@ export class SegmentDisplayTab extends Tab {
     queryElement.autocomplete = 'off';
     queryElement.title = keyMap.describe();
     queryElement.spellcheck = false;
-    queryElement.placeholder = 'Enter cell type, #mito, ssv size or a combination';
+    queryElement.placeholder = 'Enter ID, name prefix or /regexp';
     
     this.registerDisposer(observeWatchable(q => {
       queryElement.value = q;
