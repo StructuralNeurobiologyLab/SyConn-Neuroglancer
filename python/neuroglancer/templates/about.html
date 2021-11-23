@@ -15,7 +15,7 @@
 	</head>
 
     <body>
-      <nav class="navbar navbar-light sticky-top navbar-expand-lg bg-custom">
+      <nav class="navbar navbar-light navbar-expand-lg">
 			  <div class="container-fluid">
           <a class="navbar-brand" href="https://structuralneurobiologylab.github.io/SyConn/">
             <img src="{{ static_url('syconn-logo.png') }}" alt="SyConn logo" height="90" class="d-inline-block align-text-top center">
@@ -34,14 +34,27 @@
           </a>
 			  </div>
 		  </nav>
+      <hr class="border border-dark rounded border-2 mx-3"> 
 
       <div class="container m-3">
         <h3 class="display-6 header">Project</h3>
-        <p class="lead" style="text-align: justify;">SyConn-Neuroglancer viewer helps to visualize EM volumetric data (3D segmentation and raw volumes). It is based on a fork of the original <a href="#">google/neuroglancer</a> project developed and maintained by Jeremy Maitin-Shepard. It is capable of rendering line-segment based skeletons and triangular mesh representations. Additionally, it can also render organelle meshes that follow the same triangular representation.</p>
+        <!-- <p class="lead" style="text-align: justify;">SyConn-Neuroglancer viewer helps to visualize EM volumetric data (3D segmentation and raw volumes). It is based on a fork of the original <a href="#">google/neuroglancer</a> project developed and maintained by Jeremy Maitin-Shepard. It is capable of rendering line-segment based skeletons and triangular mesh representations. Additionally, it can also render organelle meshes that follow the same triangular representation.</p>
         <p class="lead" style="text-align: justify;">The datasets used by the viewer are in the <a href="#">Knossos</a> format which allows reading the data chunk-wise and forwarding to the Neuroglancer client. The skeleton and mesh representations are made available by <a href="#">SyConn</a>, modified to the precomputed format for rendering. As part of the rendering options, one can change the visual look and feel of these cell objects directly from the browser.</p>
-        <p class="lead" style="text-align: justify;">The viewer also supports filtering the cells based on some properties. Currently, we support filtering by the cell type, number of mitochondria within a cell and the size of the cell. Additionally, one can request the synaptic partner of a cell based on the largest synapse area.</p>
+        <p class="lead" style="text-align: justify;">The viewer also supports filtering the cells based on some properties. Currently, we support filtering by the cell type, number of mitochondria within a cell and the size of the cell. Additionally, one can request the synaptic partner of a cell based on the largest synapse area.</p> -->
+        <p class="lead" style="text-align: justify;">SyConn-Neuroglancer provides web access to connectomic datasets processed with SyConn. It is based on a fork of the original <a href="https://github.com/google/neuroglancer">google/neuroglancer</a> project developed and maintained by Jeremy Maitin-Shepard at Google Research in Viren Jain’s team, with contributions from many other research organizations. We aim to keep our fork in sync with the upstream project and contribute as much as possible back to the original code base.</p> 
+        <p class="lead" style="text-align: justify;">SyConn web provides an analysis interface for simple connectomic queries, such as filtering of the neurons based on properties, the identification of pre - and postsynaptic neurons or the listing of different cell types and is continuously extended by us based on actual analysis needs. Please write to us if you are interested in a specific analysis that might be particularly useful.</p>
+        
+        <h3 class="display-6 header">Dataset</h3>
+        <h4>j0251</h4>
+        <p class="lead" style="text-align: justify;">
+        EM data acquisition: J. Kornfeld <br>
+        Alignment: J. Kornfeld & A. Pope (V. Jain's team, Google Research) <br>
+        SyConn processing: P. Schubert <br>
+        Cell & ultrastructure segmentation: M. Januszewski (V. Jain's team, Google Research)
+        </p>
+
         <h3 class="display-6 header">The Team</h3>
-        <p class="lead" style="text-align: justify;">This project is currently developed in Prof. Winfried Denk's department <a href="https://www.neuro.mpg.de/denk">Electrons - Photons - Neurons</a> at the Max Planck Institute of Neurobiology in Martinsried, Germany.</p>
+        <p class="lead" style="text-align: justify;">This project is developed in the Kornfeld laboratory at the Max Planck Institute of Neurobiology in Martinsried, Germany. We would like to thank Eric Perlman for neuroglancer development support. 
         <div class="row">
           <div class="col-sm-3">
             <div class="card">
@@ -66,16 +79,6 @@
           <div class="col-sm-3">
             <div class="card">
               <div class="card-body">
-                <h5 class="card-title">Jörgen Kornfeld</h5>
-                <h6 class="card-subtitle text-muted">Supervisor</h6>
-                <p class="card-text"></p>
-                <a href="mailto:kornfeld@neuro.mpg.de" class="btn btn-primary">Contact</a>
-                </div>
-            </div>
-          </div>
-          <div class="col-sm-3">
-            <div class="card">
-              <div class="card-body">
                 <h5 class="card-title">Philipp Schubert</h5>
                 <h6 class="card-subtitle text-muted">Supervisor</h6>
                 <p class="card-text"></p>
@@ -83,6 +86,17 @@
                 </div>
             </div>
           </div>
+          <div class="col-sm-3">
+            <div class="card">
+              <div class="card-body">
+                <h5 class="card-title">Jörgen Kornfeld</h5>
+                <h6 class="card-subtitle text-muted">Supervisor</h6>
+                <p class="card-text"></p>
+                <a href="mailto:kornfeld@neuro.mpg.de" class="btn btn-primary">Contact</a>
+                </div>
+            </div>
+          </div>
+          
         </div>
       </div>
     </body>
