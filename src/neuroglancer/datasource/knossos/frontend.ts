@@ -16,7 +16,7 @@ import {MultiscaleVolumeChunkSource as GenericMultiscaleVolumeChunkSource, Volum
 import {transposeNestedArrays} from 'neuroglancer/util/array';
 import {Borrowed} from 'neuroglancer/util/disposable';
 import {completeHttpPath} from 'neuroglancer/util/http_path_completion';
-import {isNotFoundError, parseUrl, responseJson} from 'neuroglancer/util/http_request';
+import {HttpError, isNotFoundError, parseUrl, responseText} from 'neuroglancer/util/http_request';
 import {expectArray, parseArray, parseFixedLengthArray, verifyEnumString, verifyFinitePositiveFloat, verifyObject, verifyObjectProperty, verifyOptionalObjectProperty, verifyPositiveInt, verifyString, verifyStringArray} from 'neuroglancer/util/json';
 import {createHomogeneousScaleMatrix} from 'neuroglancer/util/matrix';
 import {getObjectId} from 'neuroglancer/util/object_id';
@@ -121,6 +121,10 @@ interface MultiscaleMetadata {
   attributes: any;
   modelSpace: CoordinateSpace;
   scales: {readonly url: string; readonly downsamplingFactor: Float64Array;}[];
+  dimensions: Float32Array;
+  chunk_sizes: Uint32Array;
+  compression: string;
+  dataType: string;
 }
 ;
 
@@ -130,25 +134,13 @@ class ScaleMetadata {
   size: Float32Array;
   chunkSize: Uint32Array;
 
-  constructor(obj: any, downsamplingArray: Float32Array) {
-    verifyObject(obj);
-    this.dataType = verifyObjectProperty(obj, 'DataType', x => verifyEnumString(x, DataType));
-    this.size = Float32Array.from(
-      verifyObjectProperty(obj, 'Extent', x => parseArray(x, verifyPositiveInt))).map(x => x/downsamplingArray[0]);         // TODO support  anisotropic downsampling too
+  constructor(dataType: string, dimensions: Float32Array, chunk_sizes: Uint32Array, downsamplingArray: Float32Array, compression: string) {
+    this.dataType = verifyEnumString(dataType, DataType);
+    this.size = dimensions.map((x,i) => x/downsamplingArray[i]);         // TODO support  anisotropic downsampling too
     // console.log(this.size)
-    this.chunkSize = verifyObjectProperty(
-        obj, 'CubeSize',
-        x => parseFixedLengthArray(new Uint32Array(this.size.length), x, verifyPositiveInt));
-
+    this.chunkSize = chunk_sizes;
     let encoding: VolumeChunkEncoding|undefined;
-    verifyOptionalObjectProperty(obj, 'Compression', compression => {
-      encoding =
-          verifyObjectProperty(compression, 'type', x => verifyEnumString(x, VolumeChunkEncoding));
-    });
-    if (encoding === undefined) {
-      encoding = verifyObjectProperty(
-          obj, 'compressionType', x => verifyEnumString(x, VolumeChunkEncoding));
-    }
+    encoding = verifyEnumString(compression, VolumeChunkEncoding)
     this.encoding = encoding;
   }
 }
@@ -157,10 +149,7 @@ function getAllScales(
     chunkManager: ChunkManager, credentialsProvider: SpecialProtocolCredentialsProvider,
     multiscaleMetadata: MultiscaleMetadata): Promise<(ScaleMetadata | undefined)[]> {
   return Promise.all(multiscaleMetadata.scales.map(async scale => {
-
-    const attributes = await getAttributes(chunkManager, credentialsProvider, scale.url, true);
-    if (attributes === undefined) return undefined;
-    return new ScaleMetadata(attributes, scale.downsamplingFactor);
+    return new ScaleMetadata(multiscaleMetadata.dataType, multiscaleMetadata.dimensions, multiscaleMetadata.chunk_sizes, scale.downsamplingFactor, multiscaleMetadata.compression);
   }));
 }
 
@@ -170,19 +159,19 @@ function getAttributesJsonUrls(url: string): string[] {
     path = path.substring(0, path.length - 1);
   }
   const urls: string[] = [];
-  urls.push(`${protocol}://${host}${path}/knossos.conf`);
+  urls.push(`${protocol}://${host}${path}/knossos.pyk.conf`);
   return urls;
 }
 
-function getIndividualAttributesJson(
+function getIndividualAttributesText(
     chunkManager: ChunkManager, credentialsProvider: SpecialProtocolCredentialsProvider,
     url: string, required: boolean): Promise<any> {
   return chunkManager.memoize.getUncounted(
-      {type: 'knossos:attributes.json', url, credentialsProvider: getObjectId(credentialsProvider)},
-      () => cancellableFetchSpecialOk(credentialsProvider, url, {}, responseJson)
+    {type: 'knossos:attributes.txt', url, credentialsProvider: getObjectId(credentialsProvider)},
+    getter = () => cancellableFetchSpecialOk(credentialsProvider, url, {}, responseText)
                 .then(j => {
                   try {
-                    return verifyObject(j);
+                    return verifyString(j);
                   } catch (e) {
                     throw new Error(`Error reading attributes from ${url}: ${e.message}`);
                   }
@@ -201,11 +190,10 @@ async function getAttributes(
     url: string, required: boolean): Promise<unknown> {
   const attributesJsonUrls = getAttributesJsonUrls(url);
   const metadata = await Promise.all(attributesJsonUrls.map(
-      (u, i) => getIndividualAttributesJson(
+      (u, i) => getIndividualAttributesText(
           chunkManager, credentialsProvider, u, required && i === attributesJsonUrls.length - 1)));
   if (metadata.indexOf(undefined) !== -1) return undefined;
-  metadata.reverse();
-  return Object.assign({}, ...metadata);
+  return metadata[0];
 }
 
 function verifyRank(existing: number, n: number) {
@@ -215,36 +203,8 @@ function verifyRank(existing: number, n: number) {
   return n;
 }
 
-function parseSingleResolutionDownsamplingFactors(obj: any) {
-  return Float64Array.from(parseArray(obj, verifyFinitePositiveFloat));
-}
-
-function parseMultiResolutionDownsamplingFactors(obj: any) {
-  const a = expectArray(obj);
-  if (a.length === 0) throw new Error('Expected non-empty array');
-  let rank = -1;
-  const allFactors = parseArray(a, x => {
-    const f = parseSingleResolutionDownsamplingFactors(x);
-    rank = verifyRank(rank, f.length);
-    return f;
-  });
-  return {all: allFactors, single: undefined, rank};
-}
-
-function parseDownsamplingFactors(obj: any) {
-  // console.log("in parse downsample factors")
-  // console.log(obj)
-  const a = expectArray(obj);
-  // console.log(a);
-  if (a.length === 0) throw new Error('Expected non-empty array');
-  if (Array.isArray(a[0])) {
-    return parseMultiResolutionDownsamplingFactors(a);
-  }
-  const f = parseSingleResolutionDownsamplingFactors(obj);
-  return {all: undefined, single: f, rank: f.length};
-}
-
 const defaultAxes = ['x', 'y', 'z', 't', 'c'];
+const defaultUnits = ['nm', 'nm', 'nm', 'nm', 'nm'];
 
 function getDefaultAxes(rank: number) {
   const axes = defaultAxes.slice(0, rank);
@@ -254,111 +214,125 @@ function getDefaultAxes(rank: number) {
   return axes;
 }
 
+function getDefaultUnits(rank: number) {
+  return defaultUnits.slice(0, rank);
+}
+
 function getMultiscaleMetadata(url: string, attributes: any): MultiscaleMetadata {
-  verifyObject(attributes);
-  let rank = -1;
+  // verifyString(attributes);
+  let rank = 3;
 
-  // get json properties
-  let scales = verifyOptionalObjectProperty(attributes, 'DataScale', x => {
-    const scales = Float64Array.from(parseArray(x, verifyFinitePositiveFloat));
-    rank = verifyRank(rank, scales.length);
-    return scales;
-  });
-  console.log(scales)
-  let axes = verifyOptionalObjectProperty(attributes, 'Axes', x => {
-    const names = parseArray(x, verifyString);
-    rank = verifyRank(rank, names.length);
-    return names;
-  });
-  let units = verifyOptionalObjectProperty(attributes, 'Units', x => {
-    const units = parseArray(x, unitFromJson);
-    rank = verifyRank(rank, units.length);
-    return units;
-  });
+  //initialize attributes
+  let dimensions = [];
+  let axes = [];
+  let scales: Array<Float64Array> = [];
+  let chunk_sizes = [];
+  let downsamplingFactors = [];
+  let compression = '';
 
-  // let scales = verifyOptionalObjectProperty(attributes, 'resolution', x => {
-  //   const scales = Float64Array.from(parseArray(x, verifyFinitePositiveFloat));
-  //   rank = verifyRank(rank, scales.length);
-  //   return scales;
-  // });
-  // let axes = verifyOptionalObjectProperty(attributes, 'axes', x => {
-  //   const names = parseArray(x, verifyString);
-  //   rank = verifyRank(rank, names.length);
-  //   return names;
-  // });
-  // let units = verifyOptionalObjectProperty(attributes, 'Units', x => {
-  //   const units = parseArray(x, unitFromJson);
-  //   rank = verifyRank(rank, units.length);
-  //   return units;
-  // });
+  let dataType = 'uint64';                        //TODO change here
+  // if(url.split('/')[-1] === 'segmentation'){
+  //
+  // }
+  // else if(url.split('/')[-1] === 'image'){
+  //
+  // }
 
-  let defaultUnit = {unit: 'm', exponent: -9};
-  let singleDownsamplingFactors: Float64Array|undefined;
-  let allDownsamplingFactors: Float64Array[]|undefined;
-  verifyOptionalObjectProperty(attributes, 'DownsamplingFactors', dObj => {
-    // console.log(dObj);
-    const {single, all, rank: curRank} = parseDownsamplingFactors(dObj);
-    rank = verifyRank(rank, curRank);
-    if (single !== undefined) {
-      singleDownsamplingFactors = single;
+  // get string properties
+  const lines = attributes.split('\n');
+  // console.log(lines);
+
+  for(let ind = 0; ind < lines.length; ++ind){
+    let split_line = lines[ind].split(' ');
+    // console.log(split_line);
+    switch (split_line[0]) {
+      case '_DataScale':
+        temp = lines[ind].split(',');
+        temp[0] = temp[0].slice(temp[0].length-2,temp[0].length);
+        data_scales = temp.map((elem) => {
+          //remove last ',' if there is one
+          if (elem[0] === ' ') {
+            return elem.substring(1, elem.length);
+          }
+          return elem;
+        });
+        for(let i = 0; i < data_scales.length; i=i+3){
+          scales.push(Float64Array.of(data_scales[i], data_scales[i+1], data_scales[i+2]));
+        }
+        break;
+      case '_Extent':
+        dimensions = Float32Array.from(split_line[2].split(',').map(Number));
+        rank = verifyRank(rank, dimensions.length);
+        break;
+      case '_BaseExt':
+        if(split_line[2] === '.seg.sz.zip'){
+          compression = 'KNOSSOS';
+        }
+        break;
+      case '_CubeSize':
+        chunk_sizes = Uint32Array.from(split_line[2].split(',').map(Number));
+        rank = verifyRank(rank, chunk_sizes.length);
+        break;
+      default:
+        continue;
     }
-    if (all !== undefined) {
-      allDownsamplingFactors = all;
-    }
-  });
-  const dimensions = verifyOptionalObjectProperty(attributes, 'Extent', x => {
-    const dimensions = parseArray(x, verifyPositiveInt);
-    rank = verifyRank(rank, dimensions.length);
-    return dimensions;
-  });
-
-  if (rank === -1) {
-    throw new Error('Unable to determine rank of dataset');
   }
+
+  //set axes and units
+  axes = getDefaultAxes(rank);
+  units = getDefaultUnits(rank);
+
+  // compute downsampling scales
+  // assume mag 1 exists
+  downsamplingFactors.push([1,1,1]);
+  for(let i = 1; i < scales.length; ++i){
+    factor = [];
+    for(let j = 0; j < 3; ++j){
+       factor.push(scales[i][j]/scales[0][j]);
+    }
+    downsamplingFactors.push(factor);
+  }
+
   if (units === undefined) {
     units = new Array(rank);
     units.fill(defaultUnit);
   }
-  if (scales === undefined) {
-    scales = new Float64Array(rank);
-    scales.fill(1);
-  }
-  for (let i = 0; i < rank; ++i) {
-    scales[i] = scaleByExp10(scales[i], units[i].exponent);
-  }
+  // if (scales === undefined) {
+  //   scales = new Float64Array(rank);
+  //   scales.fill(1);
+  // }
+  // scales.forEach((elem) => {
+  //   elem.forEach(i => {console.log(`${i}`)});
+  // });
 
-  if (axes === undefined) {
-    axes = getDefaultAxes(rank);
+  baseScale = [];
+  for (let i = 0; i < rank; ++i) {
+    baseScale.push(scaleByExp10(scales[0][i], -9));
   }
+  console.log(baseScale);
+  // if (axes === undefined) {
+  //   axes = getDefaultAxes(rank);
+  // }
+  axes = ['x','y','z'];
   const modelSpace = makeCoordinateSpace({
-    rank,
+    rank: rank,
     valid: true,
     names: axes,
-    scales,
-    units: units.map(x => x.unit),
+    scales: baseScale,
+    units: ["m","m","m"],
   });
-  // TODO FIX THIS
-  // if (dimensions === undefined) {
-  if (allDownsamplingFactors === undefined) {
-    throw new Error('Not valid single-resolution or multi-resolution dataset');
-  }
+  console.log("Before return");
   return {
     modelSpace,
     url,
     attributes,
-    scales: allDownsamplingFactors.map((f) => {
+    scales: downsamplingFactors.map((f) => {
       return {url: `${url}/mag${f[0]}`, downsamplingFactor: f};
     }),
-  };
-  if (singleDownsamplingFactors === undefined) {
-    singleDownsamplingFactors = new Float64Array(rank);
-    singleDownsamplingFactors.fill(1);
-  }
-  return {
-    modelSpace,
-    url,
-    attributes,
-    scales: [{url, downsamplingFactor: singleDownsamplingFactors}]
+    dimensions,
+    chunk_sizes,
+    compression,
+    dataType,
   };
 }
 
@@ -378,19 +352,16 @@ export class KnossosDataSource extends DataSourceProvider {
               parseSpecialUrl(providerUrl, options.credentialsManager);
           const attributes =
               await getAttributes(options.chunkManager, credentialsProvider, url, false);
-          // console.log('attributes');
           // console.log(attributes);
           const multiscaleMetadata = getMultiscaleMetadata(url, attributes);
-          // console.log(`multiscaleMetadata ${multiscaleMetadata}`);
-          // console.log(multiscaleMetadata);
+          console.log(multiscaleMetadata);
           const scales =
               await getAllScales(options.chunkManager, credentialsProvider, multiscaleMetadata);
+          // console.log(scales);
           const volume = new MultiscaleVolumeChunkSource(
               options.chunkManager, credentialsProvider, multiscaleMetadata, scales);
-          // console.log('scales');
-          // console.log(scales);
-          // console.log(`volume`);
-          // console.log(volume);
+          
+          console.log(volume);
           return {
             modelTransform: makeIdentityTransform(volume.modelSpace),
             subsources: [
