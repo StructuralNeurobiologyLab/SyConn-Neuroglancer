@@ -16,7 +16,7 @@
 	</head>
 
     <body>
-        <nav class="navbar navbar-light sticky-top navbar-expand-lg bg-custom" id="navBar">
+        <nav class="navbar navbar-light navbar-expand-lg" id="navBar">
             <div class="container-fluid">
                 <a class="navbar-brand" href="https://structuralneurobiologylab.github.io/SyConn/">
                     <img src="{{ static_url('syconn-logo.png') }}" alt="SyConn logo" height="90" class="d-inline-block align-text-top center">
@@ -35,6 +35,7 @@
                 </a>
             </div>
         </nav>
+        <hr class="border border-dark rounded border-2 mx-3"> 
     
         <div class="container mx-2 my-4">
             <h3 class="display-6 header">Tutorials</h3>
@@ -44,22 +45,22 @@
         <div class="accordion m-2" id="accordionExample">
           
           <!-- Tutorial 1 -->
-          <div class="accordion-item">
+          <!-- <div class="accordion-item">
             <h2 class="accordion-header" id="headingOne">
-              <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseOne" aria-expanded="true" aria-controls="collapseOne">
-                <h1 class="display-6 tutorial-header"><i class="bi bi-shield-fill-check"></i> Select a dataset acquisition, version and launch the viewer</h1> 
+              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseOne" aria-expanded="true" aria-controls="collapseOne">
+                <h1 class="display-6 tutorial-header"><i class="bi bi-shield-fill-check"></i> Launching a viewer</h1> 
               </button>
             </h2>
             <div id="collapseOne" class="accordion-collapse collapse" aria-labelledby="headingOne" data-bs-parent="#accordionExample">
               <div class="accordion-body">
                 <div class="row justify-content-between align-items-center">
                   <div class="col-md-5 px-3">
-                    <p class="lead tutorial">This is pretty straightforward. Just select an acquisition and version from the dropdowns and click the Submit button to launch the viewer.<br><br>
-                    Currently, only the <strong>j0251</strong> acquisition with versions <strong>rag_flat_Jan2019_v2</strong> and <strong>rag_flat_Jan2019_v3</strong> is available.  More datasets will be added soon!</p>
+                    <p class="lead tutorial">This is pretty straightforward. Just select a dataset and version from the dropdowns and click the Submit button to launch the viewer.<br><br>
+                    Currently, only the <strong>j0251</strong> dataset with versions <strong>rag_flat_Jan2019_v2</strong> and <strong>rag_flat_Jan2019_v3</strong> is available. More datasets will be added soon!</p>
                   </div>
                   <div class="col-md-7">
                     <figure>
-                      <!-- <img src="../static/neuro-welcome.gif" class="img-fluid border border-dark border-3" id="img1" alt="Dataset selection"> -->
+                      <img src="../static/neuro-welcome.gif" class="img-fluid border border-dark border-3" id="img1" alt="Dataset selection">
                       <img src="{{ static_url('neuro-welcome.gif') }}" class="img-fluid border border-dark border-3" id="img1" alt="Dataset selection">
                       <figcaption class="text-muted" style="text-align: center;">Click to expand</figcaption>
                     </figure>
@@ -68,13 +69,13 @@
                 </div>
               </div>
             </div>
-          </div>
+          </div> -->
     
           <!-- Tutorial 2 -->
           <div class="accordion-item">
             <h2 class="accordion-header" id="headingTwo">
               <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseTwo" aria-expanded="false" aria-controls="collapseTwo">
-                <h1 class="display-6 tutorial-header"><i class="bi bi-shield-fill-check"></i> Toggle different panels, controls and layers</h1>
+                <h1 class="display-6 tutorial-header"><i class="bi bi-shield-fill-check"></i> Panels, controls and layers</h1>
               </button>
             </h2>
             <div id="collapseTwo" class="accordion-collapse collapse" aria-labelledby="headingTwo" data-bs-parent="#accordionExample">
@@ -107,7 +108,7 @@
           <div class="accordion-item">
             <h2 class="accordion-header" id="headingThree">
               <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseThree" aria-expanded="false" aria-controls="collapseThree">
-                <h1 class="display-6 tutorial-header"><i class="bi bi-shield-fill-check"></i> Selecting a segment and rendering its skeletons, cell mesh and organelle meshes</h1>
+                <h1 class="display-6 tutorial-header"><i class="bi bi-shield-fill-check"></i> Displaying cells and sub-cellular objects</h1>
               </button>
             </h2>
             <div id="collapseThree" class="accordion-collapse collapse" aria-labelledby="headingThree" data-bs-parent="#accordionExample">
@@ -115,7 +116,7 @@
                 <div class="row justify-content-between align-items-center">
                   <div class="col-md-5 px-3">
                     <p class="lead tutorial">
-                      Neuroglancer has four viewports by default. Starting from left, in the clockwise-direction, these are the <strong>XY</strong>, <strong>XZ</strong> and <strong>YZ</strong> cross-sectional views and the <strong>3D</strong> view. A segment (from the segmentation layer) is a coloured area visible in the three cross-sectional views that can be clicked to render its cell objects (if available).</p>
+                      Neuroglancer has four viewports by default. Starting from left, in the clockwise-direction, these are the <strong>XY</strong>, <strong>XZ</strong> and <strong>YZ</strong> cross-sectional views and the <strong>3D</strong> view. A segment (from the segmentation layer) is a coloured area visible in the three cross-sectional views that can be selected to display its cell objects (if available).</p>
                     <ul class="lead tutorial"> 
                       <li><kbd>left-click</kbd> to select the segment</li>
                       <li><kbd>double-click</kbd> to request the cell objects (skeleton, cell mesh and organelle meshes)</li>
@@ -136,10 +137,10 @@
           </div>
     
           <!-- Tutorial 4 -->
-          <div class="accordion-item">
+          <!-- <div class="accordion-item">
             <h2 class="accordion-header" id="headingFour">
               <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseFour" aria-expanded="false" aria-controls="collapseFour">
-                <h1 class="display-6 tutorial-header"><i class="bi bi-shield-fill-check"></i> Filtering segments based on the properties</h1>
+                <h1 class="display-6 tutorial-header"><i class="bi bi-shield-fill-check"></i> Filtering cells</h1>
               </button>
             </h2>
             <div id="collapseFour" class="accordion-collapse collapse" aria-labelledby="headingFour" data-bs-parent="#accordionExample">
@@ -147,15 +148,15 @@
                 <div class="row justify-content-between align-items-center">
                   <div class="col-md-5 px-3">
                     <p class="lead tutorial">
-                      One way to select a segment is to click in the cross-sectional view. The other is to open the layer side panel and head to the <strong>Seg.</strong> tab. At the bottom is a list of all the segments with the corresponding segment ids. Any segment can be selected by checking the box left to the <strong>id</strong> column. This segment list can be modified based on the properties&mdash;cell type, mitochondria count within a cell, size of the cell.<br><br>
-                       For example, segment ids of the <strong>HVC</strong> cell type can be selected by clicking the <i class="bi bi-plus-square-fill text-secondary"></i> left to <strong>#HVC</strong>. Moreover, segment ids of all the cell types except <strong>HVC</strong> can be selected by clicking the <i class="bi bi-dash-square-fill text-secondary"></i> left to <strong>#HVC</strong>. Multiple cell types can be excluded.<br><br>
-                       Filtering by the mitochondria count and cell size can be performed by clicking the <strong>numerical properties</strong> dropdown. Checking the property box allows to display the property value as a column in the segment list. The slider bar below the property can be adjusted to set the value. <br><br>
-                       All the properties can be modified simultaneously according to one's needs.
+                      One way to select a segment is to click in the cross-sectional view. The other is to open the layer side panel and head to the <strong>Seg.</strong> tab. At the bottom is a list of all the segments with the corresponding segment ids. Any segment can be selected by checking the box left to the <strong>id</strong> column. This segment list can be modified based on the properties&mdash;<strong>cell type</strong>, <strong>volume (µm³)</strong>, <strong>total path length (µm).</strong><br><br>
+                       For example, segment ids of the <strong>HVC</strong> cell type can be selected by clicking the <i class="bi bi-plus-square-fill text-secondary"></i> left to <strong>#HVC</strong>. Alternatively, segment ids of all the cell types except <strong>HVC</strong> can be selected by clicking the <i class="bi bi-dash-square-fill text-secondary"></i> left to <strong>#HVC</strong>. Multiple cell types can be excluded.<br><br>
+                       Filtering by the volume and total path length can be performed by clicking the <strong>numerical properties</strong> toggle. Checking the property box allows to display the property value as a column in the segment list. The slider bar below the property can be adjusted to set the filter range. <br><br>
+                       The properties can be modified concurrently according to one's needs.
                     </p>
                   </div>
                   <div class="col-md-7">
                     <figure>
-                      <!-- <img src="../static/neuro-navigation.gif" class="img-fluid border border-dark border-3" id="img4" alt="Filter segments by properties"> -->
+                      <img src="../static/neuro-navigation.gif" class="img-fluid border border-dark border-3" id="img4" alt="Filter segments by properties">
                       <img src="{{ static_url('neuro-navigation.gif') }}" class="img-fluid border border-dark border-3" id="img4" alt="Filter segments by properties">
                       <figcaption class="text-muted" style="text-align: center;">Click to expand</figcaption>
                     </figure>
@@ -164,7 +165,7 @@
               </div>
             </div>
           </div>
-        </div>
+        </div> -->
       
         <div class="modal" id="viewImg">
           <span class="close">&times;</span>
@@ -173,7 +174,7 @@
         </div>
     
         <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-MrcW6ZMFYlzcLA8Nl+NtUVF0sA7MsXsP1UyJoMp4YLEuNSfAP+JcXn/tWtIaxVXM" crossorigin="anonymous"></script>
-        <script type="module" src="{{ static_url('gif_modal.js') }}"></script>
+        <!-- <script type="module" src="{{ static_url('gif_modal.js') }}"></script> -->
         <!-- <script src="../static/gif_modal.js"></script> -->
       </body>
 
