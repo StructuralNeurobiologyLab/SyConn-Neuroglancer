@@ -71,7 +71,7 @@ class Server(object):
 
         tornado_app = self.app = tornado.web.Application(
             [
-                (SHARED_URL_REGEX, SharedURLHandler, dict(server=self)),
+                # (SHARED_URL_REGEX, SharedURLHandler, dict(server=self)),
                 (r'/', MainHandler),
                 (r'^/_generate_token', TokenHandler, dict(server=self)),
                 (r'^/index.html', MainHandler),
@@ -93,9 +93,9 @@ class Server(object):
                 # (SKELETON_PATH_REGEX, SkeletonHandler, dict(server=self)),
                 # (MESH_PATH_REGEX, MeshHandler, dict(server=self)),
                 (ACTION_PATH_REGEX, ActionHandler, dict(server=self)),
-                (KNOSSOS_METADATA_REGEX, KnossosMetadataHandler, dict(server=self)),
-                (KNOSSOS_METADATA_SCALES_REGEX, KnossosMetadataScalesHandler, dict(server=self)),
-                (KNOSSOS_VOLUME_REGEX, PrecompSnappyVolHandler, dict(server=self)),
+                # (KNOSSOS_METADATA_REGEX, KnossosMetadataHandler, dict(server=self)),
+                # (KNOSSOS_METADATA_SCALES_REGEX, KnossosMetadataScalesHandler, dict(server=self)),
+                # (KNOSSOS_VOLUME_REGEX, PrecompSnappyVolHandler, dict(server=self)),
             ] + sockjs_router.urls,
             # + [(r"/(.*)", tornado.web.FallbackHandler, dict(fallback=flask_app))],
             default_handler_class=NotFoundHandler,
@@ -127,7 +127,8 @@ class Server(object):
             hostname = host
 
         if config.dev_environ:
-            self.server_url = 'http://%s:%s' % (hostname, actual_port)
+            # self.server_url = 'http://%s:%s' % (hostname, actual_port)
+            self.server_url = 'http://localhost:9000'
         else:
             self.server_url = 'http://syconn.esc.mpcdf.mpg.de'
 
@@ -224,12 +225,8 @@ def start():
         thread.start()
         done.wait()
 
-# _register_viewer_lock = threading.Lock()
 
 def register_viewer(viewer):
-    # start()
-    # global_server.viewers[viewer.token] = viewer
-    # with _register_viewer_lock:
     logger.info(f"Viewer {viewer.token} is being attached")
     config.global_server.viewers[viewer.token] = viewer
 
@@ -239,9 +236,10 @@ def defer_callback(callback, *args, **kwargs):
     # start()
     config.global_server.ioloop.add_callback(lambda: callback(*args, **kwargs))
 
+
 if __name__ == "__main__":
     
-    ap = argparse.ArgumentParser()
+    ap = argparse.ArgumentParser(description="Starts the neuroglancer server")
     add_server_arguments(ap)
     args = ap.parse_args()
     set_server_bind_address(args.host, args.port)
@@ -254,8 +252,3 @@ if __name__ == "__main__":
     start()
 
     logger.info(f"Neuroglancer server running at {get_server_url()}")
-
-    # if args.dev:
-    #     logger.info("[DEV] Neuroglancer server running at {}".format(get_server_url()))
-    # else:
-    #     logger.info(f"[PROD] Neuroglancer server running at http://syconn.esc.mpcdf.mpg.de ({args.host}:{args.port})")

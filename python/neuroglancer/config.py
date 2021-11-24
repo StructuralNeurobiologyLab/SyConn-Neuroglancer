@@ -91,30 +91,30 @@ def initialize_server():
     root = "/ssdscratch/songbird"
     params = NeuroConfig()
 
-    logger.info("Initializing SyConn backend and Knossos datasets for j0251_rag_flat_Jan2019_v2")
+    # logger.info("Initializing SyConn backend and Knossos datasets for j0251_rag_flat_Jan2019_v2")
 
     params.acquisition = "j0251"
-    params.version = "rag_flat_Jan2019_v2"
+    # params.version = "rag_flat_Jan2019_v2"
 
-    global_params.wd = os.path.join(root, "j0251", "rag_flat_Jan2019_v2")
-    ssd = ss.SuperSegmentationDataset(global_params.config.working_dir, sso_locking=False, sso_caching=True)
-    sd = seg.SegmentationDataset(obj_type='syn_ssv', working_dir=global_params.config.working_dir)
-    params["backend"] = SyConnBackend(global_params.config.working_dir, logger)
-    params["segmentation"] = KnossosDataset(global_params.config.kd_seg_path)
-    params["segmentation_path"] = global_params.config.kd_seg_path
-    params["image"] = KnossosDataset("/wholebrain/songbird/j0251/j0251_72_clahe2")
+    # global_params.wd = os.path.join(root, "j0251", "rag_flat_Jan2019_v2")
+    # ssd = ss.SuperSegmentationDataset(global_params.config.working_dir, sso_locking=False, sso_caching=True)
+    # sd = seg.SegmentationDataset(obj_type='syn_ssv', working_dir=global_params.config.working_dir)
+    # params["backend"] = SyConnBackend(global_params.config.working_dir, logger)
+    # params["segmentation"] = KnossosDataset(global_params.config.kd_seg_path)
+    # params["segmentation_path"] = global_params.config.kd_seg_path
+    # params["image"] = KnossosDataset("/wholebrain/songbird/j0251/j0251_72_clahe2")
 
-    logger.info("Initializing npy arrays for j0251_rag_flat_Jan2019_v2")
-    params["ssvs"] = ssd.ssv_ids
-    params["celltypes"] = ssd.load_numpy_data("celltype_cnn_e3")
-    params["mis"] = ssd.load_numpy_data("mi")
-    params["sizes"] = ssd.load_numpy_data("size")
-    params["neuron_partners"] = sd.load_numpy_data("neuron_partners")
-    params["partner_axoness"] = sd.load_numpy_data("partner_axoness")
-    params["partner_celltypes"] = sd.load_numpy_data("partner_celltypes")
-    params["syn_probs"] = sd.load_numpy_data("syn_prob")
-    params["syn_areas"] = sd.load_numpy_data("mesh_area")
-    params["rep_coords"] = sd.load_numpy_data("rep_coord")
+    # logger.info("Initializing npy arrays for j0251_rag_flat_Jan2019_v2")
+    # params["ssvs"] = ssd.ssv_ids
+    # params["celltypes"] = ssd.load_numpy_data("celltype_cnn_e3")
+    # params["mis"] = ssd.load_numpy_data("mi")
+    # params["sizes"] = ssd.load_numpy_data("size")
+    # params["neuron_partners"] = sd.load_numpy_data("neuron_partners")
+    # params["partner_axoness"] = sd.load_numpy_data("partner_axoness")
+    # params["partner_celltypes"] = sd.load_numpy_data("partner_celltypes")
+    # params["syn_probs"] = sd.load_numpy_data("syn_prob")
+    # params["syn_areas"] = sd.load_numpy_data("mesh_area")
+    # params["rep_coords"] = sd.load_numpy_data("rep_coord")
 
     logger.info("Initializing SyConn backend and Knossos datasets for j0251_rag_flat_Jan2019_v3")
 
