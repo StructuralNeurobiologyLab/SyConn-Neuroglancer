@@ -198,12 +198,12 @@ class SockJSHandler(sockjs.tornado.SockJSConnection):
         viewer = self.viewer
         self.is_open = False
         if viewer is not None:
+            logger.debug(f"Dereferencing viewer instance {viewer.token}")
             for state_handler in six.itervalues(self._state_handlers):
                 state_handler.close()
             if self._credentials_handler is not None:
                 self._credentials_handler.close()
-        del self._state_handlers
-
-        logger.debug(f"Dereferencing viewer instance {viewer.token}")
+            del self._state_handlers
+        
         del config.global_server.viewers[viewer.token]
         del self.viewer
