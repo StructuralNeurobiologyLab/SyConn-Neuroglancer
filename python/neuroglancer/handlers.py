@@ -65,11 +65,13 @@ PRECOMPUTED_VOLUME_REGEX = r'^/volume/(?P<volume_type>[a-zA-Z]+)/(?P<scale_key>[
 
 PRECOMPUTED_SEG_PROPS_INFO_REGEX = r'^/properties/info$'
 
-KNOSSOS_METADATA_REGEX = r'^/(?P<acquisition>[^/]+)/(?P<version>[^/]+)/knossos.conf'  # TODO Andrei source for static seg metadata
+KNOSSOS_METADATA_REGEX = r'^/(?P<acquisition>[^/]+)/(?P<version>[^/]+)/knossos.pyk.conf'  # TODO Andrei source for static seg metadata
 
 KNOSSOS_METADATA_SCALES_REGEX = r'^/(?P<acquisition>[^/]+)/(?P<version>[^/]+)/(?P<scale_key>[^/]+)/knossos.conf'  # TODO Andrei source for static seg metadata
 
 KNOSSOS_VOLUME_REGEX = r'^/(?P<acquisition>[^/]+)/(?P<version>[^/]+)/(?P<mag>mag[0-9]+)/(?P<x>x[0-9]{4})/(?P<y>y[0-9]{4})/(?P<z>z[0-9]{4})/(?P<file>[^/]+)'
+
+KNOSSOS_TEST_REGEX = r'^/(?P<acquisition>[^/]+)/(?P<version>[^/]+)/(?P<mag>mag[0-9]+)'
 
 class BaseRequestHandler(tornado.web.RequestHandler):
     def initialize(self, server):
@@ -476,126 +478,3 @@ class SkeletonInfoHandler(BaseRequestHandler):
             self.send_error(404)
             return
         self.finish(json.dumps(vol.info(), default=json_encoder_default).encode())
-
-
-class KnossosMetadataHandler(BaseRequestHandler):
-    def get(self, acquisition, version):
-        file_path_pyk_conf = '/ssdscratch/songbird/j0251/segmentation/j0251_72_seg_20210127_agglo2/j0251_72_seg_20210127_agglo2.pyk.conf'
-        # file_path_conf = '/ssdscratch/songbird/j0251/segmentation/j0251_72_seg_20210127_agglo2/'
-
-        # TODO quality check acquisition and version
-
-        # TODO make this static in config.py
-
-        attr_dic = {}
-        with open(file_path_pyk_conf, 'r') as f:
-            for line in f:
-                words = line.split()
-                if words[0] == '[Dataset]' or words[0] == '_BaseName':
-                    continue
-                elif words[0] == '_DataScale':
-                    dataScales = []
-                    for i in range(7):
-                        dataScales.append([float(x) for x in words[2+i].split(",")[:3]])
-                    attr_dic[words[0][1:]] = dataScales[0]
-                    # attr_dic[words[0][1:]] = [float(x[0].split(",")) for x in words[2].split(",")]
-                elif words[0] == '_Extent':
-                    attr_dic[words[0][1:]] = [int(x) for x in words[2].split(",")]
-                elif words[0] == '_CubeSize':
-                    attr_dic[words[0][1:]] = [int(x) for x in words[2].split(",")]
-                elif words[0] == '_Axes':
-                    attr_dic[words[0][1:]] = [x for x in words[2].split(",")]
-                elif words[0] == '_Units':
-                    attr_dic[words[0][1:]] = [x for x in words[2].split(",")]
-                elif words[0] == '_DownsamplingFactors':
-                    downsamplingArray = []
-                    for i in range(7):
-                        downsamplingArray.append([float(x) for x in words[2+i].split(",")[:3]])
-                    attr_dic[words[0][1:]] = downsamplingArray
-                    # print(f'{downsamplingArray}')
-                else:
-                    attr_dic[words[0][1:]] = words[2]
-        attr_dic['Compression'] = {"type": "KNOSSOS"}
-        # attr_dic['downsamplingFactors'] = [[1,1,1],[2,2,2],[4,4,4],[8,8,8],[16,16,16],[32,32,32],[64,64,64]]
-
-
-        self.set_header('Content-type', 'application/json')
-        self.set_header('Cache-control', 'no-cache')  # TODO remove this afterwards
-        self.set_header('Content-encoding', 'knossos')
-
-        self.finish(json.dumps(attr_dic, default=json_encoder_default).encode())
-
-        # except Exception as e:
-        #     logger.error(f'Error retrieving metadata. {e}')
-        #     self.send_error(404)
-        #     return
-
-class KnossosMetadataScalesHandler(BaseRequestHandler):
-    def get(self, acquisition, version, scale_key):
-        file_path_pyk_conf = '/ssdscratch/songbird/j0251/segmentation/j0251_72_seg_20210127_agglo2/j0251_72_seg_20210127_agglo2.pyk.conf'
-        # file_path_conf = '/ssdscratch/songbird/j0251/segmentation/j0251_72_seg_20210127_agglo2/'
-
-        # TODO quality check acquisition and version
-
-        # TODO make this static in config.py
-
-        attr_dic = {}
-        with open(file_path_pyk_conf, 'r') as f:
-            for line in f:
-                words = line.split()
-                if words[0] == '[Dataset]' or words[0] == '_BaseName':
-                    continue
-                elif words[0] == '_DataScale':
-                    dataScales = []
-                    for i in range(7):
-                        dataScales.append([float(x) for x in words[2+i].split(",")[:3]])
-                    attr_dic[words[0][1:]] = dataScales[0]
-                    # attr_dic[words[0][1:]] = [float(x[0].split(",")) for x in words[2].split(",")]
-                elif words[0] == '_Extent':
-                    attr_dic[words[0][1:]] = [int(x) for x in words[2].split(",")]
-                elif words[0] == '_CubeSize':
-                    # attr_dic[words[0][1:]] = [int(x) for x in words[2].split(",")]
-                    attr_dic[words[0][1:]] = [128,128,128]
-                elif words[0] == '_Axes':
-                    attr_dic[words[0][1:]] = [x for x in words[2].split(",")]
-                elif words[0] == '_Units':
-                    attr_dic[words[0][1:]] = [x for x in words[2].split(",")]
-                elif words[0] == '_DownsamplingFactors':
-                    downsamplingArray = []
-                    for i in range(7):
-                        downsamplingArray.append([float(x) for x in words[2+i].split(",")[:3]])
-                    attr_dic[words[0][1:]] = downsamplingArray[0]
-                    # print(f'{downsamplingArray}')
-                else:
-                    attr_dic[words[0][1:]] = words[2]
-        attr_dic['Compression'] = {"type": "KNOSSOS"}
-        # attr_dic['downsamplingFactors'] = [[1,1,1],[2,2,2],[4,4,4],[8,8,8],[16,16,16],[32,32,32],[64,64,64]]
-
-
-        self.set_header('Content-type', 'application/json')
-        self.set_header('Cache-control', 'no-cache')  # TODO remove this afterwards
-        self.set_header('Content-encoding', 'knossos')
-
-        self.finish(json.dumps(attr_dic, default=json_encoder_default).encode())
-
-class PrecompSnappyVolHandler(BaseRequestHandler):
-    @asynchronous
-    def get(self, acquisition, version, mag, x , y ,z, file):
-        from neuroglancer.config import params
-        import zipfile
-        # print(f'mag {mag} \n x {x} \n y {y} \n z {z} \n file: {file}')
-
-        # filename = f'{params["segmentation"].experiment_name}_{params["segmentation"].name_mag_folder}{mag}_x{c[0]:04d}_y{c[1]:04d}_z{c[2]:04d}.{"seg.sz.zip" if from_overlay else params["segmentation"]._raw_ext}'
-        mag_num = re.findall(r'\d+', mag)[0]
-        print(mag_num)
-        path = f'{params["segmentation"].knossos_path}/{params["segmentation"].name_mag_folder}{mag_num}/x{x[1:]}/y{y[1:]}/z{z[1:]}/{file}'
-        # print(f'path {path}')
-
-        snappy_zipped_cube = None
-
-        if os.path.exists(path):
-            with open(path, 'rb') as f:
-                snappy_zipped_cube = f.read()
-
-        self.write(snappy_zipped_cube)
-        self.finish()  # finish request

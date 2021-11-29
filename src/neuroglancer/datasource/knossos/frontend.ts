@@ -223,20 +223,28 @@ function getMultiscaleMetadata(url: string, attributes: any): MultiscaleMetadata
   let rank = 3;
 
   //initialize attributes
-  let dimensions = [];
-  let axes = [];
+  let dimensions: Array<Float32Array> = [];
   let scales: Array<Float64Array> = [];
-  let chunk_sizes = [];
+  let chunk_sizes: Array<Uint32Array> = [];
   let downsamplingFactors = [];
+  let axes = [];
   let compression = '';
+  let dataType = '';
 
-  let dataType = 'uint64';                        //TODO change here
-  // if(url.split('/')[-1] === 'segmentation'){
-  //
-  // }
-  // else if(url.split('/')[-1] === 'image'){
-  //
-  // }
+  //determine raw/segmentation data
+  let {path} = parseUrl(url);
+  if (path.endsWith('/')) {
+    path = path.substring(0, path.length - 1);
+  }
+  split_url_path = path.split('/');
+  switch(split_url_path[split_url_path.length-1]){
+    case 'segmentation':
+      dataType = 'uint64';
+      break;
+    default:                              // 'image'
+      dataType = 'uint8';
+      break;
+  }
 
   // get string properties
   const lines = attributes.split('\n');
@@ -244,7 +252,6 @@ function getMultiscaleMetadata(url: string, attributes: any): MultiscaleMetadata
 
   for(let ind = 0; ind < lines.length; ++ind){
     let split_line = lines[ind].split(' ');
-    // console.log(split_line);
     switch (split_line[0]) {
       case '_DataScale':
         temp = lines[ind].split(',');
@@ -265,6 +272,16 @@ function getMultiscaleMetadata(url: string, attributes: any): MultiscaleMetadata
         rank = verifyRank(rank, dimensions.length);
         break;
       case '_BaseExt':
+        switch(split_line[2]){
+          case '.seg.sz.zip':
+            compression = 'KNOSSOS';
+            break;
+          case '.raw':
+            compression = 'RAW';
+            break;
+          default:
+            compression = 'RAW';
+        }
         if(split_line[2] === '.seg.sz.zip'){
           compression = 'KNOSSOS';
         }
@@ -280,6 +297,9 @@ function getMultiscaleMetadata(url: string, attributes: any): MultiscaleMetadata
 
   //set axes and units
   axes = getDefaultAxes(rank);
+  axes.forEach( e => {
+    console.log(`${e}`);
+  });                                 //TODO is this ok?
   units = getDefaultUnits(rank);
 
   // compute downsampling scales
@@ -293,26 +313,20 @@ function getMultiscaleMetadata(url: string, attributes: any): MultiscaleMetadata
     downsamplingFactors.push(factor);
   }
 
-  if (units === undefined) {
+  if (units.length == 0) {
     units = new Array(rank);
     units.fill(defaultUnit);
   }
-  // if (scales === undefined) {
-  //   scales = new Float64Array(rank);
-  //   scales.fill(1);
-  // }
-  // scales.forEach((elem) => {
-  //   elem.forEach(i => {console.log(`${i}`)});
-  // });
+  if (scales.length == 0) {
+    scales = new Float64Array(rank);
+    scales.fill(1);
+  }
 
   baseScale = [];
   for (let i = 0; i < rank; ++i) {
     baseScale.push(scaleByExp10(scales[0][i], -9));
   }
-  console.log(baseScale);
-  // if (axes === undefined) {
-  //   axes = getDefaultAxes(rank);
-  // }
+
   axes = ['x','y','z'];
   const modelSpace = makeCoordinateSpace({
     rank: rank,

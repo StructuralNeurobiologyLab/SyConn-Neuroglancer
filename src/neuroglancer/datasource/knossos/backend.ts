@@ -51,7 +51,7 @@ async function decodeChunk(
 (WithParameters(WithSharedCredentialsProviderCounterpart<SpecialProtocolCredentials>()(VolumeChunkSource), VolumeChunkSourceParameters)) {
   async download(chunk: VolumeChunk, cancellationToken: CancellationToken) {
     const {parameters} = this;
-    const {chunkGridPosition} = chunk;
+    const {chunkGridPosition, source} = chunk;
     let url = parameters.url;
     let chunkPosition = this.computeChunkBounds(chunk);
     let chunkDataSize = chunk.chunkDataSize!;
@@ -60,7 +60,18 @@ async function decodeChunk(
     let zfolder= String(chunkGridPosition[2]).padStart(4,'0');
     // don't forget the mags >10
     let mag_num = parameters.url.substr(parameters.url.length-5).replace(/^\D+/g, '');
-    url = `${parameters.url}/x${xfolder}/y${yfolder}/z${zfolder}/j0251_realigned_mag${mag_num}_x${xfolder}_y${yfolder}_z${zfolder}.seg.sz.zip`;
+    // set type of file
+    let type = "";
+    if(parameters.encoding == 2){
+      type = ".seg.sz.zip";
+    }
+    else if(parameters.encoding == 1){
+      type = ".gzip";
+    }
+    else{
+      type = ".raw";
+    }
+    url = `${parameters.url}/x${xfolder}/y${yfolder}/z${zfolder}/j0251_realigned_mag${mag_num}_x${xfolder}_y${yfolder}_z${zfolder}${type}`;
     const response = await cancellableFetchSpecialOk(
         this.credentialsProvider, url, {}, responseArrayBuffer, cancellationToken);
     console.log(`Full response length ${response.byteLength}`);
