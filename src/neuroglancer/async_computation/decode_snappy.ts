@@ -10,9 +10,6 @@ registerAsyncComputation(
     decodeSnappy,
     async function(data: ArrayBuffer) {
       const {entries} = await Unzipit.unzip(data)
-      console.log('unzipped');
-      console.log(entries);
       const result = new Uint8Array(Snappy.uncompress(await entries[Object.keys(entries)[0]].arrayBuffer()));
-      console.log('I am here in decode snappy');
       return { value: result, transfer: [result.buffer] };
     });
