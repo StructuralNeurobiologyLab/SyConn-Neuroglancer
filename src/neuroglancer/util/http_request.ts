@@ -79,6 +79,10 @@ export function responseJson(response: Response): Promise<any> {
   return response.json();
 }
 
+export function responseText(response: Response): Promise<string> {
+  return response.text();
+}
+
 export type ResponseTransform<T> = (response: Response) => Promise<T>;
 
 /**
