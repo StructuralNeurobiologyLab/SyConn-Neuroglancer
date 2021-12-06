@@ -73,6 +73,7 @@ KNOSSOS_VOLUME_REGEX = r'^/(?P<acquisition>[^/]+)/(?P<version>[^/]+)/(?P<mag>mag
 
 KNOSSOS_TEST_REGEX = r'^/(?P<acquisition>[^/]+)/(?P<version>[^/]+)/(?P<mag>mag[0-9]+)'
 
+
 class BaseRequestHandler(tornado.web.RequestHandler):
     def initialize(self, server):
         # self.set_secure_cookie("session_id", session_key, samesite="None")
@@ -119,7 +120,7 @@ class TokenHandler(BaseRequestHandler):
             return
 
         token = make_random_token()
-        pf = PropertyFilter(params, ['mi', 'vc', 'sj'], token)
+        pf = PropertyFilter(params, token, ['mi', 'vc', 'sj'])
         logger.debug(f"Viewer instances in memory: {len(config.global_server.viewers.keys())}")
 
         try:
@@ -142,7 +143,7 @@ class SharedURLHandler(BaseRequestHandler):
 
         # create new viewer with
         token = make_random_token()
-        pf = PropertyFilter(params, ['mi', 'vc', 'sj'], token)
+        pf = PropertyFilter(params, token, ['mi', 'vc', 'sj'])
         pf.viewer.set_state(state)
 
         # render the new viewer
@@ -347,7 +348,6 @@ class PrecomputedVolumeHandler(BaseRequestHandler):
 
             if volume_type == "segmentation":
                 compressed_data = cseg.compress(data, block_size=(8, 8, 8), order='F')
-                # self.finish(compressed_data)
                 self.finish(gzip.compress(compressed_data, compresslevel=6))
             else:
                 self.finish(gzip.compress(encode_raw(data), compresslevel=6))
@@ -413,7 +413,6 @@ def read_file(filename):
 
     return data
 
-
 def get_intervals(offset, size, cube_coord):
     cube_shape = np.array([256,256,256])
     global_end = offset + size
@@ -424,6 +423,7 @@ def get_intervals(offset, size, cube_coord):
     incube_end = global_end - (cube_coord + 1) * cube_shape
     incube_end = cube_shape * (incube_end >= 0) + incube_end * (incube_end < 0) # output contains this cube edge
     return out_start, out_end, incube_start, incube_end
+
 
 class PrecomputedSegPropsInfoHandler(BaseRequestHandler):
     @asynchronous
