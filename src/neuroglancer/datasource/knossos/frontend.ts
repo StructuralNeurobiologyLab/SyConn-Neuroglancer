@@ -137,7 +137,6 @@ class ScaleMetadata {
   constructor(dataType: string, dimensions: Float32Array, chunk_sizes: Uint32Array, downsamplingArray: Float32Array, compression: string) {
     this.dataType = verifyEnumString(dataType, DataType);
     this.size = dimensions.map((x,i) => x/downsamplingArray[i]);         // TODO support  anisotropic downsampling too
-    // console.log(this.size)
     this.chunkSize = chunk_sizes;
     let encoding: VolumeChunkEncoding|undefined;
     encoding = verifyEnumString(compression, VolumeChunkEncoding)
@@ -248,7 +247,6 @@ function getMultiscaleMetadata(url: string, attributes: any): MultiscaleMetadata
 
   // get string properties
   const lines = attributes.split('\n');
-  // console.log(lines);
 
   for(let ind = 0; ind < lines.length; ++ind){
     let split_line = lines[ind].split(' ');
@@ -279,12 +277,15 @@ function getMultiscaleMetadata(url: string, attributes: any): MultiscaleMetadata
           case '.raw':
             compression = 'RAW';
             break;
+          case '.jpg':
+            compression = 'JPEG';
+            break;
           default:
             compression = 'RAW';
         }
-        if(split_line[2] === '.seg.sz.zip'){
-          compression = 'KNOSSOS';
-        }
+        // if(split_line[2] === '.seg.sz.zip'){
+        //   compression = 'KNOSSOS';
+        // }
         break;
       case '_CubeSize':
         chunk_sizes = Uint32Array.from(split_line[2].split(',').map(Number));
@@ -297,9 +298,9 @@ function getMultiscaleMetadata(url: string, attributes: any): MultiscaleMetadata
 
   //set axes and units
   axes = getDefaultAxes(rank);
-  axes.forEach( e => {
-    console.log(`${e}`);
-  });                                 //TODO is this ok?
+  // axes.forEach( e => {
+  //   console.log(`${e}`);
+  // });                                 //TODO is this ok?
   units = getDefaultUnits(rank);
 
   // compute downsampling scales
@@ -335,7 +336,6 @@ function getMultiscaleMetadata(url: string, attributes: any): MultiscaleMetadata
     scales: baseScale,
     units: ["m","m","m"],
   });
-  console.log("Before return");
   return {
     modelSpace,
     url,
@@ -366,16 +366,11 @@ export class KnossosDataSource extends DataSourceProvider {
               parseSpecialUrl(providerUrl, options.credentialsManager);
           const attributes =
               await getAttributes(options.chunkManager, credentialsProvider, url, false);
-          // console.log(attributes);
           const multiscaleMetadata = getMultiscaleMetadata(url, attributes);
-          console.log(multiscaleMetadata);
           const scales =
               await getAllScales(options.chunkManager, credentialsProvider, multiscaleMetadata);
-          // console.log(scales);
           const volume = new MultiscaleVolumeChunkSource(
               options.chunkManager, credentialsProvider, multiscaleMetadata, scales);
-          
-          console.log(volume);
           return {
             modelTransform: makeIdentityTransform(volume.modelSpace),
             subsources: [
