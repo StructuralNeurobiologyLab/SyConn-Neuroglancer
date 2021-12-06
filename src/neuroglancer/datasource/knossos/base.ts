@@ -9,6 +9,7 @@ export enum VolumeChunkEncoding {
   RAW,
   GZIP,
   KNOSSOS,
+  JPEG,
 }
 
 export class VolumeChunkSourceParameters {
