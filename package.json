@@ -61,6 +61,8 @@
     "yargs": "^17.0.1"
   },
   "dependencies": {
+    "@evan/wasm": "^0.0.93",
+    "@saschazar/wasm-image-loader": "^4.0.0",
     "@types/codemirror": "5.60.0",
     "@types/gl-matrix": "^2.4.5",
     "@types/lodash": "^4.14.170",
@@ -70,6 +72,7 @@
     "@types/webpack-env": "^1.16.0",
     "codemirror": "^5.61.1",
     "esbuild": "^0.12.8",
+    "fs": "*",
     "gl-matrix": "3.1.0",
     "glsl-editor": "^1.0.0",
     "ikonate": "mikolajdobrucki/ikonate#a86b4107c6ec717e7877f880a930d1ccf0b59d89",
@@ -77,6 +80,7 @@
     "nifti-reader-js": "^0.5.4",
     "numcodecs": "^0.1.1",
     "pako": "^2.0.3",
+    "path": "^0.12.7",
     "snappyjs": "^0.6.1",
     "sockjs-client": "^1.5.1",
     "svg-inline-loader": "^0.8.2",

@@ -32,6 +32,7 @@ const DEFAULT_DATA_SOURCES = exports.DEFAULT_DATA_SOURCES = [
     asyncComputation: [
       'neuroglancer/async_computation/decode_snappy',
       'neuroglancer/async_computation/decode_gzip',
+      'neuroglancer/async_computation/decode_jpeg',
     ],
   },
   {
