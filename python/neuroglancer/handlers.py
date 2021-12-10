@@ -65,14 +65,6 @@ PRECOMPUTED_VOLUME_REGEX = r'^/volume/(?P<volume_type>[a-zA-Z]+)/(?P<scale_key>[
 
 PRECOMPUTED_SEG_PROPS_INFO_REGEX = r'^/properties/info$'
 
-KNOSSOS_METADATA_REGEX = r'^/(?P<acquisition>[^/]+)/(?P<version>[^/]+)/knossos.pyk.conf'  # TODO Andrei source for static seg metadata
-
-KNOSSOS_METADATA_SCALES_REGEX = r'^/(?P<acquisition>[^/]+)/(?P<version>[^/]+)/(?P<scale_key>[^/]+)/knossos.conf'  # TODO Andrei source for static seg metadata
-
-KNOSSOS_VOLUME_REGEX = r'^/(?P<acquisition>[^/]+)/(?P<version>[^/]+)/(?P<mag>mag[0-9]+)/(?P<x>x[0-9]{4})/(?P<y>y[0-9]{4})/(?P<z>z[0-9]{4})/(?P<file>[^/]+)'
-
-KNOSSOS_TEST_REGEX = r'^/(?P<acquisition>[^/]+)/(?P<version>[^/]+)/(?P<mag>mag[0-9]+)'
-
 
 class BaseRequestHandler(tornado.web.RequestHandler):
     def initialize(self, server):
@@ -408,7 +400,7 @@ def get_last_blocks(offset, size):
 
 
 def read_file(filename):
-    with open(os.path.join("/home/hashir", filename), "rb") as f:
+    with open(os.path.join("/home/neuro", filename), "rb") as f:
         data = f.read()
 
     return data
