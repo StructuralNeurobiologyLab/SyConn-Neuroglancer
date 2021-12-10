@@ -19,18 +19,21 @@ import {registerSharedObject} from 'neuroglancer/worker_rpc';
 import {VolumeChunkEncoding} from "neuroglancer/datasource/knossos/base";
 import {requestAsyncComputation} from "neuroglancer/async_computation/request";
 import {decodeGzip} from "neuroglancer/async_computation/decode_gzip_request";
+import {decodeJpegChunk} from 'neuroglancer/sliceview/backend_chunk_decoders/jpeg';
 import {decodeSnappy} from "neuroglancer/async_computation/decode_snappy_request";
 import {decodeRawChunk} from "neuroglancer/sliceview/backend_chunk_decoders/raw";
 import {
   cancellableFetchSpecialOk,
   SpecialProtocolCredentials
 } from "neuroglancer/util/special_protocol_request";
+import {decodeJpeg} from "../../async_computation/decode_jpeg_request";
 
 async function decodeChunk(
     chunk: VolumeChunk, cancellationToken: CancellationToken, response: ArrayBuffer,
     encoding: VolumeChunkEncoding) {
   // chunk.chunkDataSize = shape;
   let buffer = new Uint8Array(response, 0);
+  // var startTime = performance.now();
   switch (encoding) {
     case VolumeChunkEncoding.GZIP:
       buffer =
@@ -40,10 +43,23 @@ async function decodeChunk(
       buffer =
           await requestAsyncComputation(decodeSnappy, cancellationToken, [buffer.buffer], buffer);
       break;
+    case VolumeChunkEncoding.JPEG:
+      var startTime = performance.now();
+      const chunkDataSize = chunk.chunkDataSize!;
+      // chunkDataSize.forEach(elem => {
+      //   console.log(elem);
+      // });
+      buffer = await requestAsyncComputation(decodeJpeg, cancellationToken, [buffer.buffer], buffer, chunkDataSize[0],
+      chunkDataSize[1] * chunkDataSize[2], chunkDataSize[3] || 1, false);
+      var endTime = performance.now();
+      console.log(`Call to decodeJpeg took ${endTime - startTime} milliseconds`);
+      break;
   }
   await decodeRawChunk(
       chunk, cancellationToken, buffer.buffer, Endianness.BIG, buffer.byteOffset,
       buffer.byteLength);
+  // var endTime = performance.now();
+  // console.log(`Call to doSomething took ${endTime - startTime} milliseconds`);
 }
 
 
@@ -67,6 +83,9 @@ async function decodeChunk(
     }
     else if(parameters.encoding == 1){
       type = ".gzip";
+    }
+    else if(parameters.encoding == 3){
+      type = ".jpg";
     }
     else{
       type = ".raw";
