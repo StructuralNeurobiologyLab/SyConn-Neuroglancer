@@ -52,11 +52,10 @@ async function decodeChunk(
       buffer = await requestAsyncComputation(decodeJpeg, cancellationToken, [buffer.buffer], buffer, chunkDataSize[0],
       chunkDataSize[1] * chunkDataSize[2], chunkDataSize[3] || 1, false);
       var endTime = performance.now();
-      console.log(`Call to decodeJpeg took ${endTime - startTime} milliseconds`);
       break;
   }
   await decodeRawChunk(
-      chunk, cancellationToken, buffer.buffer, Endianness.BIG, buffer.byteOffset,
+      chunk, cancellationToken, buffer.buffer, Endianness.LITTLE, buffer.byteOffset,
       buffer.byteLength);
   // var endTime = performance.now();
   // console.log(`Call to doSomething took ${endTime - startTime} milliseconds`);
@@ -91,6 +90,7 @@ async function decodeChunk(
       type = ".raw";
     }
     url = `${parameters.url}/x${xfolder}/y${yfolder}/z${zfolder}/j0251_realigned_mag${mag_num}_x${xfolder}_y${yfolder}_z${zfolder}${type}`;
+    console.log(`url: ${url}`);
     const response = await cancellableFetchSpecialOk(
         this.credentialsProvider, url, {}, responseArrayBuffer, cancellationToken);
     console.log(`Full response length ${response.byteLength}`);
