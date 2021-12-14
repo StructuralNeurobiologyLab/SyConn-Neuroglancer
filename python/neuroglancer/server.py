@@ -124,9 +124,10 @@ class Server(object):
             hostname = host
 
         if config.dev_environ:
-            self.server_url = 'http://%s:%s' % (hostname, actual_port)
+            # self.server_url = 'http://%s:%s' % (hostname, actual_port)
+            self.server_url = 'http://localhost:9005'
         else:
-            self.server_url = 'http://syconn.esc.mpcdf.mpg.de'
+            self.server_url = 'https://syconn.esc.mpcdf.mpg.de'
 
     def get_volume(self, key):
         dot_index = key.find('.')
