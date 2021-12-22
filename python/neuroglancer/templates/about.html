@@ -38,20 +38,73 @@
 
       <div class="container m-3">
         <h3 class="display-6 header">Project</h3>
-        <!-- <p class="lead" style="text-align: justify;">SyConn-Neuroglancer viewer helps to visualize EM volumetric data (3D segmentation and raw volumes). It is based on a fork of the original <a href="#">google/neuroglancer</a> project developed and maintained by Jeremy Maitin-Shepard. It is capable of rendering line-segment based skeletons and triangular mesh representations. Additionally, it can also render organelle meshes that follow the same triangular representation.</p>
-        <p class="lead" style="text-align: justify;">The datasets used by the viewer are in the <a href="#">Knossos</a> format which allows reading the data chunk-wise and forwarding to the Neuroglancer client. The skeleton and mesh representations are made available by <a href="#">SyConn</a>, modified to the precomputed format for rendering. As part of the rendering options, one can change the visual look and feel of these cell objects directly from the browser.</p>
-        <p class="lead" style="text-align: justify;">The viewer also supports filtering the cells based on some properties. Currently, we support filtering by the cell type, number of mitochondria within a cell and the size of the cell. Additionally, one can request the synaptic partner of a cell based on the largest synapse area.</p> -->
         <p class="lead" style="text-align: justify;">SyConn-Neuroglancer provides web access to connectomic datasets processed with SyConn. It is based on a fork of the original <a href="https://github.com/google/neuroglancer">google/neuroglancer</a> project developed and maintained by Jeremy Maitin-Shepard at Google Research in Viren Jain’s team, with contributions from many other research organizations. We aim to keep our fork in sync with the upstream project and contribute as much as possible back to the original code base.</p> 
-        <p class="lead" style="text-align: justify;">SyConn web provides an analysis interface for simple connectomic queries, such as filtering of the neurons based on properties, the identification of pre - and postsynaptic neurons or the listing of different cell types and is continuously extended by us based on actual analysis needs. Please write to us if you are interested in a specific analysis that might be particularly useful.</p>
+        <p class="lead" style="text-align: justify;">SyConn web provides an analysis interface for simple connectomic queries, such as filtering of the neurons based on properties, the identification of pre- and postsynaptic neurons or the listing of different cell types and is continuously extended by us based on actual analysis needs. Please write to us if you are interested in a specific analysis that might be particularly useful.</p>
         
         <h3 class="display-6 header">Dataset</h3>
         <h4>j0251</h4>
         <p class="lead" style="text-align: justify;">
-        EM data acquisition: J. Kornfeld <br>
-        Alignment: J. Kornfeld & A. Pope (V. Jain's team, Google Research) <br>
-        SyConn processing: P. Schubert <br>
-        Cell & ultrastructure segmentation: M. Januszewski (V. Jain's team, Google Research)
+        EM data acquisition: <i>J. Kornfeld</i> <br>
+        Alignment: <i>J. Kornfeld & A. Pope (V. Jain's team, Google Research)</i> <br>
+        SyConn processing: <i>P. Schubert</i> <br>
+        Cell & ultrastructure segmentation: <i>M. Januszewski (V. Jain's team, Google Research)</i>
         </p>
+        <h4 id="properties">Properties</h4>
+        <p class="lead" style="text-align: justify;">The following properties are currently used for connectomic queries. The names are defined here as present in a neuroglancer viewer instance.</p>
+        <ol>
+          <li class="lead">Neuroglancer inline properties</li><br>
+          <dl class="row">
+            <dt class="col-sm-4">Cell-types</dt>
+            <dd class="col-sm-8">
+              <p>10 cell types available from the latest segmentation, labeled as:</p>
+              <p><kbd>exc, DA, MSN, LMAN, HVC, TAN, GP, int1, int2, int3</kbd></p>
+            </dd>
+
+            <dt class="col-sm-4">Volume</dt>
+            <dd class="col-sm-8">
+              <p>Cell volume in µm³</p>
+            </dd>
+
+            <dt class="col-sm-4">TotalPathLength</dt>
+            <dd class="col-sm-8">
+              <p>Perimeter of the cell. Sum of the compartment (axon and its terminals, dendrite and soma) path lengths in µm</p>
+            </dd>
+
+            <dt class="col-sm-4">MeanSynapseArea</dt>
+            <dd class="col-sm-8">Mean mesh area of the synapses for each cell in µm²</dd>
+
+            <dt class="col-sm-4">NSynapses</dt>
+            <dd class="col-sm-8">
+              <p>Number of synapses for each cell</p>
+            </dd>
+          </dl>
+          <li class="lead">Dynamic properties</li><br>
+          <dl class="row">
+            <dt class="col-sm-4">show-synaptic-partner-with-largest-area</dt>
+            <dd class="col-sm-8">
+              <p>Retrieve the synaptic partner of the selected cell with the largest synapse area and synapse probability >= 0.5. Additionally, this property only filters the <i>axo-dendritic</i> and <i>axo-somatic</i> synapses</p>
+              <p>Hotkey: <kbd>p</kbd></p>
+            </dd>
+
+            <dt class="col-sm-4">show-presynaptic-partners</dt>
+            <dd class="col-sm-8">
+              <p>Retrieve the presynaptic partners of the selected cell with synapse probability >= 0.5. This property filters the <i>axo-dendritic</i> and <i>axo-somatic</i> synapses with axon terminals (en-passant and terminal boutons) as well.</p>
+              <p>Hotkey: <kbd>ctrl + i</kbd></p>
+            </dd>
+
+            <dt class="col-sm-4">show-postsynaptic-partners</dt>
+            <dd class="col-sm-8">
+              <p>Retrieve the postsynaptic partners of the selected cell with synapse probability >= 0.5. This property filters the <i>axo-dendritic</i> and <i>axo-somatic</i> synapses with axon terminals (en-passant and terminal boutons) as well.</p>
+              <p>Hotkey: <kbd>ctrl + o</kbd></p>
+            </dd>
+
+            <dt class="col-sm-4">cycle-synaptic-partners</dt>
+            <dd class="col-sm-8">
+              <p>Cycle the retrieved pre- or postsynaptic partners and display the partner cells at the location of the synapse. Cycling starts from the synapse with the largest mesh area.</p>
+              <p>Hotkey: <kbd>ctrl + u</kbd></p>
+            </dd>
+          </dl>
+        </ol>
 
         <h3 class="display-6 header">The Team</h3>
         <p class="lead" style="text-align: justify;">This project is developed in the Kornfeld laboratory at the Max Planck Institute of Neurobiology in Martinsried, Germany. We would like to thank Eric Perlman for neuroglancer development support. 

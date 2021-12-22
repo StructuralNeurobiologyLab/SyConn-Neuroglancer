@@ -23,7 +23,8 @@ class NeuroConfig(object):
                     "partner_celltypes": None,
                     "syn_probs": None,
                     "syn_areas": None,
-                    "rep_coords": None 
+                    "rep_coords": None,
+                    "tpl_mask": None,
                 },
                 "rag_flat_Jan2019_v3": {
                     "backend": None,
@@ -38,7 +39,8 @@ class NeuroConfig(object):
                     "partner_celltypes": None,
                     "syn_probs": None,
                     "syn_areas": None,
-                    "rep_coords": None 
+                    "rep_coords": None,
+                    "tpl_mask": None
                 }
             }
         }
@@ -86,6 +88,7 @@ def initialize_server():
     from syconn.handler.logger import log_main as logger
     from knossos_utils import KnossosDataset
     import os
+    import numpy as np
 
     global params
     root = "/ssdscratch/songbird"
@@ -103,6 +106,14 @@ def initialize_server():
     params["segmentation_path"] = global_params.config.kd_seg_path
     params["image"] = KnossosDataset("/wholebrain/songbird/j0251/j0251_72_clahe2")
 
+    # axon_pl = np.load("/home/hashir/axon_path_lengths.npy")
+    # dendrite_pl = np.load("/home/hashir/dendrite_path_lengths.npy")
+    # soma_pl = np.load("/home/hashir/soma_path_lengths.npy")
+
+    # total_pl = axon_pl + dendrite_pl + soma_pl
+    # mask = total_pl > 150  # in µm
+    # new_ssv_ids = ssd.ssv_ids[mask]
+
     logger.info("Initializing npy arrays for j0251_rag_flat_Jan2019_v3")
     params["ssvs"] = ssd.ssv_ids
     params["celltypes"] = ssd.load_numpy_data("celltype_cnn_e3")
@@ -112,9 +123,11 @@ def initialize_server():
     params["partner_axoness"] = sd.load_numpy_data("partner_axoness")
     params["partner_celltypes"] = sd.load_numpy_data("partner_celltypes")
     params["syn_probs"] = sd.load_numpy_data("syn_prob")
-    params["syn_areas"] = sd.load_numpy_data("mesh_area")
+    params["mesh_areas"] = sd.load_numpy_data("mesh_area")
     params["rep_coords"] = sd.load_numpy_data("rep_coord")
 
+    params["tpl_mask"] = np.load("/home/hashir/tpl_mask.npy")
+    
     # info files for precomputed sources
     global volume_info, segment_properties_info
     volume_info = {
