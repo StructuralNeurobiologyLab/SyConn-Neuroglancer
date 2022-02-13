@@ -50,7 +50,7 @@ class Server(object):
         # self.viewers = weakref.WeakValueDictionary()
         self.viewers = {}
         # self.token = make_random_token()
-        self.thread_executor = concurrent.futures.ThreadPoolExecutor(max_workers=multiprocessing.cpu_count()*5, thread_name_prefix='neuroglancer-thread-')
+        self.thread_executor = concurrent.futures.ThreadPoolExecutor(max_workers=multiprocessing.cpu_count(), thread_name_prefix='neuroglancer-thread-')
         # self.proc_executor = concurrent.futures.ProcessPoolExecutor(max_workers=multiprocessing.cpu_count())
 
         self.ioloop = ioloop
