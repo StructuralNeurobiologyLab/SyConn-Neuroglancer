@@ -10,8 +10,9 @@
         <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
         <link href="https://fonts.googleapis.com/css2?family=STIX+Two+Text&family=Atkinson+Hyperlegible&family=Georama&family=Roboto+Slab&display=swap" rel="stylesheet">
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.5.0/font/bootstrap-icons.css">
-        <!-- <link rel="stylesheet" href="{{ static_url('favicon.ico') }}"> -->
-        <link rel="shortcut icon" href="../static/favicon.ico">
+        <link rel="stylesheet" href="{{ static_url('favicon.ico') }}">
+        <title>Tutorials | SyConn-Neuroglancer</title>
+        <!-- <link rel="shortcut icon" href="../static/favicon.ico"> -->
 		<meta charset=utf-8>
 	</head>
 
@@ -30,7 +31,7 @@
                     </div>
                 </div>
                 <a class="navbar-brand" href="https://www.neuro.mpg.de/en">
-                    <img src="{{ static_url('mpi-logo.png') }}" alt="MP Neurobiology image" height="60" class="d-inline-block align-text-top center">
+                    <img src="{{ static_url('mpi-bi-logo.webp') }}" alt="MP Neurobiology image" height="80" class="d-inline-block align-text-top center">
                     <!-- <img src="../static/mpi-logo.png" alt="MP Neurobiology image" height="60" class="d-inline-block align-text-top center"> -->
                 </a>
             </div>
@@ -45,37 +46,37 @@
         <div class="accordion m-2" id="accordionExample">
           
           <!-- Tutorial 1 -->
-          <!-- <div class="accordion-item">
+          <div class="accordion-item">
             <h2 class="accordion-header" id="headingOne">
               <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseOne" aria-expanded="true" aria-controls="collapseOne">
-                <h1 class="display-6 tutorial-header"><i class="bi bi-shield-fill-check"></i> Launching a viewer</h1> 
+                <h1 class="display-6 tutorial-header"><i class="bi bi-play-circle-fill"></i> Launching a viewer</h1> 
               </button>
             </h2>
             <div id="collapseOne" class="accordion-collapse collapse" aria-labelledby="headingOne" data-bs-parent="#accordionExample">
               <div class="accordion-body">
                 <div class="row justify-content-between align-items-center">
                   <div class="col-md-5 px-3">
-                    <p class="lead tutorial">This is pretty straightforward. Just select a dataset and version from the dropdowns and click the Submit button to launch the viewer.<br><br>
-                    Currently, only the <strong>j0251</strong> dataset with versions <strong>rag_flat_Jan2019_v2</strong> and <strong>rag_flat_Jan2019_v3</strong> is available. More datasets will be added soon!</p>
+                    <p class="lead tutorial">Select a dataset and version from the dropdowns and click the Submit button to launch the viewer.<br>
+                    There are two datasets available: </p>
+                    <ol class="lead tutorial">
+                      <li><kbd>j0251</kbd></li>
+                      <li><kbd>j0126</kbd></li>
+                    </ol>
+                    <p class="lead tutorial">More information is available <a href="https://syconn.esc.mpcdf.mpg.de/about.html#dataset" target="_blank">here.</a></p>
                   </div>
                   <div class="col-md-7">
-                    <figure>
-                      <img src="../static/neuro-welcome.gif" class="img-fluid border border-dark border-3" id="img1" alt="Dataset selection">
-                      <img src="{{ static_url('neuro-welcome.gif') }}" class="img-fluid border border-dark border-3" id="img1" alt="Dataset selection">
-                      <figcaption class="text-muted" style="text-align: center;">Click to expand</figcaption>
-                    </figure>
-                    
+                    <iframe width="600" height="350" src="https://www.youtube.com/embed/fW6a75H-xjc" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
                   </div>
                 </div>
               </div>
             </div>
-          </div> -->
+          </div>
     
           <!-- Tutorial 2 -->
           <div class="accordion-item">
             <h2 class="accordion-header" id="headingTwo">
               <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseTwo" aria-expanded="false" aria-controls="collapseTwo">
-                <h1 class="display-6 tutorial-header"><i class="bi bi-shield-fill-check"></i> Panels, controls and layers</h1>
+                <h1 class="display-6 tutorial-header"><i class="bi bi-play-circle-fill"></i> Panels, controls and layers</h1>
               </button>
             </h2>
             <div id="collapseTwo" class="accordion-collapse collapse" aria-labelledby="headingTwo" data-bs-parent="#accordionExample">
@@ -90,14 +91,10 @@
                       <li><img src="{{ static_url('side_panel.PNG') }}" alt="settings panel" height="19" class="rounded"> : layer settings panel (displays the data source, rendering options, segment list and annotations)</li>
                       <li><img src="{{ static_url('layer_list_panel.PNG') }}" alt="layer list panel" height="18" class="rounded"> : layer list panel (displays all the layers for archiving or toggling visibility)</li>
                     </ul>
-                    <p class="lead tutorial">Neuroglancer is easy to use with a mouse but the keyboard shortcuts come in handy to quickly jump through layers. For example, layers can be toggled by pressing <kbd>layer_number</kbd> on the keyboard (not numpad) and layer side panel can be opened by hitting <kbd>Ctrl+layer_number</kbd> or <kbd>Ctrl+left_click</kbd></p>
+                    <p class="lead tutorial">Neuroglancer can be used with the mouse and the keyboard shortcuts come in handy to quickly jump through layers. A full range of these shortcuts is available in the help panel. </p>
                   </div>
                   <div class="col-md-7">
-                    <figure>
-                      <!-- <img src="../static/neuro-navigation.gif" class="img-fluid border border-dark border-3" id="img2" alt="Panels, layers and controls"> -->
-                      <img src="{{ static_url('neuro-navigation.gif') }}" class="img-fluid border border-dark border-3" id="img2" alt="Panels, layers and controls">
-                      <figcaption class="text-muted" style="text-align: center;">Click to expand</figcaption>
-                    </figure>
+                    <iframe width="600" height="350" src="https://www.youtube.com/embed/3oWyW84U3MI?modestbranding=1&rel=0&loop=1" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
                   </div>
                 </div>
               </div>
@@ -108,7 +105,7 @@
           <div class="accordion-item">
             <h2 class="accordion-header" id="headingThree">
               <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseThree" aria-expanded="false" aria-controls="collapseThree">
-                <h1 class="display-6 tutorial-header"><i class="bi bi-shield-fill-check"></i> Displaying cells and sub-cellular objects</h1>
+                <h1 class="display-6 tutorial-header"><i class="bi bi-play-circle-fill"></i> Retrieve cell segments and ultrastructures</h1>
               </button>
             </h2>
             <div id="collapseThree" class="accordion-collapse collapse" aria-labelledby="headingThree" data-bs-parent="#accordionExample">
@@ -116,20 +113,17 @@
                 <div class="row justify-content-between align-items-center">
                   <div class="col-md-5 px-3">
                     <p class="lead tutorial">
-                      Neuroglancer has four viewports by default. Starting from left, in the clockwise-direction, these are the <strong>XY</strong>, <strong>XZ</strong> and <strong>YZ</strong> cross-sectional views and the <strong>3D</strong> view. A segment (from the segmentation layer) is a coloured area visible in the three cross-sectional views that can be selected to display its cell objects (if available).</p>
+                      Neuroglancer has four viewports visible by default. Starting from the left, in the clockwise-direction, these are the <strong>XY</strong>, <strong>XZ</strong> and <strong>YZ</strong> cross-sectional views and the <strong>3D</strong> view. A segment (from the segmentation layer) is a coloured area visible in the three cross-sectional views that can be selected to retrieve the segmentation objects (if available). Use the following to retrieve cells:</p>
                     <ul class="lead tutorial"> 
                       <li><kbd>left-click</kbd> to select the segment</li>
                       <li><kbd>double-click</kbd> to request the cell objects (skeleton, cell mesh and organelle meshes)</li>
                       <li><kbd>x</kbd> to clear all segments</li>
+                      <li><kbd>ctrl+x</kbd> to reset the viewer state</li>
                     </ul>
-                    <p class="lead tutorial">With the layer toggling, one can choose to see only one cell object or a combination thereof.</p>
+                    <p class="lead tutorial">With the layer toggling, one can choose to see individual or combinations of ultrastructures.</p>
                   </div>
                   <div class="col-md-7">
-                    <figure>
-                      <!-- <img src="../static/neuro-render.gif" class="img-fluid border border-dark border-3" id="img3" alt="Segments"> -->
-                      <img src="{{ static_url('neuro-render.gif') }}" class="img-fluid border border-dark border-3" id="img3" alt="Segments">
-                      <figcaption class="text-muted" style="text-align: center;">Click to expand</figcaption>
-                    </figure>
+                    <iframe width="600" height="350" src="https://www.youtube.com/embed/3gy4S3HsN1A" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
                   </div>
                 </div>
               </div>
@@ -137,10 +131,10 @@
           </div>
     
           <!-- Tutorial 4 -->
-          <!-- <div class="accordion-item">
+          <div class="accordion-item">
             <h2 class="accordion-header" id="headingFour">
               <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseFour" aria-expanded="false" aria-controls="collapseFour">
-                <h1 class="display-6 tutorial-header"><i class="bi bi-shield-fill-check"></i> Filtering cells</h1>
+                <h1 class="display-6 tutorial-header"><i class="bi bi-play-circle-fill"></i> Filter cells using properties</h1>
               </button>
             </h2>
             <div id="collapseFour" class="accordion-collapse collapse" aria-labelledby="headingFour" data-bs-parent="#accordionExample">
@@ -148,24 +142,85 @@
                 <div class="row justify-content-between align-items-center">
                   <div class="col-md-5 px-3">
                     <p class="lead tutorial">
-                      One way to select a segment is to click in the cross-sectional view. The other is to open the layer side panel and head to the <strong>Seg.</strong> tab. At the bottom is a list of all the segments with the corresponding segment ids. Any segment can be selected by checking the box left to the <strong>id</strong> column. This segment list can be modified based on the properties&mdash;<strong>cell type</strong>, <strong>volume (µm³)</strong>, <strong>total path length (µm).</strong><br><br>
-                       For example, segment ids of the <strong>HVC</strong> cell type can be selected by clicking the <i class="bi bi-plus-square-fill text-secondary"></i> left to <strong>#HVC</strong>. Alternatively, segment ids of all the cell types except <strong>HVC</strong> can be selected by clicking the <i class="bi bi-dash-square-fill text-secondary"></i> left to <strong>#HVC</strong>. Multiple cell types can be excluded.<br><br>
-                       Filtering by the volume and total path length can be performed by clicking the <strong>numerical properties</strong> toggle. Checking the property box allows to display the property value as a column in the segment list. The slider bar below the property can be adjusted to set the filter range. <br><br>
-                       The properties can be modified concurrently according to one's needs.
+                      One way to select a segment is to click it in one of the cross-sectional views. The other is to open the layer side panel and head to the <strong>Seg.</strong> tab. There will be a segment list at the bottom. Any segment can be selected by checking the box left to the <strong>id</strong> column. This segment list can be modified based on some properties
+                      . Currently, we support the following properties (more information is available <a href="https://syconn.esc.mpcdf.mpg.de/about.html#properties" target="_blank">here</a>):
+                      <ul class="lead tutorial">
+                        <li><strong>Cell type</strong></li>
+                        <li><strong>Volume (µm³)</strong></li>
+                        <li><strong>Total path length of the cell (µm).</strong></li>
+                        <li><strong>Mean synapse mesh area per cell (µm²).</strong></li>
+                        <li><strong>Number of synapses per cell.</strong></li>
+                      </ul>
+                    </p>
+                    <p class="lead tutorial">
+                      For example, cells of the <strong>HVC</strong> cell type can be selected by clicking the <i class="bi bi-plus-square-fill text-secondary"></i> left to <strong>#HVC</strong>. Alternatively, segment ids of all the cell types except <strong>HVC</strong> can be selected by clicking the <i class="bi bi-dash-square-fill text-secondary"></i> left to <strong>#HVC</strong>. Multiple cell types can be excluded.<br><br>
+                      Filtering by the other properties can be performed by clicking the <strong>numerical properties</strong> toggle. For each numerical property, checking the property box allows to display the property value as a column in the segment list. The slider bar below the property can be adjusted to set the filter range. <br><br>
+                      Multiple properties can be modified concurrently according to the requirement.
                     </p>
                   </div>
                   <div class="col-md-7">
-                    <figure>
-                      <img src="../static/neuro-navigation.gif" class="img-fluid border border-dark border-3" id="img4" alt="Filter segments by properties">
-                      <img src="{{ static_url('neuro-navigation.gif') }}" class="img-fluid border border-dark border-3" id="img4" alt="Filter segments by properties">
-                      <figcaption class="text-muted" style="text-align: center;">Click to expand</figcaption>
-                    </figure>
+                    <iframe width="600" height="350" src="https://www.youtube.com/embed/nHbCH3zcYwA" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          <!-- Tutorial 5 -->
+          <div class="accordion-item">
+            <h2 class="accordion-header" id="headingFive">
+              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseFive" aria-expanded="true" aria-controls="collapseFive">
+                <h1 class="display-6 tutorial-header"><i class="bi bi-play-circle-fill"></i> Show synaptic partner with the largest synapse</h1> 
+              </button>
+            </h2>
+            <div id="collapseFive" class="accordion-collapse collapse" aria-labelledby="headingOne" data-bs-parent="#accordionExample">
+              <div class="accordion-body">
+                <div class="row justify-content-between align-items-center">
+                  <div class="col-md-5 px-3">
+                    <p class="lead tutorial">In addition to the inline properties, there are dynamic properties that can be triggered with a hotkey. One such property is the <strong>show-synaptic-partner-with-largest-area</strong> that retrieves the synaptic partner of the currently selected cell based on the following criteria:</p>
+                    <ul class="lead tutorial">
+                      <li>Synapse should be either axo-dendritic or axo-somatic</li>
+                      <li>Synapse probability should be greater than <strong>50%</strong></li>
+                      <li>Synaptic partner with the largest synapse area is retrieved</li>
+                    </ul>
+                    <p class="lead tutorial">This property can be triggered by pressing <kbd>p</kbd>. The resulting synapse is seen immediately in the 4 viewports and additional information is shown in the status message on the bottom left side.</p>
+                    </p>
+                  </div>
+                  <div class="col-md-7">
+                    <iframe width="600" height="350" src="https://www.youtube.com/embed/XGEgNrRX1eM" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
                   </div>
                 </div>
               </div>
             </div>
           </div>
-        </div> -->
+
+          <!-- Tutorial 6 -->
+          <div class="accordion-item">
+            <h2 class="accordion-header" id="headingSix">
+              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseSix" aria-expanded="true" aria-controls="collapseSix">
+                <h1 class="display-6 tutorial-header"><i class="bi bi-play-circle-fill"></i> Show presynaptic and postsynaptic partners</h1> 
+              </button>
+            </h2>
+            <div id="collapseSix" class="accordion-collapse collapse" aria-labelledby="headingOne" data-bs-parent="#accordionExample">
+              <div class="accordion-body">
+                <div class="row justify-content-between align-items-center">
+                  <div class="col-md-5 px-3">
+                    <p class="lead tutorial">Additionally, there are two useful dynamic properties&mdash;<strong>show-presynaptic-partners</strong> and <strong>show-postsynaptic-partners</strong> that are based on the following criteria:</p>
+                    <ul class="lead tutorial">
+                      <li>Synapse should be either axo-dendritic or axo-somatic (with en-passant boutons and terminal boutons)</li>
+                      <li>Synapse probability should be greater than <strong>50%</strong></li>
+                      <li>Both pre- and postsynaptic partners with total path length of the cell less than <strong>150µm</strong> are filtered out.</li>
+                    </ul>
+                    <p class="lead tutorial">The presynaptic partners can be triggered by pressing <kbd>ctrl+i</kbd> while the postsynaptic partners are triggered by pressing <kbd>ctrl+o</kbd>. In this case as well, the status message shows information about the property.</p>
+                    <p class="lead tutorial">To view the pre- or postsynaptic partners, press <kbd>ctrl+u</kbd>. This cycles through the list of retrieved partners and displays the synapse in decreasing order of synapse area.</p>
+                  </div>
+                  <div class="col-md-7">
+                    <iframe width="600" height="350" src="https://www.youtube.com/embed/_QCiEsQtqAg" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
       
         <div class="modal" id="viewImg">
           <span class="close">&times;</span>
