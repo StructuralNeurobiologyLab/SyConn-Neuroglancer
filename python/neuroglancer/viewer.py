@@ -24,7 +24,6 @@ class _ViewerHelper(object):
 
     def __init__(self, **kwargs):
         super(_ViewerHelper, self).__init__(**kwargs)
-        print(f"In viewer helper {config.global_server}")
         server.register_viewer(self)
 
     def defer_callback(self, callback, *args, **kwargs):
@@ -43,7 +42,6 @@ class _ViewerHelper(object):
 class Viewer(viewer_base.ViewerBase, _ViewerHelper):
     def __init__(self, **kwargs):
         super(Viewer, self).__init__(**kwargs)
-        print(f"In viewer {config.global_server}")
         server.register_viewer(self)
 
     def get_viewer_url(self):
