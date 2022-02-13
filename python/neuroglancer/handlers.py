@@ -49,9 +49,9 @@ STATIC_PATH_REGEX = r'^/v/(?P<viewer_token>[^/]+)/(?P<path>(?:[a-zA-Z0-9_\-][a-z
 
 ACTION_PATH_REGEX = r'^/action/(?P<viewer_token>[^/]+)$'
 
-PRECOMPUTED_SKELETON_INFO_REGEX = r'^/skeletons/info$'
+PRECOMPUTED_SKELETON_INFO_REGEX = r'^/(?P<acquisition>[^/]+)_(?P<version>[^/]+)/skeletons/info$'
 
-PRECOMPUTED_SKELETON_REGEX = r'^/skeletons/(?P<ssv_id>[0-9]+)$'
+PRECOMPUTED_SKELETON_REGEX = r'^/(?P<acquisition>[^/]+)_(?P<version>[^/]+)/skeletons/(?P<ssv_id>[0-9]+)$'
 
 PRECOMPUTED_MESH_INFO_REGEX = r'^/(?P<obj_type>[a-z]{2})/info$'
 
@@ -63,7 +63,7 @@ PRECOMPUTED_VOLUME_INFO_REGEX = r'^/volume/(?P<volume_type>[a-zA-Z]+)/info$'
 
 PRECOMPUTED_VOLUME_REGEX = r'^/volume/(?P<volume_type>[a-zA-Z]+)/(?P<scale_key>[^/]+)/(?P<chunk>[^/]+)$'
 
-PRECOMPUTED_SEG_PROPS_INFO_REGEX = r'^/properties/info$'
+PRECOMPUTED_SEG_PROPS_INFO_REGEX = r'^/(?P<acquisition>[^/]+)_(?P<version>[^/]+)/properties/info$'
 
 
 class BaseRequestHandler(tornado.web.RequestHandler):
@@ -80,7 +80,7 @@ class MainHandler(tornado.web.RequestHandler):
 class NotFoundHandler(tornado.web.RequestHandler):
     def get(self):  # for all methods
         logger.info('In Not Found Handler')
-        logger.info(self.request.uri)
+        logger.debug(f"URI not found: {self.request.uri}")
         self.render("notFound.html")
 
 
@@ -103,16 +103,40 @@ class TokenHandler(BaseRequestHandler):
         try:
             params.acquisition = self.get_argument("acq_name")
             params.version = self.get_argument("data_version")
-            print(params.acquisition)
-            print(params.version)
 
         except tornado.web.MissingArgumentError as e:
             logger.error(e.args[0])
             self.send_error(404)
             return
 
+        if config.dev_environ:
+            source = f'http://localhost:9005'  
+        
+        else:
+            source = f'https://syconn.esc.mpcdf.mpg.de'
+
         token = make_random_token()
-        pf = PropertyFilter(params, token, ['mi', 'vc', 'sj'])
+        
+        use_tpl_mask = True
+        if params.version == "rag_flat_Jan2019_v3":
+            logger.debug("Using j0251_rag_flat_Jan2019_v3")
+            # sharded precomputed
+            seg_src = 'precomputed://' + source + f'/{params.acquisition}_{params.version}/segmentation'
+            img_src = 'precomputed://' + source + f'/{params.acquisition}_{params.version}/image/test'
+            
+        elif params.version == "72_seg_20210127_agglo2":
+            logger.debug("Using j0251_72_seg_20210127_agglo2")
+            # sharded precomputed
+            seg_src = 'precomputed://' + source + f'/{params.acquisition}_{params.version}/segmentation'
+            img_src = 'precomputed://' + source + f'/{params.acquisition}_{params.version}/image'
+
+        else:  # for j0126
+            logger.debug("Using j0126")
+            seg_src = 'precomputed://' + source + '/volume/segmentation'  # unsharded precomputed segmentation
+            img_src = 'precomputed://' + source + '/j0126/volume/image'  # sharded precomputed image
+            use_tpl_mask = False
+
+        pf = PropertyFilter(params, token, ['mi', 'vc', 'sj'], use_tpl_mask=use_tpl_mask, seg_src=seg_src, img_src=img_src)
         logger.debug(f"Viewer instances in memory: {len(config.global_server.viewers.keys())}")
 
         try:
@@ -133,10 +157,36 @@ class SharedURLHandler(BaseRequestHandler):
         params.acquisition = acquisition
         params.version = version
 
+        if config.dev_environ:
+            source = f'http://localhost:9005'  
+        
+        else:
+            source = f'https://syconn.esc.mpcdf.mpg.de'
+
         # create new viewer with
         token = make_random_token()
-        pf = PropertyFilter(params, token, ['mi', 'vc', 'sj'])
+
+        use_tpl_mask = True
+        if params.version == "j0251_rag_flat_Jan2019_v3":
+            logger.debug("Shared URL: Using j0251_rag_flat_Jan2019_v3")
+            seg_src = 'precomputed://' + source + f'/{params.version}/segmentation'
+            img_src = 'precomputed://' + source + f'/{params.version}/image/test'
+
+        elif params.version == "j0251_72_seg_20210127_agglo2":
+            logger.debug("Shared URL: Using j0251_72_seg_20210127_agglo2")
+            seg_src = 'precomputed://' + source + f'/{params.version}/segmentation'
+            img_src = 'precomputed://' + source + f'/{params.version}/image'
+
+        else:  # for j0126
+            logger.debug("Shared URL: Using j0126")
+            seg_src = 'precomputed://' + source + '/volume/segmentation'
+            img_src = 'precomputed://' + source + '/j0126/volume/image'
+            use_tpl_mask = False  # total path length filtering is not required
+
+        pf = PropertyFilter(params, token, ['mi', 'vc', 'sj'], use_tpl_mask=use_tpl_mask, seg_src=seg_src, img_src=img_src)
         pf.viewer.set_state(state)
+
+        logger.debug(f"Viewer instances in memory: {len(config.global_server.viewers.keys())}")
 
         # render the new viewer
         try:
@@ -147,7 +197,7 @@ class SharedURLHandler(BaseRequestHandler):
 
 
 class PrecomputedSkeletonInfoHandler(BaseRequestHandler):
-    def get(self):
+    def get(self, acquisition, version):
         try:
             info = {
                 "@type": "neuroglancer_skeletons",
@@ -180,7 +230,7 @@ class PrecomputedSkeletonInfoHandler(BaseRequestHandler):
 
 class PrecomputedSkeletonHandler(BaseRequestHandler):
     @asynchronous
-    def get(self, ssv_id):
+    def get(self, acquisition, version, ssv_id):
         from neuroglancer.config import params
         def handle_result(f):
             try:
@@ -192,7 +242,7 @@ class PrecomputedSkeletonHandler(BaseRequestHandler):
 
             # self.server.thread_executor.shutdown()
 
-            if encoded_skeleton == -1:
+            if len(encoded_skeleton) == 0:
                 logger.error('Skeleton not available for ssv_id: {}'.format(ssv_id))
                 self.send_error(404)
                 return
@@ -201,8 +251,12 @@ class PrecomputedSkeletonHandler(BaseRequestHandler):
             self.set_header('Content-encoding', 'gzip')
             self.finish(gzip.compress(encoded_skeleton, compresslevel=6))
 
+        reverse_lookup = False
+        if acquisition == "j0126":
+            reverse_lookup = True
+
         future = self.server.thread_executor.submit(
-            get_encoded_skeleton, params["backend"], ssv_id, params["segmentation"].scale
+            get_encoded_skeleton, params["ssd"], ssv_id, reverse_lookup
         )
 
         tornado.concurrent.future_add_done_callback(
@@ -260,7 +314,7 @@ class PrecomputedMeshHandler(BaseRequestHandler):
                 self.send_error(500, message=e.args[0])
                 return
 
-            if encoded_mesh == -1:
+            if len(encoded_mesh) == 0:
                 logger.error('{} mesh not available for ssv_id: {}'.format(obj_type, ssv_id))
                 self.send_error(404)
                 return
@@ -269,8 +323,12 @@ class PrecomputedMeshHandler(BaseRequestHandler):
             self.set_header('Content-encoding', 'gzip')
             self.finish(gzip.compress(encoded_mesh, compresslevel=6))
 
+        reverse_lookup = False
+        if params.acquisition == "j0126":
+            reverse_lookup = True
+
         future = self.server.thread_executor.submit(
-            get_encoded_mesh, params["backend"], ssv_id, obj_type
+            get_encoded_mesh, params["ssd"], ssv_id, obj_type, reverse_lookup
         )
 
         tornado.concurrent.future_add_done_callback(
@@ -283,7 +341,8 @@ class PrecomputedVolumeInfoHandler(BaseRequestHandler):
     def get(self, volume_type):
         from neuroglancer.config import params
         try:
-            info = config.volume_info
+            # logger.debug(f"Retrieving info for {params["acquisition"]}_{version}")
+            info = params["info"]
             info["type"] = volume_type
 
             if volume_type == "segmentation":
@@ -322,7 +381,6 @@ class PrecomputedVolumeHandler(BaseRequestHandler):
         end_offset = tuple(np.s_[xEnd * mag, yEnd * mag, zEnd * mag])
 
         size = tuple(np.subtract(end_offset, begin_offset))
-        # print(begin_offset, size, scale_key)
 
         kwargs = dict(offset=begin_offset, size=size, mag=mag)
 
@@ -331,7 +389,7 @@ class PrecomputedVolumeHandler(BaseRequestHandler):
                 data = f.result()
 
             except Exception as e:
-                logger.error(e.args[0])
+                logger.error(e, e.args[0])
                 self.send_error(500, message=e.args[0])
                 return
 
@@ -387,7 +445,6 @@ def scale_ratio(mag, base_mag):  # ratio between scale in mag and scale in base_
 
 def mag_scale(mag):  # get scale in specific mag
     index = mag - 1 if is_mag_ordinal(mag) else int(np.log2(mag))
-    # print(index)
     return scales[index]
 
 
@@ -399,8 +456,8 @@ def get_last_blocks(offset, size):
     return ((offset + size - 1) // cube_shape) + 1
 
 
-def read_file(filename):
-    with open(os.path.join("/home/neuro", filename), "rb") as f:
+def read_file(params, filename):
+    with open(os.path.join("/home/shared", f"{params.acquisition}", f"{params.acquisition}_{params.version}", filename), "rb") as f:
         data = f.read()
 
     return data
@@ -419,7 +476,7 @@ def get_intervals(offset, size, cube_coord):
 
 class PrecomputedSegPropsInfoHandler(BaseRequestHandler):
     @asynchronous
-    def get(self):
+    def get(self, acquisition, version):
         from neuroglancer.config import params
         def handle_result(f):
             try:
@@ -435,7 +492,7 @@ class PrecomputedSegPropsInfoHandler(BaseRequestHandler):
             self.finish(gzip.compress(data, compresslevel=6))
 
         filename = params.acquisition + "_" + params.version + ".json"
-        future = self.server.thread_executor.submit(read_file, filename)
+        future = self.server.thread_executor.submit(read_file, params, filename)
 
         tornado.concurrent.future_add_done_callback(
             future,
