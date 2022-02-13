@@ -1,6 +1,13 @@
+from knossos_utils import KnossosDataset
+
+
 class NeuroConfig(object):
     """Stores datasets, backends and npy arrays in memory when the
-    server is launched. Created once per server execution"""
+    server is launched. Created once per server execution
+    
+    TODO:
+        * Check if there is a better way to do this
+    """
     
     _counter = 0
 
@@ -11,9 +18,13 @@ class NeuroConfig(object):
         self.entries = {
             "j0251": {
                 "rag_flat_Jan2019_v2": {
-                    "backend": None,
+                    "working_dir": None,
+                    "ssd": None,
                     "segmentation": None,
+                    "segmentation_path": None,
                     "image": None,
+                    "boundary": None,
+                    "scale": None,
                     "ssvs": None,
                     "celltypes": None,
                     "mis": None,
@@ -25,11 +36,16 @@ class NeuroConfig(object):
                     "syn_areas": None,
                     "rep_coords": None,
                     "tpl_mask": None,
+                    "info": None,
                 },
                 "rag_flat_Jan2019_v3": {
-                    "backend": None,
+                    "working_dir": None,
+                    "ssd": None,
                     "segmentation": None,
+                    "segmentation_path": None,
                     "image": None,
+                    "boundary": None,
+                    "scale": None,
                     "ssvs": None,
                     "celltypes": None,
                     "mis": None,
@@ -40,7 +56,73 @@ class NeuroConfig(object):
                     "syn_probs": None,
                     "syn_areas": None,
                     "rep_coords": None,
-                    "tpl_mask": None
+                    "tpl_mask": None,
+                    "info": None,
+                },
+                "72_seg_20210127_agglo2": {
+                    "working_dir": None,
+                    "ssd": None,
+                    "segmentation": None,
+                    "segmentation_path": None,
+                    "image": None,
+                    "boundary": None,
+                    "scale": None,
+                    "ssvs": None,
+                    "celltypes": None,
+                    "mis": None,
+                    "sizes": None,
+                    "neuron_partners": None,
+                    "partner_axoness": None,
+                    "partner_celltypes": None,
+                    "syn_probs": None,
+                    "syn_areas": None,
+                    "rep_coords": None,
+                    "tpl_mask": None,
+                    "info": None,
+                }
+            },
+            "j0126": {
+                "areaxfs_v10": {
+                    "working_dir": None,
+                    "ssd": None,
+                    "segmentation": None,
+                    "segmentation_path": None,
+                    "image": None,
+                    "boundary": None,
+                    "scale": None,
+                    "ssvs": None,
+                    "celltypes": None,
+                    "mis": None,
+                    "sizes": None,
+                    "neuron_partners": None,
+                    "partner_axoness": None,
+                    "partner_celltypes": None,
+                    "syn_probs": None,
+                    "syn_areas": None,
+                    "rep_coords": None,
+                    "tpl_mask": None,
+                    "info": None,
+                },
+                "assembled_core_relabeled": {
+                    "working_dir": None,
+                    "ssd": None,
+                    "segmentation": None,
+                    "segmentation_path": None,
+                    "image": None,
+                    "boundary": None,
+                    "scale": None,
+                    "ssvs": None,
+                    "celltypes": None,
+                    "mis": None,
+                    "sizes": None,
+                    "neuron_partners": None,
+                    "partner_axoness": None,
+                    "partner_celltypes": None,
+                    "syn_probs": None,
+                    "syn_areas": None,
+                    "rep_coords": None,
+                    "tpl_mask": None,
+                    "info": None,
                 }
             }
         }
@@ -70,6 +152,34 @@ class NeuroConfig(object):
     @version.setter
     def version(self, value):
         self._version = value
+
+
+def generate_info(kd: KnossosDataset) -> dict:
+    """Generate Neuroglancer precomputed volume info for a Knossos
+    dataset
+
+    Args:
+        kd (KnossosDataset): 
+
+    Returns:
+        dict: volume info
+    """    
+    info = {}
+    info["@type"] = "neuroglancer_multiscale_volume"
+    info["type"] = None
+    info["data_type"] = None
+    info["num_channels"] = 1
+    info["scales"] = [
+        {
+            "key": f"{int(i)}_{int(i)}_{int(i)}",
+            "size": ([int(b) // int(i) for b in kd.boundary]),
+            "resolution": [int(s) * int(i) for s in kd.scale],
+            "chunk_sizes": [[64, 64, 64]],
+            "encoding": "raw",
+        } for i in sorted(kd.available_mags)
+    ]
+
+    return info
         
 
 def initialize_server():
@@ -91,28 +201,83 @@ def initialize_server():
     import numpy as np
 
     global params
-    root = "/ssdscratch/songbird"
+    
     params = NeuroConfig()
 
+    root = "/wholebrain/songbird"
+    logger.info("Initializing SyConn backend and Knossos datasets for j0126_areaxfs_v10")
+
+    params.acquisition = "j0126"
+    params.version = "areaxfs_v10"
+    
+    global_params.wd = os.path.join(root, "j0126/ssdscratch_wds", "areaxfs_v10_v4b_base_20180214_full_agglo_cbsplit")
+    params["working_dir"] = global_params.config.working_dir
+    ssd = ss.SuperSegmentationDataset(global_params.config.working_dir)
+    sd = seg.SegmentationDataset(obj_type='syn_ssv', working_dir=global_params.config.working_dir)
+    params["ssd"] = ssd
+    params["segmentation"] = KnossosDataset(global_params.config.kd_seg_path)
+    params["segmentation_path"] = global_params.config.kd_seg_path
+    params["image"] = KnossosDataset(os.path.join(global_params.config.kd_seg_path))
+    params["boundary"] = [int(b) for b in params["segmentation"].boundary]
+    params["scale"] = [int(s) for s in params["segmentation"].scale]
+
+    logger.info("Initializing npy arrays for j0126_areaxfs_v10")
+    params["ssvs"] = ssd.ssv_ids
+    params["celltypes"] = ssd.load_numpy_data("celltype_cnn_e3")
+    params["mis"] = ssd.load_numpy_data("mi")
+    params["sizes"] = ssd.load_numpy_data("size")
+    params["neuron_partners"] = sd.load_numpy_data("neuron_partners")
+    params["partner_axoness"] = sd.load_numpy_data("partner_axoness")
+    params["partner_celltypes"] = sd.load_numpy_data("partner_celltypes")
+    params["syn_probs"] = sd.load_numpy_data("syn_prob")
+    params["mesh_areas"] = sd.load_numpy_data("mesh_area")
+    params["rep_coords"] = sd.load_numpy_data("rep_coord")
+    params["info"] = generate_info(params["segmentation"])
+
+
+    logger.info("Initializing SyConn backend and Knossos datasets for j0126_assembled_core_relabeled")
+    params.version = "assembled_core_relabeled"
+    global_params.wd = os.path.join(root, "j0126/ssdscratch_wds", "assembled_core_relabeled_base_merges_relabeled_to_v4b_base_20180214_full_agglo_cbsplit_with_reconnects_no_soma_merger_manual_edges_removed")
+    params["working_dir"] = global_params.config.working_dir
+    ssd = ss.SuperSegmentationDataset(global_params.config.working_dir)
+    sd = seg.SegmentationDataset(obj_type='syn_ssv', working_dir=global_params.config.working_dir)
+    params["ssd"] = ssd
+    params["segmentation"] = KnossosDataset(global_params.config.kd_seg_path)
+    params["segmentation_path"] = global_params.config.kd_seg_path
+    params["image"] = KnossosDataset(os.path.join(global_params.config.kd_seg_path))
+    params["boundary"] = [int(b) for b in params["segmentation"].boundary]
+    params["scale"] = [int(s) for s in params["segmentation"].scale]
+
+    logger.info("Initializing npy arrays for j0126_assembled_core_relabeled")
+    params["ssvs"] = ssd.ssv_ids
+    params["celltypes"] = ssd.load_numpy_data("celltype_cnn_e3")
+    params["mis"] = ssd.load_numpy_data("mi")
+    params["sizes"] = ssd.load_numpy_data("size")
+    params["neuron_partners"] = sd.load_numpy_data("neuron_partners")
+    params["partner_axoness"] = sd.load_numpy_data("partner_axoness")
+    params["partner_celltypes"] = sd.load_numpy_data("partner_celltypes")
+    params["syn_probs"] = sd.load_numpy_data("syn_prob")
+    params["mesh_areas"] = sd.load_numpy_data("mesh_area")
+    params["rep_coords"] = sd.load_numpy_data("rep_coord")
+    params["info"] = generate_info(params["segmentation"])
+
+
+    root = "/ssdscratch/songbird"
     logger.info("Initializing SyConn backend and Knossos datasets for j0251_rag_flat_Jan2019_v3")
 
     params.acquisition = "j0251"
     params.version = "rag_flat_Jan2019_v3"
+
     global_params.wd = os.path.join(root, "j0251", "rag_flat_Jan2019_v3")
+    params["working_dir"] = global_params.config.working_dir
     ssd = ss.SuperSegmentationDataset(global_params.config.working_dir, sso_locking=False, sso_caching=True)
     sd = seg.SegmentationDataset(obj_type='syn_ssv', working_dir=global_params.config.working_dir)
-    params["backend"] = SyConnBackend(global_params.config.working_dir, logger)
+    params["ssd"] = ssd
     params["segmentation"] = KnossosDataset(global_params.config.kd_seg_path)
     params["segmentation_path"] = global_params.config.kd_seg_path
     params["image"] = KnossosDataset("/wholebrain/songbird/j0251/j0251_72_clahe2")
-
-    # axon_pl = np.load("/home/hashir/axon_path_lengths.npy")
-    # dendrite_pl = np.load("/home/hashir/dendrite_path_lengths.npy")
-    # soma_pl = np.load("/home/hashir/soma_path_lengths.npy")
-
-    # total_pl = axon_pl + dendrite_pl + soma_pl
-    # mask = total_pl > 150  # in µm
-    # new_ssv_ids = ssd.ssv_ids[mask]
+    params["boundary"] = [int(b) for b in params["segmentation"].boundary]
+    params["scale"] = [int(s) for s in params["segmentation"].scale]
 
     logger.info("Initializing npy arrays for j0251_rag_flat_Jan2019_v3")
     params["ssvs"] = ssd.ssv_ids
@@ -125,68 +290,101 @@ def initialize_server():
     params["syn_probs"] = sd.load_numpy_data("syn_prob")
     params["mesh_areas"] = sd.load_numpy_data("mesh_area")
     params["rep_coords"] = sd.load_numpy_data("rep_coord")
+    params["tpl_mask"] = np.load(f"/home/shared/{params.acquisition}/{params.acquisition}_{params.version}/tpl_mask.npy")
+    params["info"] = generate_info(params["segmentation"])
+    
 
-    params["tpl_mask"] = np.load("/home/hashir/tpl_mask.npy")
+    logger.info("Initializing SuperSegmentationDataset and KnossosDataset for j0251_72_seg_20210127_agglo2")
+
+    params.version = "72_seg_20210127_agglo2"
+
+    global_params.wd = os.path.join(root, "j0251", "j0251_72_seg_20210127_agglo2")
+    params["working_dir"] = global_params.config.working_dir
+    ssd = ss.SuperSegmentationDataset(global_params.config.working_dir, sso_locking=False, sso_caching=True)
+    sd = seg.SegmentationDataset(obj_type='syn_ssv', working_dir=global_params.config.working_dir)
+    params["ssd"] = ssd
+    # params["segmentation"] = KnossosDataset(global_params.config.kd_seg_path)
+    params["segmentation"] = KnossosDataset("/ssdscratch/songbird/j0251/segmentation/j0251_72_seg_20210127_agglo2/knossos.pyk.conf")
+    params["segmentation_path"] = global_params.config.kd_seg_path
+    params["image"] = KnossosDataset("/wholebrain/songbird/j0251/j0251_72_clahe2")
+    params["boundary"] = [int(b) for b in params["segmentation"].boundary]
+    params["scale"] = [int(s) for s in params["segmentation"].scale]
+
+    logger.info("Initializing npy arrays for j0251_72_seg_20210127_agglo2")
+
+    params["ssvs"] = ssd.ssv_ids
+    params["celltypes"] = ssd.load_numpy_data("celltype_cnn_e3")
+    params["mis"] = ssd.load_numpy_data("mi")
+    params["sizes"] = ssd.load_numpy_data("size")
+    params["neuron_partners"] = sd.load_numpy_data("neuron_partners")
+    params["partner_axoness"] = sd.load_numpy_data("partner_axoness")
+    params["partner_celltypes"] = sd.load_numpy_data("partner_celltypes")
+    params["syn_probs"] = sd.load_numpy_data("syn_prob")
+    params["mesh_areas"] = sd.load_numpy_data("mesh_area")
+    params["rep_coords"] = sd.load_numpy_data("rep_coord")
+    params["tpl_mask"] = np.load(f"/home/shared/{params.acquisition}/{params.acquisition}_{params.version}/tpl_mask.npy")
+    params["info"] = generate_info(params["segmentation"])
     
     # info files for precomputed sources
     global volume_info, segment_properties_info
-    volume_info = {
-        "@type": "neuroglancer_multiscale_volume",
-        "type": None,
-        "data_type": None,
-        "num_channels": 1,
-        "scales": [
-            {
-                "key": "1_1_1",
-                "size": [27136, 27392, 15616],
-                "resolution": [10, 10, 25],
-                "chunk_sizes": [[64, 64, 64]],
-                "encoding": "raw",
-            },
-            {
-                "key": "2_2_2",
-                "size": [13568, 13696, 7808],
-                "resolution": [20, 20, 50],
-                "chunk_sizes": [[64, 64, 64]],
-                "encoding": "raw",
-            },
-            {
-                "key": "4_4_4",
-                "size": [6784, 6912, 3968],
-                "resolution": [40, 40, 100],
-                "chunk_sizes": [[64, 64, 64]],
-                "encoding": "raw",
-            },
-            {
-                "key": "8_8_8",
-                "size": [3389, 3418, 1936],
-                "resolution": [80, 80, 200],
-                "chunk_sizes": [[64, 64, 64]],
-                "encoding": "raw",
-            },
-            {
-                "key": "16_16_16",
-                "size": [1694, 1709, 968],
-                "resolution": [160, 160, 400],
-                "chunk_sizes": [[64, 64, 64]],
-                "encoding": "raw",
-            },
-            {
-                "key": "32_32_32",
-                "size": [847, 854, 484],
-                "resolution": [320, 320, 800],
-                "chunk_sizes": [[64, 64, 64]],
-                "encoding": "raw",
-            },
-            {
-                "key": "64_64_64",
-                "size": [423, 427, 242],
-                "resolution": [640, 640, 1600],
-                "chunk_sizes": [[64, 64, 64]],
-                "encoding": "raw",
-            }
-        ]
-    }
+    # TODO: Remove this hardcoded volume info  
+    # volume_info = {
+    #     "@type": "neuroglancer_multiscale_volume",
+    #     "type": None,
+    #     "data_type": None,
+    #     "num_channels": 1,
+    #     "scales": [
+    #         {
+    #             "key": "1_1_1",
+    #             "size": params["boundary"],
+    #             "resolution": params["scale"],
+    #             "chunk_sizes": [[64, 64, 64]],
+    #             "encoding": "raw",
+    #         },
+    #         {
+    #             "key": "2_2_2",
+    #             "size": ([b // 2 for b in params["boundary"]]),
+    #             "resolution": [s * 2 for s in params["scale"]],
+    #             "chunk_sizes": [[64, 64, 64]],
+    #             "encoding": "raw",
+    #         },
+    #         {
+    #             "key": "4_4_4",
+    #             "size": ([b // 4 for b in params["boundary"]]),
+    #             "resolution": [s * 4 for s in params["scale"]],
+    #             "chunk_sizes": [[64, 64, 64]],
+    #             "encoding": "raw",
+    #         },
+    #         {
+    #             "key": "8_8_8",
+    #             "size": ([b // 8 for b in params["boundary"]]),
+    #             "resolution": [s * 8 for s in params["scale"]],
+    #             "chunk_sizes": [[64, 64, 64]],
+    #             "encoding": "raw",
+    #         },
+    #         {
+    #             "key": "16_16_16",
+    #             "size": ([b // 16 for b in params["boundary"]]),
+    #             "resolution": [s * 16 for s in params["scale"]],
+    #             "chunk_sizes": [[64, 64, 64]],
+    #             "encoding": "raw",
+    #         },
+    #         {
+    #             "key": "32_32_32",
+    #             "size": ([b // 32 for b in params["boundary"]]),
+    #             "resolution": [s * 32 for s in params["scale"]],
+    #             "chunk_sizes": [[64, 64, 64]],
+    #             "encoding": "raw",
+    #         },
+    #         {
+    #             "key": "64_64_64",
+    #             "size": ([b // 64 for b in params["boundary"]]),
+    #             "resolution": [s * 64 for s in params["scale"]],
+    #             "chunk_sizes": [[64, 64, 64]],
+    #             "encoding": "raw",
+    #         }
+    #     ]
+    # }
 
     segment_properties_info = {
         "@type": "neuroglancer_segment_properties",
