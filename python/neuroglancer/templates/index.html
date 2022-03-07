@@ -122,23 +122,22 @@
           <form action="/_generate_token" method="post">
             <div class="form-floating">
                 <select class="form-select my-4" name="acq_name" aria-label="Floating select example" id="acquisition"> 
-                    <option value="" selected>Select Volume EM data</option>
-                    <option value="j0251">j0251</option>
+                    <option value="j0251" selected>j0251</option>
                     <option value="j0126">j0126</option>
-                    <!-- <option value="example_cube">example_cube</option> -->
                 </select>
                 <label for="acquisition">Dataset</label>
             </div>
             
             <div class="form-floating">
                 <select class="form-select" name="data_version" id="version">
-                    <option value="" selected>Select a dataset first</option>
+                    <option value="72_seg_20210127_agglo2" selected>j0251_72_seg_20210127_agglo2</option>
+                    <option value="rag_flat_Jan2019_v3">j0251_rag_flat_Jan2019_v3</option>
                 </select>
                 <label for="version">Version</label>
             </div>
     
             <div class="d-grid mt-4 justify-content-center justify-content-md-start">
-                <button type="submit" id="submit"  class="btn btn-outline-success btn-lg" disabled>Show data</button>
+                <button type="submit" id="submit"  class="btn btn-outline-success btn-lg">Show data</button>
             </div>
           </form>
         </div>

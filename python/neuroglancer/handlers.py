@@ -103,6 +103,7 @@ class TokenHandler(BaseRequestHandler):
         try:
             params.acquisition = self.get_argument("acq_name")
             params.version = self.get_argument("data_version")
+            print(params.acquisition, params.version)
 
         except tornado.web.MissingArgumentError as e:
             logger.error(e.args[0])
@@ -137,7 +138,7 @@ class TokenHandler(BaseRequestHandler):
             use_tpl_mask = False
 
         pf = PropertyFilter(params, token, ['mi', 'vc', 'sj'], use_tpl_mask=use_tpl_mask, seg_src=seg_src, img_src=img_src)
-        logger.debug(f"Viewer instances in memory: {len(config.global_server.viewers.keys())}")
+        # logger.debug(f"Viewer instances in memory: {len(config.global_server.viewers.keys())}")
 
         try:
             self.redirect(pf.viewer.get_viewer_url())
@@ -186,7 +187,7 @@ class SharedURLHandler(BaseRequestHandler):
         pf = PropertyFilter(params, token, ['mi', 'vc', 'sj'], use_tpl_mask=use_tpl_mask, seg_src=seg_src, img_src=img_src)
         pf.viewer.set_state(state)
 
-        logger.debug(f"Viewer instances in memory: {len(config.global_server.viewers.keys())}")
+        # logger.debug(f"Viewer instances in memory: {len(config.global_server.viewers.keys())}")
 
         # render the new viewer
         try:
