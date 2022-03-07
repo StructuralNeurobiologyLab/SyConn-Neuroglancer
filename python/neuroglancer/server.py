@@ -20,6 +20,7 @@ import sys
 import argparse
 import threading
 import multiprocessing
+import weakref
 
 import tornado.httpserver
 import tornado.ioloop
@@ -29,7 +30,6 @@ import tornado.template
 import sockjs.tornado
 
 from syconn.handler.logger import log_main as logger
-
 from neuroglancer import static
 from neuroglancer import config
 from neuroglancer.config import initialize_server
@@ -47,11 +47,9 @@ debug = False
 
 class Server(object):
     def __init__(self, ioloop, host='127.0.0.1', port=0):
-        # self.viewers = weakref.WeakValueDictionary()
         self.viewers = {}
         # self.token = make_random_token()
         self.thread_executor = concurrent.futures.ThreadPoolExecutor(max_workers=multiprocessing.cpu_count(), thread_name_prefix='neuroglancer-thread-')
-        # self.proc_executor = concurrent.futures.ProcessPoolExecutor(max_workers=multiprocessing.cpu_count())
 
         self.ioloop = ioloop
         sockjs_router = sockjs.tornado.SockJSRouter(
@@ -125,7 +123,7 @@ class Server(object):
 
         if config.dev_environ:
             # self.server_url = 'http://%s:%s' % (hostname, actual_port)
-            self.server_url = 'http://localhost:9005'
+            self.server_url = f'http://{hostname}:{actual_port}'
         else:
             self.server_url = 'https://syconn.esc.mpcdf.mpg.de'
 
@@ -225,16 +223,12 @@ def start():
 # _register_viewer_lock = threading.Lock()
 
 def register_viewer(viewer):
-    # start()
-    # global_server.viewers[viewer.token] = viewer
-    # with _register_viewer_lock:
     logger.info(f"Viewer {viewer.token} is being attached")
     config.global_server.viewers[viewer.token] = viewer
 
 
 def defer_callback(callback, *args, **kwargs):
     """Register `callback` to run in the server event loop thread."""
-    # start()
     config.global_server.ioloop.add_callback(lambda: callback(*args, **kwargs))
 
 if __name__ == "__main__":
@@ -252,8 +246,3 @@ if __name__ == "__main__":
     start()
 
     logger.info(f"Neuroglancer server running at {get_server_url()}")
-
-    # if args.dev:
-    #     logger.info("[DEV] Neuroglancer server running at {}".format(get_server_url()))
-    # else:
-    #     logger.info(f"[PROD] Neuroglancer server running at http://syconn.esc.mpcdf.mpg.de ({args.host}:{args.port})")

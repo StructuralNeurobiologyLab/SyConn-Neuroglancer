@@ -324,67 +324,8 @@ def initialize_server():
     params["rep_coords"] = sd.load_numpy_data("rep_coord")
     params["tpl_mask"] = np.load(f"/home/shared/{params.acquisition}/{params.acquisition}_{params.version}/tpl_mask.npy")
     params["info"] = generate_info(params["segmentation"])
-    
-    # info files for precomputed sources
-    global volume_info, segment_properties_info
-    # TODO: Remove this hardcoded volume info  
-    # volume_info = {
-    #     "@type": "neuroglancer_multiscale_volume",
-    #     "type": None,
-    #     "data_type": None,
-    #     "num_channels": 1,
-    #     "scales": [
-    #         {
-    #             "key": "1_1_1",
-    #             "size": params["boundary"],
-    #             "resolution": params["scale"],
-    #             "chunk_sizes": [[64, 64, 64]],
-    #             "encoding": "raw",
-    #         },
-    #         {
-    #             "key": "2_2_2",
-    #             "size": ([b // 2 for b in params["boundary"]]),
-    #             "resolution": [s * 2 for s in params["scale"]],
-    #             "chunk_sizes": [[64, 64, 64]],
-    #             "encoding": "raw",
-    #         },
-    #         {
-    #             "key": "4_4_4",
-    #             "size": ([b // 4 for b in params["boundary"]]),
-    #             "resolution": [s * 4 for s in params["scale"]],
-    #             "chunk_sizes": [[64, 64, 64]],
-    #             "encoding": "raw",
-    #         },
-    #         {
-    #             "key": "8_8_8",
-    #             "size": ([b // 8 for b in params["boundary"]]),
-    #             "resolution": [s * 8 for s in params["scale"]],
-    #             "chunk_sizes": [[64, 64, 64]],
-    #             "encoding": "raw",
-    #         },
-    #         {
-    #             "key": "16_16_16",
-    #             "size": ([b // 16 for b in params["boundary"]]),
-    #             "resolution": [s * 16 for s in params["scale"]],
-    #             "chunk_sizes": [[64, 64, 64]],
-    #             "encoding": "raw",
-    #         },
-    #         {
-    #             "key": "32_32_32",
-    #             "size": ([b // 32 for b in params["boundary"]]),
-    #             "resolution": [s * 32 for s in params["scale"]],
-    #             "chunk_sizes": [[64, 64, 64]],
-    #             "encoding": "raw",
-    #         },
-    #         {
-    #             "key": "64_64_64",
-    #             "size": ([b // 64 for b in params["boundary"]]),
-    #             "resolution": [s * 64 for s in params["scale"]],
-    #             "chunk_sizes": [[64, 64, 64]],
-    #             "encoding": "raw",
-    #         }
-    #     ]
-    # }
+   
+    global segment_properties_info
 
     segment_properties_info = {
         "@type": "neuroglancer_segment_properties",
