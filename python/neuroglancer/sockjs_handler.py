@@ -16,6 +16,7 @@ from __future__ import absolute_import
 
 import json
 import re
+import sys
 
 import six
 
@@ -205,6 +206,7 @@ class SockJSHandler(sockjs.tornado.SockJSConnection):
         if hasattr(self, '_state_handlers'):
             del self._state_handlers
         
-        logger.debug(f"Dereferencing viewer instance {viewer.token}")
-        del config.global_server.viewers[viewer.token]
-        del self.viewer
+        # print(sys.getsizeof(viewer))
+        # logger.debug(f"Dereferencing viewer instance {viewer.token}")
+        # del config.global_server.viewers[viewer.token]
+        # del self.viewer
