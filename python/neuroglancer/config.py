@@ -200,16 +200,28 @@ def initialize_server():
     import os
     import numpy as np
 
-    global params
+    global params, zf_params
     
     params = NeuroConfig()
 
     root = "/wholebrain/songbird"
-    logger.info("Initializing SyConn backend and Knossos datasets for j0126_areaxfs_v10")
+    
+    logger.info("Initializing segmentation datasets and property arrays for fw363-2021-11-02-full-nokd-nossv")
+    global_params.wd = os.path.join(root, "fw363-2021-11-02-full-nokd-nossv")
+    zf_params = {}
+    zf_params["working_dir"] = global_params.config.working_dir
+    ssd = ss.SuperSegmentationDataset(global_params.config.working_dir)
+    sd_sv = seg.SegmentationDataset("sv", working_dir=global_params.config.working_dir)
+    sd_syn_ssv = seg.SegmentationDataset("syn_ssv", working_dir=global_params.config.working_dir)
+    zf_params["ssd"] = ssd
+    zf_params["syn_ssv_ids"] = sd_syn_ssv.load_numpy_data("id")
+    zf_params["cs_ids"] = sd_syn_ssv.load_numpy_data("cs_ids")
+    zf_params["rep_coord"] = sd_syn_ssv.load_numpy_data("rep_coord")
+    zf_params["sv_ids"] = sd_sv.load_numpy_data("id")
 
+    logger.info("Initializing SyConn backend and Knossos datasets for j0126_areaxfs_v10")
     params.acquisition = "j0126"
     params.version = "areaxfs_v10"
-    
     global_params.wd = os.path.join(root, "j0126/ssdscratch_wds", "areaxfs_v10_v4b_base_20180214_full_agglo_cbsplit")
     params["working_dir"] = global_params.config.working_dir
     ssd = ss.SuperSegmentationDataset(global_params.config.working_dir)
@@ -264,10 +276,8 @@ def initialize_server():
 
     root = "/ssdscratch/songbird"
     logger.info("Initializing SyConn backend and Knossos datasets for j0251_rag_flat_Jan2019_v3")
-
     params.acquisition = "j0251"
     params.version = "rag_flat_Jan2019_v3"
-
     global_params.wd = os.path.join(root, "j0251", "rag_flat_Jan2019_v3")
     params["working_dir"] = global_params.config.working_dir
     ssd = ss.SuperSegmentationDataset(global_params.config.working_dir, sso_locking=False, sso_caching=True)
@@ -290,14 +300,12 @@ def initialize_server():
     params["syn_probs"] = sd.load_numpy_data("syn_prob")
     params["mesh_areas"] = sd.load_numpy_data("mesh_area")
     params["rep_coords"] = sd.load_numpy_data("rep_coord")
-    params["tpl_mask"] = np.load(f"/home/shared/{params.acquisition}/{params.acquisition}_{params.version}/tpl_mask.npy")
+    params["tpl_mask"] = np.load(f"/home/shared/j0251/j0251_rag_flat_Jan2019_v3/tpl_mask.npy")
     params["info"] = generate_info(params["segmentation"])
     
 
     logger.info("Initializing SuperSegmentationDataset and KnossosDataset for j0251_72_seg_20210127_agglo2")
-
     params.version = "72_seg_20210127_agglo2"
-
     global_params.wd = os.path.join(root, "j0251", "j0251_72_seg_20210127_agglo2")
     params["working_dir"] = global_params.config.working_dir
     ssd = ss.SuperSegmentationDataset(global_params.config.working_dir, sso_locking=False, sso_caching=True)
@@ -311,7 +319,6 @@ def initialize_server():
     params["scale"] = [int(s) for s in params["segmentation"].scale]
 
     logger.info("Initializing npy arrays for j0251_72_seg_20210127_agglo2")
-
     params["ssvs"] = ssd.ssv_ids
     params["celltypes"] = ssd.load_numpy_data("celltype_cnn_e3")
     params["mis"] = ssd.load_numpy_data("mi")
@@ -322,9 +329,9 @@ def initialize_server():
     params["syn_probs"] = sd.load_numpy_data("syn_prob")
     params["mesh_areas"] = sd.load_numpy_data("mesh_area")
     params["rep_coords"] = sd.load_numpy_data("rep_coord")
-    params["tpl_mask"] = np.load(f"/home/shared/{params.acquisition}/{params.acquisition}_{params.version}/tpl_mask.npy")
+    params["tpl_mask"] = np.load(f"/home/shared/j0251/j0251_72_seg_20210127_agglo2/tpl_mask.npy")
     params["info"] = generate_info(params["segmentation"])
-   
+
     global segment_properties_info
 
     segment_properties_info = {
