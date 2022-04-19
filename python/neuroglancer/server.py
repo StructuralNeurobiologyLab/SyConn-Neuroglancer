@@ -15,6 +15,7 @@
 from __future__ import absolute_import, print_function
 
 import concurrent.futures
+from http import server
 import socket
 import sys
 import argparse
@@ -48,6 +49,7 @@ debug = False
 class Server(object):
     def __init__(self, ioloop, host='127.0.0.1', port=0):
         self.viewers = {}
+        self.viewers = weakref.WeakValueDictionary()
         # self.token = make_random_token()
         self.thread_executor = concurrent.futures.ThreadPoolExecutor(max_workers=multiprocessing.cpu_count(), thread_name_prefix='neuroglancer-thread-')
 
@@ -84,6 +86,7 @@ class Server(object):
                 (PRECOMPUTED_VOLUME_INFO_REGEX, PrecomputedVolumeInfoHandler, dict(server=self)),
                 (PRECOMPUTED_VOLUME_REGEX, PrecomputedVolumeHandler, dict(server=self)),
                 (PRECOMPUTED_SEG_PROPS_INFO_REGEX, PrecomputedSegPropsInfoHandler, dict(server=self)),
+                (ZEBRAFISH_SYN_COORD_REGEX, ZebraFishSyn2CoordHandler, dict(server=self)),
                 (STATIC_PATH_REGEX, StaticPathHandler, dict(server=self)),
                 # (INFO_PATH_REGEX, VolumeInfoHandler, dict(server=self)),
                 # (SKELETON_INFO_PATH_REGEX, SkeletonInfoHandler, dict(server=self)),
