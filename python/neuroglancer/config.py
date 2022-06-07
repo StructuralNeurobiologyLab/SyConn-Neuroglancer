@@ -1,5 +1,5 @@
 from knossos_utils import KnossosDataset
-
+import pickle
 
 class NeuroConfig(object):
     """Stores datasets, backends and npy arrays in memory when the
@@ -211,13 +211,23 @@ def initialize_server():
     zf_params = {}
     zf_params["working_dir"] = global_params.config.working_dir
     ssd = ss.SuperSegmentationDataset(global_params.config.working_dir)
+    ssd.load_mapping_dict()
     sd_sv = seg.SegmentationDataset("sv", working_dir=global_params.config.working_dir)
     sd_syn_ssv = seg.SegmentationDataset("syn_ssv", working_dir=global_params.config.working_dir)
+
+    with open('cs_lookup.pickle', 'rb') as handle:
+        cs_lookup = pickle.load(handle)
+
+    with open('ssv_lookup.pickle', 'rb') as handle:
+        ssv_lookup = pickle.load(handle)
+
     zf_params["ssd"] = ssd
     zf_params["syn_ssv_ids"] = sd_syn_ssv.load_numpy_data("id")
     zf_params["cs_ids"] = sd_syn_ssv.load_numpy_data("cs_ids")
     zf_params["rep_coord"] = sd_syn_ssv.load_numpy_data("rep_coord")
     zf_params["sv_ids"] = sd_sv.load_numpy_data("id")
+    zf_params["cs_lookup"] = cs_lookup
+    zf_params["ssv_lookup"] = ssv_lookup
 
     logger.info("Initializing SyConn backend and Knossos datasets for j0126_areaxfs_v10")
     params.acquisition = "j0126"

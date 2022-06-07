@@ -495,31 +495,27 @@ class ZebraFishSyn2CoordHandler(BaseRequestHandler):
     def get(self, sv_ids):
         from neuroglancer.config import zf_params
 
-        ssv_lookup = zf_params["ssd"].sv2ssv_ids(sv_ids)
-        result = {}
-        for ssv_id in ssv_lookup.keys():
-            queried_svs = zf_params["ssd"].mapping_dict[ssv_id]
-            result[ssv_id] = extract_syn_coords(queried_svs)
-
-        self.finish(json.dumps(result, 'utf-8'))
-
         def extract_syn_coords(svs):
+            svs = set(svs)
             syn_coords = defaultdict(list)
             syn_indexes = defaultdict(list)
-            
-            for syn_index, cs in enumerate(zf_params["cs_ids"]):
-                cs1, cs2 = cs[0]
-                if cs1 in svs:
-                    if cs1 in ssv_lookup.keys():
-                        syn_indexes[ssv_lookup[cs1]].append(syn_index)
-                if cs2 in svs:
-                    if cs2 in ssv_lookup.keys():
-                        syn_indexes[ssv_lookup[cs2]].append(syn_index)
+            for sv in svs:
+                if zf_params["cs_lookup"][sv]:
+                    syn_indexes[zf_params["ssv_lookup"][sv]].extend(zf_params["cs_lookup"][sv])
 
             for ssv_id, syn_indexs in syn_indexes.items():
-                for syn_index in syn_indexs:
-                    syn_coords[ssv_id].append(zf_params["rep_coord"][syn_index])
+                syn_coords[ssv_id] = zf_params["rep_coord"][syn_indexs]
             return syn_coords
+
+        result = {}
+        id_keys = list(zf_params["ssv_lookup"].keys())
+        random_sv = np.random.choice(id_keys)
+        ssv_id = zf_params["ssv_lookup"][random_sv]
+        queried_svs = zf_params["ssd"].mapping_dict[ssv_id]
+
+        result = extract_syn_coords(queried_svs)
+
+        self.finish(json.dumps(result, 'utf-8'))
 
 
 class ActionHandler(BaseRequestHandler):
