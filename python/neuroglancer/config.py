@@ -205,8 +205,7 @@ def initialize_server():
     params = NeuroConfig()
 
     root = "/wholebrain/songbird"
-    root_fishbrain = "/home/shared/fishbrain"
-    
+
     logger.info("Initializing segmentation datasets and property arrays for fw363-2021-11-02-full-nokd-nossv")
     global_params.wd = os.path.join(root, "fw363-2021-11-02-full-nokd-nossv")
     zf_params = {}
@@ -216,10 +215,10 @@ def initialize_server():
     sd_sv = seg.SegmentationDataset("sv", working_dir=global_params.config.working_dir)
     sd_syn_ssv = seg.SegmentationDataset("syn_ssv", working_dir=global_params.config.working_dir)
 
-    with open(os.path.join(root_fishbrain, 'cs_lookup.pickle'), 'rb') as handle:
+    with open(os.path.join(root, 'cs_lookup.pickle'), 'rb') as handle:
         cs_lookup = pickle.load(handle)
 
-    with open(os.path.join(root_fishbrain, 'ssv_lookup.pickle'), 'rb') as handle:
+    with open(os.path.join(root, 'ssv_lookup.pickle'), 'rb') as handle:
         ssv_lookup = pickle.load(handle)
 
     zf_params["ssd"] = ssd
