@@ -205,7 +205,7 @@ def initialize_server():
     params = NeuroConfig()
 
     root = "/wholebrain/songbird"
-    root_fishbrain = "/wholebrain/scratch/anaml/fishbrain_dictionaries"
+    root_fishbrain = "/home/shared/fishbrain"
     
     logger.info("Initializing segmentation datasets and property arrays for fw363-2021-11-02-full-nokd-nossv")
     global_params.wd = os.path.join(root, "fw363-2021-11-02-full-nokd-nossv")
