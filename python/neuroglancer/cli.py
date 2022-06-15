@@ -14,13 +14,15 @@
 def add_server_arguments(ap):
     """Defines common options for the Neuroglancer server."""
     g = ap.add_argument_group(title='Neuroglancer server options')
-    g.add_argument('--port', type=int, default=5000,
-                        help='Port to connect to SyConn Gate')
+    g.add_argument('--port', type=int, default=None,
+                        help='Neuroglancer python server port.')
     g.add_argument('--host', type=str, default='localhost',
-                        help='IP address to SyConn Gate')
+                        help='Neuroglancer python server host.')
     g.add_argument('--dev', default=False, action='store_true',
                         help='dev=TRUE launches the server in a development enviroment. \
                         Default is a production environment')
+    g.add_argument('--dev-nginx', default=False, action='store_true',\
+                        dest='dev_nginx', help='dev-nginx=TRUE launches the server in a development enviroment with nginx')
     g.add_argument('--wd', type=str, default='',
                         help='Working directory of SyConn')
     g.add_argument('-o', '--organelles', default=[], nargs='+', help='Organelles to load')

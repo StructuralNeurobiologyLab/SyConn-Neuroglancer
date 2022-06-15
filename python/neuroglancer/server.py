@@ -125,8 +125,11 @@ class Server(object):
             hostname = host
 
         if config.dev_environ:
-            # self.server_url = 'http://%s:%s' % (hostname, actual_port)
             self.server_url = f'http://{hostname}:{actual_port}'
+
+        elif config.dev_environ_nginx:
+            self.server_url = f'http://{hostname}:9005'
+
         else:
             self.server_url = 'https://syconn.esc.mpcdf.mpg.de'
 
@@ -143,15 +146,12 @@ class Server(object):
 
 class StaticPathHandler(BaseRequestHandler):
     def get(self, viewer_token, path):
-        # logger.info("StaticPathHandler invoked")
-        # if viewer_token != self.server.token and viewer_token not in self.server.viewers:
         if viewer_token not in self.server.viewers:
             logger.error("viewer not registered")
             self.send_error(404)
             return
         try:
             data, content_type = global_static_content_source.get(path)
-            # logger.warning(f"Data sent by StaticPathHandler {content_type}")
         except ValueError as e:
             logger.error("Error sending files")
             self.send_error(404, message=e.args[0])
@@ -241,11 +241,22 @@ if __name__ == "__main__":
     args = ap.parse_args()
     set_server_bind_address(args.host, args.port)
 
-    initialize_server()
-
     config.global_server_args = global_server_args
-    config.dev_environ = args.dev
 
+    if args.dev or args.dev_nginx:
+        assert args.dev != args.dev_nginx, "--dev and --dev-nginx are mutually exclusive"
+
+    config.dev_environ = args.dev
+    config.dev_environ_nginx = args.dev_nginx
+
+    if config.dev_environ_nginx:
+        config.global_server_args['port'] = 8005
+    elif config.dev_environ:
+        assert config.global_server_args['port'] != None, "--port must be specified when using --dev"
+    else:
+        config.global_server_args['port'] = 5000
+
+    initialize_server(dev=args.dev or args.dev_nginx)
     start()
 
     logger.info(f"Neuroglancer server running at {get_server_url()}")

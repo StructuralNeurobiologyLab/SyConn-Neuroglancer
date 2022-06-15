@@ -69,7 +69,8 @@ PRECOMPUTED_VOLUME_REGEX = r'^/volume/(?P<volume_type>[a-zA-Z]+)/(?P<scale_key>[
 
 PRECOMPUTED_SEG_PROPS_INFO_REGEX = r'^/(?P<acquisition>[^/]+)/(?P<version>[^/]+)/properties/info$'
 
-ZEBRAFISH_SYN_COORD_REGEX = r'^/(?P<sv_ids>[0-9]+)$'
+# ZEBRAFISH_SYN_COORD_REGEX = r'^/(?P<sv_ids>[0-9]+)$'
+ZEBRAFISH_SYN_COORD_REGEX = r'^/zf'
 
 
 class BaseRequestHandler(tornado.web.RequestHandler):
@@ -116,8 +117,13 @@ class TokenHandler(BaseRequestHandler):
             return
 
         if config.dev_environ:
-            source = f'http://localhost:9002'  
-        
+            host = config.global_server_args['host']
+            port = config.global_server_args['port']
+            source = f'http://{host}:{port}' 
+
+        elif config.dev_environ_nginx:
+            source = f'http://localhost:9005'
+
         else:
             source = f'https://syconn.esc.mpcdf.mpg.de'
 
@@ -136,7 +142,7 @@ class TokenHandler(BaseRequestHandler):
             seg_src = 'precomputed://' + source + f'/{params.acquisition}_{params.version}/segmentation'
             img_src = 'precomputed://' + source + f'/{params.acquisition}_{params.version}/image'
 
-        else:  # for j0126
+        else: 
             logger.debug("Using j0126")
             seg_src = 'precomputed://' + source + '/volume/segmentation'  # unsharded precomputed segmentation
             img_src = 'precomputed://' + source + '/j0126/volume/image'  # sharded precomputed image
@@ -164,8 +170,13 @@ class SharedURLHandler(BaseRequestHandler):
         params.version = version
 
         if config.dev_environ:
-            source = f'http://localhost:9002'  
-        
+            host = config.global_server_args['host']
+            port = config.global_server_args['port']
+            source = f'http://{host}:{port}' 
+
+        elif config.dev_environ_nginx:
+            source = f'http://localhost:9005'
+            
         else:
             source = f'https://syconn.esc.mpcdf.mpg.de'
 
@@ -491,10 +502,59 @@ class PrecomputedSegPropsInfoHandler(BaseRequestHandler):
             self.finish(gzip.compress(data, compresslevel=6))
 
 
+class NumpyEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, np.integer):
+            return int(obj)
+        elif isinstance(obj, np.floating):
+            return float(obj)
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        else:
+            return super(NumpyEncoder, self).default(obj)
+
+
 class ZebraFishSyn2CoordHandler(BaseRequestHandler):
-    def get(self, sv_ids):
+    @asynchronous
+    def get(self):
+        # sv_ids is a comma separated list of supervoxel ids 
+        sv_ids = self.get_arguments('sv_ids')
+        if len(sv_ids) == 0:
+            m = "Query argument 'sv_ids' is not found"
+            logger.error(m)
+            self.send_error(400, message=m)
+            return
+
+        if sv_ids[0] == '':
+            m = "No supervoxel ids provided"
+            logger.error(m)
+            self.send_error(400, message=m)
+            return
+
+        # sv_ids is a list of string, need to convert to list of ints
+        try:
+            sv_ids = sv_ids[0].replace(' ', '').split(',')
+            sv_ids = list(map(int, sv_ids))
+        except ValueError as e:
+            logger.error(e)
+            self.send_error(400, message=e)
+            return
+
+        # if isinstance(sv_ids, int):
+        #     sv_ids = [sv_ids]
+        # elif isinstance(sv_ids, str):
+        #     try:
+        #         sv_ids = int(sv_ids)
+        #         sv_ids = [sv_ids]
+        #     except ValueError as e:
+        #         # invalid input, return error
+        #         logger.error(e.args[0])
+        #         self.send_error(400, message=e.args[0])
+        #         return
+
         from neuroglancer.config import zf_params
 
+        # extract the synapse coordinates of the supervoxels
         def extract_syn_coords(svs):
             svs = set(svs)
             syn_coords = defaultdict(list)
@@ -504,18 +564,37 @@ class ZebraFishSyn2CoordHandler(BaseRequestHandler):
                     syn_indexes[zf_params["ssv_lookup"][sv]].extend(zf_params["cs_lookup"][sv])
 
             for ssv_id, syn_indexs in syn_indexes.items():
-                syn_coords[ssv_id] = zf_params["rep_coord"][syn_indexs]
+                # keys of the json response should be int or str; numpy.uint64 is not supported
+                syn_coords[int(ssv_id)] = zf_params["rep_coord"][syn_indexs]
             return syn_coords
 
-        result = {}
-        id_keys = list(zf_params["ssv_lookup"].keys())
-        random_sv = np.random.choice(id_keys)
-        ssv_id = zf_params["ssv_lookup"][random_sv]
-        queried_svs = zf_params["ssd"].mapping_dict[ssv_id]
+        future = self.server.thread_executor.submit(
+            extract_syn_coords, sv_ids
+        )
 
-        result = extract_syn_coords(queried_svs)
+        def handle_result(f):
+            try:
+                data = f.result()
+            except Exception as e:
+                logger.error(e.args[0])
+                self.send_error(500, message=e.args[0])
+                return
 
-        self.finish(json.dumps(result, 'utf-8'))
+            self.set_header('Content-type', 'application/json')
+            self.finish(json.dumps(data, cls=NumpyEncoder))
+
+        tornado.concurrent.future_add_done_callback(
+            future,
+            lambda f: self.server.ioloop.add_callback(lambda: handle_result(f))
+        )
+
+        # result = {}
+        # id_keys = list(zf_params["ssv_lookup"].keys())
+        # random_sv = np.random.choice(id_keys)
+        # ssv_id = zf_params["ssv_lookup"][random_sv]
+        # queried_svs = zf_params["ssd"].mapping_dict[ssv_id]
+
+        # result = extract_syn_coords(queried_svs)
 
 
 class ActionHandler(BaseRequestHandler):
