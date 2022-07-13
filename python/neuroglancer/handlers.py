@@ -517,6 +517,7 @@ class NumpyEncoder(json.JSONEncoder):
 class ZebraFishSyn2CoordHandler(BaseRequestHandler):
     @asynchronous
     def get(self):
+        logger.debug('Zebrafish synapse coordinates requested')
         # sv_ids is a comma separated list of supervoxel ids 
         sv_ids = self.get_arguments('sv_ids')
         if len(sv_ids) == 0:
@@ -572,6 +573,11 @@ class ZebraFishSyn2CoordHandler(BaseRequestHandler):
             extract_syn_coords, sv_ids
         )
 
+        tornado.concurrent.future_add_done_callback(
+            future,
+            lambda f: self.server.ioloop.add_callback(lambda: handle_result(f))
+        )
+
         def handle_result(f):
             try:
                 data = f.result()
@@ -582,11 +588,6 @@ class ZebraFishSyn2CoordHandler(BaseRequestHandler):
 
             self.set_header('Content-type', 'application/json')
             self.finish(json.dumps(data, cls=NumpyEncoder))
-
-        tornado.concurrent.future_add_done_callback(
-            future,
-            lambda f: self.server.ioloop.add_callback(lambda: handle_result(f))
-        )
 
         # result = {}
         # id_keys = list(zf_params["ssv_lookup"].keys())
