@@ -11,6 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from random import choices
+
+
 def add_server_arguments(ap):
     """Defines common options for the Neuroglancer server."""
     g = ap.add_argument_group(title='Neuroglancer server options')
@@ -23,8 +26,8 @@ def add_server_arguments(ap):
                         Default is a production environment')
     g.add_argument('--dev-nginx', default=False, action='store_true',\
                         dest='dev_nginx', help='dev-nginx=TRUE launches the server in a development enviroment with nginx')
-    g.add_argument('--wd', type=str, default='',
-                        help='Working directory of SyConn')
+    g.add_argument('--ds', type=str, default='areaxfs_v10', choices=('areaxfs_v10', 'assembled_core_relabeled', 'rag_flat_Jan2019_v3', '72_seg_20210127_agglo2'),
+                        help='Dataset to choose if --dev is set.')
     g.add_argument('-o', '--organelles', default=[], nargs='+', help='Organelles to load')
     g.add_argument('--static-content-url',
                    help='Obtain the Neuroglancer client code from the specified URL.')

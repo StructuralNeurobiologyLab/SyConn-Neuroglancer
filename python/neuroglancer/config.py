@@ -133,6 +133,29 @@ class NeuroConfig(object):
                     "tpl_mask": None,
                     "info": None,
                 }
+            },
+            "fw363": {
+                "2021-11-02-full-nokd-nossv": {
+                    "working_dir": None,
+                    "ssd": None,
+                    "segmentation": None,
+                    "segmentation_path": None,
+                    "image": None,
+                    "boundary": None,
+                    "scale": None,
+                    "ssvs": None,
+                    "celltypes": None,
+                    "mis": None,
+                    "sizes": None,
+                    "neuron_partners": None,
+                    "partner_axoness": None,
+                    "partner_celltypes": None,
+                    "syn_probs": None,
+                    "syn_areas": None,
+                    "rep_coords": None,
+                    "tpl_mask": None,
+                    "info": None,
+                }
             }
         }
 
@@ -211,26 +234,27 @@ def load_dataset(wd: str, global_params, logger):
 
     params["working_dir"] = global_params.config.working_dir
     params["ssd"] = ssd
-    params["segmentation"] = KnossosDataset(global_params.config.kd_seg_path)
-    params["segmentation_path"] = global_params.config.kd_seg_path
-    params["image"] = KnossosDataset(os.path.join(global_params.config.kd_seg_path))
-    params["boundary"] = [int(b) for b in params["segmentation"].boundary]
-    params["scale"] = [int(s) for s in params["segmentation"].scale]
+    if "fw363" not in wd:
+        params["segmentation"] = KnossosDataset(global_params.config.kd_seg_path)
+        params["segmentation_path"] = global_params.config.kd_seg_path
+        params["image"] = KnossosDataset(os.path.join(global_params.config.kd_seg_path))
+        params["boundary"] = [int(b) for b in params["segmentation"].boundary]
+        params["scale"] = [int(s) for s in params["segmentation"].scale]
 
     params["ssvs"] = ssd.ssv_ids
-    params["celltypes"] = ssd.load_numpy_data("celltype_cnn_e3")
-    params["mis"] = ssd.load_numpy_data("mi")
+    params["celltypes"] = ssd.load_numpy_data("celltype_cnn_e3") if "fw363" not in wd else None
+    params["mis"] = ssd.load_numpy_data("mi") if "fw363" not in wd else None
     params["sizes"] = ssd.load_numpy_data("size")
     params["neuron_partners"] = sd.load_numpy_data("neuron_partners")
-    params["partner_axoness"] = sd.load_numpy_data("partner_axoness")
-    params["partner_celltypes"] = sd.load_numpy_data("partner_celltypes")
+    params["partner_axoness"] = sd.load_numpy_data("partner_axoness") if "fw363" not in wd else None
+    params["partner_celltypes"] = sd.load_numpy_data("partner_celltypes") if "fw363" not in wd else None 
     params["syn_probs"] = sd.load_numpy_data("syn_prob")
     params["mesh_areas"] = sd.load_numpy_data("mesh_area")
     params["rep_coords"] = sd.load_numpy_data("rep_coord")
-    params["info"] = generate_info(params["segmentation"])
+    params["info"] = generate_info(params["segmentation"]) if "fw363" not in wd else None
         
 
-def initialize_server(dev: bool = False):
+def initialize_server(dev: bool = False, ds='areaxfs_v10'):
     # server variables
     global global_server
     global_server = None
@@ -239,40 +263,40 @@ def initialize_server(dev: bool = False):
     
     params = NeuroConfig()
 
-    root = "/wholebrain/songbird"
+    # root = "/wholebrain/songbird"
     
-    logger.info("Initializing segmentation datasets and property arrays for fw363-2021-11-02-full-nokd-nossv")
-    global_params.wd = os.path.join(root, "fw363-2021-11-02-full-nokd-nossv")
-    zf_params = {}
-    zf_params["working_dir"] = global_params.config.working_dir
-    ssd = SuperSegmentationDataset(global_params.config.working_dir)
-    ssd.load_mapping_dict()
-    sd_sv = SegmentationDataset("sv", working_dir=global_params.config.working_dir)
-    sd_syn_ssv = SegmentationDataset("syn_ssv", working_dir=global_params.config.working_dir)
+    # logger.info("Initializing segmentation datasets and property arrays for fw363-2021-11-02-full-nokd-nossv")
+    # global_params.wd = os.path.join(root, "fw363-2021-11-02-full-nokd-nossv")
+    # zf_params = {}
+    # zf_params["working_dir"] = global_params.config.working_dir
+    # ssd = SuperSegmentationDataset(global_params.config.working_dir)
+    # ssd.load_mapping_dict()
+    # sd_sv = SegmentationDataset("sv", working_dir=global_params.config.working_dir)
+    # sd_syn_ssv = SegmentationDataset("syn_ssv", working_dir=global_params.config.working_dir)
 
-    with open(os.path.join(root, 'cs_lookup.pickle'), 'rb') as handle:
-        cs_lookup = pickle.load(handle)
+    # with open(os.path.join(root, 'cs_lookup.pickle'), 'rb') as handle:
+        # cs_lookup = pickle.load(handle)
 
-    with open(os.path.join(root, 'ssv_lookup.pickle'), 'rb') as handle:
-        ssv_lookup = pickle.load(handle)
+    # with open(os.path.join(root, 'ssv_lookup.pickle'), 'rb') as handle:
+        # ssv_lookup = pickle.load(handle)
 
-    zf_params["ssd"] = ssd
-    zf_params["syn_ssv_ids"] = sd_syn_ssv.load_numpy_data("id")
-    zf_params["cs_ids"] = sd_syn_ssv.load_numpy_data("cs_ids")
-    zf_params["rep_coord"] = sd_syn_ssv.load_numpy_data("rep_coord")
-    zf_params["sv_ids"] = sd_sv.load_numpy_data("id")
-    zf_params["cs_lookup"] = cs_lookup
-    zf_params["ssv_lookup"] = ssv_lookup
+    # zf_params["ssd"] = ssd
+    # zf_params["syn_ssv_ids"] = sd_syn_ssv.load_numpy_data("id")
+    # zf_params["cs_ids"] = sd_syn_ssv.load_numpy_data("cs_ids")
+    # zf_params["rep_coord"] = sd_syn_ssv.load_numpy_data("rep_coord")
+    # zf_params["sv_ids"] = sd_sv.load_numpy_data("id")
+    # zf_params["cs_lookup"] = cs_lookup
+    # zf_params["ssv_lookup"] = ssv_lookup
 
     acquisitions = ('j0126', 'j0126', 'j0251', 'j0251')
     versions = ('areaxfs_v10', 'assembled_core_relabeled', 'rag_flat_Jan2019_v3', '72_seg_20210127_agglo2')
 
-    datasets = ('/wholebrain/songbird/j0126/ssdscratch_wds/areaxfs_v10_v4b_base_20180214_full_agglo_cbsplit', '/wholebrain/songbird/j0126/ssdscratch_wds/assembled_core_relabeled_base_merges_relabeled_to_v4b_base_20180214_full_agglo_cbsplit_with_reconnects_no_soma_merger_manual_edges_removed', '/ssdscratch/songbird/j0251/rag_flat_Jan2019_v3', '/ssdscratch/songbird/j0251/j0251_72_seg_20210127_agglo2')
+    datasets = ('/wholebrain/songbird/j0126/ssdscratch_wds/areaxfs_v10_v4b_base_20180214_full_agglo_cbsplit', '/wholebrain/songbird/j0126/ssdscratch_wds/assembled_core_relabeled_base_merges_relabeled_to_v4b_base_20180214_full_agglo_cbsplit_with_reconnects_no_soma_merger_manual_edges_removed', '/ssdscratch/songbird/j0251/rag_flat_Jan2019_v3', '/ssdscratch/songbird/j0251/j0251_72_seg_20210127_agglo2', '/wholebrain/songbird/fw363-2021-11-02-full-nokd-nossv')
 
     if dev:
-        params.acquisition = 'j0126'
-        params.version = 'areaxfs_v10'
-        load_dataset(datasets[0], global_params, logger)
+        params.version = ds
+        params.acquisition = acquisitions[versions.index(ds)]
+        load_dataset(datasets[versions.index(ds)], global_params, logger)
     else:
         for acq, ver, wd in zip(acquisitions, versions, datasets):
             params.acquisition = acq
