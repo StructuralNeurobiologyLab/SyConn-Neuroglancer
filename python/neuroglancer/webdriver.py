@@ -14,14 +14,14 @@
 # limitations under the License.
 """Interface for controlling a browser that runs Neuroglancer."""
 
-from __future__ import absolute_import
+from typing import Sequence, Optional
 
 import tempfile
 import time
 import threading
 
-class Webdriver(object):
 
+class Webdriver:
     def __init__(self,
                  viewer=None,
                  headless=True,
@@ -29,7 +29,8 @@ class Webdriver(object):
                  window_size=(1920, 1080),
                  debug=False,
                  docker=False,
-                 print_logs=True):
+                 print_logs=True,
+                 extra_command_line_args: Optional[Sequence[str]] = None):
         if viewer is None:
             from .viewer import Viewer
             viewer = Viewer()
@@ -39,6 +40,7 @@ class Webdriver(object):
         self.window_size = window_size
         self.headless = headless
         self.docker = docker
+        self.extra_command_line_args = list(extra_command_line_args) if extra_command_line_args else []
         self.debug = debug
         self._logfile = None
         if browser == 'firefox':
@@ -48,6 +50,7 @@ class Webdriver(object):
         self._pending_logs_to_print = []
         self._logs_lock = threading.Lock()
         self._closed = False
+
         def print_log_handler():
             while True:
                 logs_to_print = self._get_logs_to_print()
@@ -56,7 +59,8 @@ class Webdriver(object):
                 if self._closed:
                     break
                 time.sleep(1)
-        t = threading.Thread(target = print_log_handler)
+
+        t = threading.Thread(target=print_log_handler)
         t.daemon = True
         t.start()
 
@@ -81,15 +85,32 @@ class Webdriver(object):
                 "Please see https://sites.google.com/a/chromium.org/chromedriver/home")
 
         import selenium.webdriver.common.desired_capabilities
+        executable_path = 'chromedriver'
         try:
-            # Use chromedriver_binary package if available
-            import chromedriver_binary
+            # Use webdriver_manager package if available
+            import webdriver_manager.chrome
+            import webdriver_manager.utils
+            chrome_version = None
+            chrome_types = (webdriver_manager.utils.ChromeType.GOOGLE,
+                            webdriver_manager.utils.ChromeType.CHROMIUM)
+            for chrome_type in chrome_types:
+                try:
+                    chrome_version = webdriver_manager.utils.chrome_version()
+                    break
+                except ValueError:
+                    # Not found
+                    if chrome_type == chrome_types[-1]:
+                        raise
+
+            executable_path = webdriver_manager.chrome.ChromeDriverManager(
+                chrome_type=chrome_type).install()
         except ImportError:
             # Fallback to system chromedriver
             pass
         chrome_options = selenium.webdriver.chrome.options.Options()
         if self.headless:
             chrome_options.add_argument('--headless')
+        chrome_options.add_experimental_option("excludeSwitches", ['enable-automation'])
         if self.docker:
             # https://www.intricatecloud.io/2019/05/running-webdriverio-tests-using-headless-chrome-inside-a-container/
             chrome_options.add_argument('--no-sandbox')
@@ -98,29 +119,40 @@ class Webdriver(object):
             chrome_options.add_argument('--disable-dev-shm-usage')
         chrome_options.add_argument('--window_size=%dx%d' %
                                     (self.window_size[0], self.window_size[1]))
+        for arg in self.extra_command_line_args:
+            chrome_options.add_argument(arg)
         caps = selenium.webdriver.common.desired_capabilities.DesiredCapabilities.CHROME.copy()
         caps['goog:loggingPrefs'] = {'browser': 'ALL'}
         try:
             orig_init = selenium.webdriver.chrome.service.Service.__init__
             if self.debug:
                 selenium.webdriver.chrome.service.Service.__init__ = patched_init
-            self.driver = selenium.webdriver.Chrome(options=chrome_options, desired_capabilities=caps)
+            self.driver = selenium.webdriver.Chrome(executable_path=executable_path,
+                                                    options=chrome_options,
+                                                    desired_capabilities=caps)
         finally:
             if self.debug:
                 selenium.webdriver.chrome.service.Service.__init__ = orig_init
 
     def _init_firefox(self):
         import selenium.webdriver
+        import selenium.webdriver.firefox.firefox_binary
+        executable_path = 'geckodriver'
         try:
-            # Use geckodriver_autoinstaller package if available
-            import geckodriver_autoinstaller
-            geckodriver_autoinstaller.install()
+            # Use webdriver_manager package if available
+            import webdriver_manager.firefox
+            executable_path = webdriver_manager.firefox.GeckoDriverManager().install()
         except (ImportError, SyntaxError):
-            # Fallback to system chromedriver
+            # Fallback to system geckodriver
             pass
         profile = selenium.webdriver.FirefoxProfile()
         profile.set_preference('devtools.console.stdout.content', True)
+        binary = selenium.webdriver.firefox.firefox_binary.FirefoxBinary()
+        for arg in self.extra_command_line_args:
+            binary.add_command_line_options(arg)
         self.driver = selenium.webdriver.Firefox(firefox_profile=profile,
+                                                 executable_path=executable_path,
+                                                 firefox_binary=binary,
                                                  service_log_path=self._logfile.name)
 
     def _init_driver(self):
@@ -157,8 +189,7 @@ class Webdriver(object):
             for msg in new_data.decode().split('\n'):
                 msg = msg.strip()
                 if not msg: continue
-                if (not msg.startswith('console.log: ')
-                        and not msg.startswith('JavaScript ')):
+                if (not msg.startswith('console.log: ') and not msg.startswith('JavaScript ')):
                     continue
                 new_logs.append({'message': msg})
         self._pending_logs.extend(new_logs)
@@ -202,7 +233,7 @@ class Webdriver(object):
 
     @property
     def root_element(self):
-        return self.driver.find_element_by_xpath('//body')
+        return self.driver.find_element('xpath', '//body')
 
     def action_chain(self):
         import selenium.webdriver

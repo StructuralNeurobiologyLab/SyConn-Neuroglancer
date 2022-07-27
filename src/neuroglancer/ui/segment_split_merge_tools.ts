@@ -17,7 +17,7 @@
 import './segment_split_merge_tools.css';
 
 import {augmentSegmentId, bindSegmentListWidth, makeSegmentWidget, registerCallbackWhenSegmentationDisplayStateChanged, resetTemporaryVisibleSegmentsState, Uint64MapEntry} from 'neuroglancer/segmentation_display_state/frontend';
-import {isBaseSegmentId} from 'neuroglancer/segmentation_graph/source';
+import {isBaseSegmentId, VisibleSegmentEquivalencePolicy} from 'neuroglancer/segmentation_graph/source';
 import {SegmentationUserLayer} from 'neuroglancer/segmentation_user_layer';
 import {StatusMessage} from 'neuroglancer/status';
 import {WatchableValue} from 'neuroglancer/trackable_value';
@@ -37,6 +37,7 @@ const MERGE_SEGMENTS_INPUT_EVENT_MAP = EventActionMap.fromObject({
 
 const SPLIT_SEGMENTS_INPUT_EVENT_MAP = EventActionMap.fromObject({
   'at:shift?+mousedown0': {action: 'split-segments'},
+  'at:shift?+alt+mousedown0': {action: 'split-and-select-segments'},
   'at:shift?+mousedown2': {action: 'set-anchor'},
 });
 
@@ -56,7 +57,12 @@ export class MergeSegmentsTool extends Tool<SegmentationUserLayer> {
       const mappedAnchorSegment = segmentEquivalences.get(anchorSegment);
       if (!Uint64.equal(segmentSelectionState.selectedSegment, mappedAnchorSegment)) return;
       const base = segmentSelectionState.baseSelectedSegment;
-      if (segmentEquivalences.disjointSets.highBitRepresentative.value && !isBaseSegmentId(base)) {
+      const isBase = isBaseSegmentId(base);
+      // TODO: This would ideally rely on a separate HIGH_BIT_REPRESENTATIVE flag,
+      // but it nonetheless still works correctly for nggraph and local equivalences.
+      const equivalencePolicy = segmentEquivalences.disjointSets.visibleSegmentEquivalencePolicy.value;
+      if ((equivalencePolicy & VisibleSegmentEquivalencePolicy.NONREPRESENTATIVE_EXCLUDED && isBase) ||
+          (equivalencePolicy & VisibleSegmentEquivalencePolicy.REPRESENTATIVE_EXCLUDED && !isBase)) {
         return;
       }
       this.lastAnchorBaseSegment.value = base.clone();
@@ -338,22 +344,32 @@ export class SplitSegmentsTool extends Tool<SegmentationUserLayer> {
         this.layer.displayState, activation, debouncedUpdateStatus);
     activation.registerDisposer(this.layer.anchorSegment.changed.add(debouncedUpdateStatus));
 
+    const splitSegments = async (select: boolean) => {
+      const {graph: {value: graph}} = segmentationGroupState;
+      if (graph === undefined) return;
+      const {anchorSegment, otherSegment, error} = getSplitRequest();
+      if (anchorSegment === undefined || otherSegment === undefined || error !== undefined) {
+        return;
+      }
+      try {
+        await graph.split(anchorSegment, otherSegment);
+        if (select) {
+          segmentationGroupState.visibleSegments.add(
+              segmentationGroupState.segmentEquivalences.get(otherSegment));
+        }
+        StatusMessage.showTemporaryMessage(`Split performed`);
+      } catch (e) {
+        StatusMessage.showTemporaryMessage(`Split failed: ${e}`);
+      }
+    };
+
     activation.bindAction('split-segments', event => {
       event.stopPropagation();
-      (async () => {
-        const {graph: {value: graph}} = segmentationGroupState;
-        if (graph === undefined) return;
-        const {anchorSegment, otherSegment, error} = getSplitRequest();
-        if (anchorSegment === undefined || otherSegment === undefined || error !== undefined) {
-          return;
-        }
-        try {
-          await graph.split(anchorSegment, otherSegment);
-          StatusMessage.showTemporaryMessage(`Split performed`);
-        } catch (e) {
-          StatusMessage.showTemporaryMessage(`Split failed: ${e}`);
-        }
-      })();
+      splitSegments(/*select=*/false);
+    });
+    activation.bindAction('split-and-select-segments', event => {
+      event.stopPropagation();
+      splitSegments(/*select=*/true);
     });
     activation.bindAction('set-anchor', event => {
       event.stopPropagation();
