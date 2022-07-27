@@ -1,4 +1,5 @@
 from distutils.log import error
+from importlib_metadata import version
 import tornado.web
 import tornado.ioloop
 import tornado.iostream
@@ -86,7 +87,6 @@ class MainHandler(tornado.web.RequestHandler):
 
 class NotFoundHandler(tornado.web.RequestHandler):
     def get(self):  # for all methods
-        logger.info('In Not Found Handler')
         logger.debug(f"URI not found: {self.request.uri}")
         self.render("notFound.html")
 
@@ -103,13 +103,12 @@ class AboutHandler(tornado.web.RequestHandler):
 
 class TokenHandler(BaseRequestHandler):
     def post(self):
-        logger.info("TokenHandler invoked")
         from neuroglancer.config import params
 
         try:
             params.acquisition = self.get_argument("acq_name")
             params.version = self.get_argument("data_version")
-            print(params.acquisition, params.version)
+            logger.info(f"Launching a viewer for {params.acquisition}_{params.version}")
 
         except tornado.web.MissingArgumentError as e:
             logger.error(e.args[0])
@@ -129,23 +128,38 @@ class TokenHandler(BaseRequestHandler):
 
         token = make_random_token()
         
+        # use a total path length mask for accommodating a fraction
+        # of the cells in the side panel
         use_tpl_mask = True
+
         if params.version == "rag_flat_Jan2019_v3":
-            logger.debug("Using j0251_rag_flat_Jan2019_v3")
-            # sharded precomputed
+            logger.info(f"Using j0251_{params.version}")
+            # sharded precomputed segmentation served by nginx
             seg_src = 'precomputed://' + source + f'/{params.acquisition}_{params.version}/segmentation'
-            img_src = 'precomputed://' + source + f'/{params.acquisition}_{params.version}/image/test'
+            if config.dev_environ:  # dev mode without nginx
+                img_src = 'precomputed://' + source + f'/{params.acquisition}_{params.version}/image'  # precomputed image served by tornado
+            else:
+                img_src = 'precomputed://' + source + f'/{params.acquisition}_{params.version}/image/test'  # sharded precomputed image served by nginx
             
         elif params.version == "72_seg_20210127_agglo2":
-            logger.debug("Using j0251_72_seg_20210127_agglo2")
-            # sharded precomputed
+            logger.info(f"Using j0251_{params.version}")
+            # sharded precomputed volumes
             seg_src = 'precomputed://' + source + f'/{params.acquisition}_{params.version}/segmentation'
             img_src = 'precomputed://' + source + f'/{params.acquisition}_{params.version}/image'
 
+        elif params.version == "2021-11-02-full-nokd-nossv":
+            logger.info(f"Using fw363_{params.version}")
+            seg_src = 'precomputed://http://knossosstreaming-mf.esc.rzg.mpg.de/fw363_seg_140180724fb_rsg_or_sc06_cbsplit_neuroglancer/mesh'
+            img_src = None  # no image source available
+
         else: 
-            logger.debug("Using j0126")
+            logger.info(f"Using j0126_{params.version}")
             seg_src = 'precomputed://' + source + '/volume/segmentation'  # unsharded precomputed segmentation
-            img_src = 'precomputed://' + source + '/j0126/volume/image'  # sharded precomputed image
+            if config.dev_environ:
+                img_src = 'precomputed://' + source + '/volume/image'  # precomputed image served by tornado
+            else:
+                img_src = 'precomputed://' + source + '/j0126/volume/image'  # sharded precomputed image served by nginx
+            # total path length mask not required for small datasets like j0126
             use_tpl_mask = False
 
         pf = PropertyFilter(params, token, ['mi', 'vc', 'sj'], use_tpl_mask=use_tpl_mask, seg_src=seg_src, img_src=img_src)
@@ -159,7 +173,6 @@ class TokenHandler(BaseRequestHandler):
 
 class SharedURLHandler(BaseRequestHandler):
     def get(self, acquisition, version):
-        logger.info('In Shared URL Handler')
         uri = urllib.parse.unquote(self.request.uri)
         no_a_umlaut_url = uri.replace("ä", "!")
         decoded_url = no_a_umlaut_url.replace("ß", "#")
@@ -183,6 +196,7 @@ class SharedURLHandler(BaseRequestHandler):
         token = make_random_token()
 
         use_tpl_mask = True
+
         if params.version == "j0251_rag_flat_Jan2019_v3":
             logger.debug("Shared URL: Using j0251_rag_flat_Jan2019_v3")
             seg_src = 'precomputed://' + source + f'/{params.version}/segmentation'
@@ -192,17 +206,18 @@ class SharedURLHandler(BaseRequestHandler):
             logger.debug("Shared URL: Using j0251_72_seg_20210127_agglo2")
             seg_src = 'precomputed://' + source + f'/{params.version}/segmentation'
             img_src = 'precomputed://' + source + f'/{params.version}/image'
-
+        elif params.version == "2021-11-02-full-nokd-nossv":
+            logger.debug(f"Shared URL: Using fw363_{params.version}")
+            seg_src = 'precomputed://http://knossosstreaming-mf.esc.rzg.mpg.de/fw363_seg_140180724fb_rsg_or_sc06_cbsplit_neuroglancer/mesh'
+            img_src = None
         else:  # for j0126
-            logger.debug("Shared URL: Using j0126")
+            logger.debug(f"Shared URL: Using j0126_{params.version}")
             seg_src = 'precomputed://' + source + '/volume/segmentation'
             img_src = 'precomputed://' + source + '/j0126/volume/image'
             use_tpl_mask = False  # total path length filtering is not required
 
         pf = PropertyFilter(params, token, ['mi', 'vc', 'sj'], use_tpl_mask=use_tpl_mask, seg_src=seg_src, img_src=img_src)
         pf.viewer.set_state(state)
-
-        # logger.debug(f"Viewer instances in memory: {len(config.global_server.viewers.keys())}")
 
         # render the new viewer
         try:
@@ -231,7 +246,13 @@ class PrecomputedSkeletonInfoHandler(BaseRequestHandler):
                     1,
                     0
                 ],
-                "vertex_attributes": [],
+                "vertex_attributes": [
+                    {
+                        "id": "radius",
+                        "data_type": "float32",
+                        "num_components": 1,
+                    }
+                ],
                 "spatial_index": None
             }
 
@@ -354,7 +375,6 @@ class PrecomputedMeshHandler(BaseRequestHandler):
                     if not(params["ssd"].ssv_ids == ssv_id).any():
                         logger.info("Cell ID not found in ssv_ids. Trying to load cell ID from sv2ssv mapping")
                         new_ssv_id = params["ssd"].sv2ssv_ids(ids=np.array([ssv_id]))[ssv_id]
-                        # seg_layer.equivalences = [tuple(params["ssd"].mapping_dict[new_ssv_id])]
                     else:
                         new_ssv_id = ssv_id
                     
@@ -481,6 +501,7 @@ class PrecomputedSegPropsInfoHandler(BaseRequestHandler):
         from neuroglancer.config import params
 
         filename = params.acquisition + "_" + params.version + ".json"
+        print('Sending file: {}'.format(filename))
         future = self.server.thread_executor.submit(read_file, params, filename)
 
         tornado.concurrent.future_add_done_callback(
@@ -540,18 +561,6 @@ class ZebraFishSyn2CoordHandler(BaseRequestHandler):
             self.send_error(400, message=e)
             return
 
-        # if isinstance(sv_ids, int):
-        #     sv_ids = [sv_ids]
-        # elif isinstance(sv_ids, str):
-        #     try:
-        #         sv_ids = int(sv_ids)
-        #         sv_ids = [sv_ids]
-        #     except ValueError as e:
-        #         # invalid input, return error
-        #         logger.error(e.args[0])
-        #         self.send_error(400, message=e.args[0])
-        #         return
-
         from neuroglancer.config import zf_params
 
         # extract the synapse coordinates of the supervoxels
@@ -588,6 +597,7 @@ class ZebraFishSyn2CoordHandler(BaseRequestHandler):
             lambda f: self.server.ioloop.add_callback(lambda: handle_result(f))
         )
 
+        # an example
         # result = {}
         # id_keys = list(zf_params["ssv_lookup"].keys())
         # random_sv = np.random.choice(id_keys)
