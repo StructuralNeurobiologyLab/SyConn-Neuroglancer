@@ -48,7 +48,6 @@ export class HistogramSpecifications extends RefCounted {
   frameNumber = -1;
   constructor(
       public channels: WatchableValueInterface<HistogramChannelSpecification[]>,
-      public properties: WatchableValueInterface<string[]>,
       public bounds: WatchableValueInterface<DataTypeInterval[]>,
       public visibility = new VisibilityPriorityAggregator()) {
     super();
@@ -56,8 +55,7 @@ export class HistogramSpecifications extends RefCounted {
 
   getFramebuffers(gl: GL) {
     const {framebuffers} = this;
-    const count = this.bounds.value.length;
-    while (framebuffers.length < count) {
+    while (framebuffers.length < this.channels.value.length) {
       const framebuffer = new FramebufferConfiguration(gl, {
         colorBuffers: makeTextureBuffers(
             gl, 1, WebGL2RenderingContext.R32F, WebGL2RenderingContext.RED,
@@ -66,11 +64,6 @@ export class HistogramSpecifications extends RefCounted {
       framebuffers.push(framebuffer);
     }
     return framebuffers;
-  }
-
-  get visibleHistograms(): number {
-    if (!this.visibility.visible) return 0;
-    return this.bounds.value.length;
   }
 
   disposed() {

@@ -276,12 +276,6 @@ class SplitSegmentsTool(Tool):
     TOOL_TYPE = 'splitSegments'
 
 
-@export_tool
-class SelectSegmentsTool(Tool):
-    __slots__ = ()
-    TOOL_TYPE = 'selectSegments'
-
-
 @export
 def tool(json_data, _readonly=False):
     if isinstance(json_data, Tool):

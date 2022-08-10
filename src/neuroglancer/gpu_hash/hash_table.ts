@@ -20,9 +20,7 @@ import {Uint64} from 'neuroglancer/util/uint64';
 
 export const NUM_ALTERNATIVES = 3;
 
-// For 3 hash functions, a DEFAULT_LOAD_FACTOR of 0.8 reliably avoids
-// expensive rehashing caused by unresolvable collisions.
-const DEFAULT_LOAD_FACTOR = 0.8;
+const DEFAULT_LOAD_FACTOR = 0.9;
 
 const DEBUG = false;
 
@@ -136,25 +134,9 @@ export abstract class HashTableBase {
   /**
    * Iterates over the Uint64 keys contained in the hash set.
    *
-   * Creates a new Uint64 object at every iteration (otherwise spread and Array.from() fail)
-   */
-  * keys() {
-    let {emptyLow, emptyHigh, entryStride} = this;
-    let {table} = this;
-    for (let i = 0, length = table.length; i < length; i += entryStride) {
-      let low = table[i], high = table[i + 1];
-      if (low !== emptyLow || high !== emptyHigh) {
-        yield new Uint64(low, high);
-      }
-    }
-  }
-
-  /**
-   * Iterates over the Uint64 keys contained in the hash set.
-   *
    * The same temp value will be modified and yielded at every iteration.
    */
-  * unsafeKeys(temp = new Uint64()) {
+  * keys(temp = new Uint64()) {
     let {emptyLow, emptyHigh, entryStride} = this;
     let {table} = this;
     for (let i = 0, length = table.length; i < length; i += entryStride) {
@@ -267,16 +249,6 @@ export abstract class HashTableBase {
     ++this.generation;
     this.clearTable();
     return true;
-  }
-
-  reserve(x: number) {
-    if (x > this.capacity) {
-      this.backupPending();
-      this.grow(x);
-      this.restorePending();
-      return true;
-    }
-    return false;
   }
 
   protected swapPending(table: Uint32Array, offset: number) {
@@ -418,11 +390,11 @@ export class HashSetUint64 extends HashTableBase {
   }
 
   /**
-   * Iterates over the keys.
-   * Creates a new Uint64 object at every iteration (otherwise spread and Array.from() fail)
+   * Iterates over the keys.  The same temporary value will be modified and yielded at every
+   * iteration.
    */
   [Symbol.iterator]() {
-    return this.unsafeKeys();
+    return this.keys();
   }
 }
 HashSetUint64.prototype.entryStride = 2;
@@ -490,31 +462,14 @@ export class HashMapUint64 extends HashTableBase {
    * iteration.
    */
   [Symbol.iterator]() {
-    return this.unsafeEntries();
-  }
-
-  /**
-   * Iterates over entries.
-   * Creates new Uint64 objects at every iteration (otherwise spread and Array.from() fail)
-   */
-  * entries() {
-    let {emptyLow, emptyHigh, entryStride} = this;
-    let {table} = this;
-    for (let i = 0, length = table.length; i < length; i += entryStride) {
-      let low = table[i], high = table[i + 1];
-      if (low !== emptyLow || high !== emptyHigh) {
-        let key = new Uint64(low, high);
-        let value = new Uint64(table[i + 2], table[i + 3]);
-        yield [key, value];
-      }
-    }
+    return this.entries();
   }
 
   /**
    * Iterates over entries.  The same temporary value will be modified and yielded at every
    * iteration.
    */
-  * unsafeEntries(temp: [Uint64, Uint64] = [new Uint64(), new Uint64()]) {
+  * entries(temp: [Uint64, Uint64] = [new Uint64(), new Uint64()]) {
     let {emptyLow, emptyHigh, entryStride} = this;
     let {table} = this;
     let [key, value] = temp;

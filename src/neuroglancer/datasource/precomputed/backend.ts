@@ -32,7 +32,6 @@ import {decodeCompressedSegmentationChunk} from 'neuroglancer/sliceview/backend_
 import {decodeCompressoChunk} from 'neuroglancer/sliceview/backend_chunk_decoders/compresso';
 import {decodeKnossosChunk} from 'neuroglancer/sliceview/backend_chunk_decoders/knossos';
 import {decodeJpegChunk} from 'neuroglancer/sliceview/backend_chunk_decoders/jpeg';
-import {decodePngChunk} from 'neuroglancer/sliceview/backend_chunk_decoders/png';
 import {decodeRawChunk} from 'neuroglancer/sliceview/backend_chunk_decoders/raw';
 import {VolumeChunk, VolumeChunkSource} from 'neuroglancer/sliceview/volume/backend';
 import {fetchSpecialHttpByteRange} from 'neuroglancer/util/byte_range_http_requests';
@@ -258,7 +257,6 @@ chunkDecoders.set(VolumeChunkEncoding.JPEG, decodeJpegChunk);
 chunkDecoders.set(VolumeChunkEncoding.COMPRESSED_SEGMENTATION, decodeCompressedSegmentationChunk);
 chunkDecoders.set(VolumeChunkEncoding.COMPRESSO, decodeCompressoChunk);
 chunkDecoders.set(VolumeChunkEncoding.KNOSSOS, decodeKnossosChunk);
-chunkDecoders.set(VolumeChunkEncoding.PNG, decodePngChunk);
 
 @registerSharedObject() export class PrecomputedVolumeChunkSource extends
 (WithParameters(WithSharedCredentialsProviderCounterpart<SpecialProtocolCredentials>()(VolumeChunkSource), VolumeChunkSourceParameters)) {
@@ -641,7 +639,8 @@ function parseAnnotations(
   const countLow = dv.getUint32(0, /*littleEndian=*/ true);
   const countHigh = dv.getUint32(4, /*littleEndian=*/ true);
   if (countHigh !== 0) throw new Error('Annotation count too high');
-  const numBytes = propertySerializer.serializedBytes;
+  const numBytes = annotationTypeHandlers[parameters.type].serializedBytes(parameters.rank) +
+      propertySerializer.serializedBytes;
   const expectedBytes = 8 + (numBytes + 8) * countLow;
   if (buffer.byteLength !== expectedBytes) {
     throw new Error(`Expected ${expectedBytes} bytes, but received: ${buffer.byteLength} bytes`);
@@ -655,32 +654,8 @@ function parseAnnotations(
     ids[i] = id.toString();
   }
   const geometryData = new AnnotationGeometryData();
-  const origData = new Uint8Array(buffer, 8, numBytes * countLow);
-  let data: Uint8Array;
-  const {propertyGroupBytes} = propertySerializer;
-  if (propertyGroupBytes.length > 1) {
-    // Need to transpose the property data.
-    data = new Uint8Array(origData.length);
-
-    let origOffset = 0;
-    let groupOffset = 0;
-    for (let groupIndex = 0; groupIndex < propertyGroupBytes.length; ++groupIndex) {
-      const groupBytesPerAnnotation = propertyGroupBytes[groupIndex];
-      for (let annotationIndex = 0; annotationIndex < countLow; ++annotationIndex) {
-        let origBase = origOffset + annotationIndex * numBytes;
-        let newBase = groupOffset + annotationIndex * groupBytesPerAnnotation;
-        for (let i = 0; i < groupBytesPerAnnotation; ++i) {
-          data[newBase + i] = origData[origBase + i];
-        }
-      }
-      origOffset += groupBytesPerAnnotation;
-      groupOffset += groupBytesPerAnnotation * countLow;
-    }
-  } else {
-    data = origData;
-  }
-  geometryData.data = data;
-  // FIXME: convert endian in order to support big endian platforms
+  const data = geometryData.data = new Uint8Array(buffer, 8, numBytes * countLow);
+  convertEndian32(data, Endianness.LITTLE);
   const typeToOffset = geometryData.typeToOffset = new Array<number>(annotationTypes.length);
   typeToOffset.fill(0);
   typeToOffset[parameters.type] = 0;
@@ -698,7 +673,7 @@ function parseSingleAnnotation(
     buffer: ArrayBuffer, parameters: AnnotationSourceParameters,
     propertySerializer: AnnotationPropertySerializer, id: string): Annotation {
   const handler = annotationTypeHandlers[parameters.type];
-  const baseNumBytes = propertySerializer.serializedBytes;
+  const baseNumBytes = handler.serializedBytes(parameters.rank);
   const numRelationships = parameters.relationships.length;
   const minNumBytes = baseNumBytes + 4 * numRelationships;
   if (buffer.byteLength < minNumBytes) {
@@ -707,9 +682,9 @@ function parseSingleAnnotation(
   const dv = new DataView(buffer);
   const annotation = handler.deserialize(dv, 0, /*isLittleEndian=*/ true, parameters.rank, id);
   propertySerializer.deserialize(
-      dv, /*offset=*/ 0, /*annotationIndex=*/ 0, /*annotationCount=*/ 1, /*isLittleEndian=*/ true,
+      dv, baseNumBytes, /*isLittleEndian=*/ true,
       annotation.properties = new Array(parameters.properties.length));
-  let offset = baseNumBytes;
+  let offset = baseNumBytes + propertySerializer.serializedBytes;
   const relatedSegments: Uint64[][] = annotation.relatedSegments = [];
   relatedSegments.length = numRelationships;
   for (let i = 0; i < numRelationships; ++i) {
@@ -773,10 +748,8 @@ export class PrecomputedAnnotationSourceBackend extends (WithParameters(WithShar
       this.chunkManager, this.credentialsProvider, this.parameters.byId);
   private relationshipIndexSource = this.parameters.relationships.map(
       x => getMinishardIndexDataSource(this.chunkManager, this.credentialsProvider, x));
-  annotationPropertySerializer = new AnnotationPropertySerializer(
-      this.parameters.rank,
-      annotationTypeHandlers[this.parameters.type].serializedBytes(this.parameters.rank),
-      this.parameters.properties);
+  annotationPropertySerializer =
+      new AnnotationPropertySerializer(this.parameters.rank, this.parameters.properties);
 
   async downloadSegmentFilteredGeometry(
       chunk: AnnotationSubsetGeometryChunk, relationshipIndex: number,

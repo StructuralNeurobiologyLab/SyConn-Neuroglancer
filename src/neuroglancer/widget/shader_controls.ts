@@ -29,7 +29,6 @@ import {addLayerControlToOptionsTab, LayerControlDefinition, LayerControlFactory
 import {channelInvlerpLayerControl} from 'neuroglancer/widget/layer_control_channel_invlerp';
 import {checkboxLayerControl} from 'neuroglancer/widget/layer_control_checkbox';
 import {colorLayerControl} from 'neuroglancer/widget/layer_control_color';
-import {propertyInvlerpLayerControl} from 'neuroglancer/widget/layer_control_property_invlerp';
 import {rangeLayerControl} from 'neuroglancer/widget/layer_control_range';
 import {Tab} from 'neuroglancer/widget/tab_view';
 
@@ -60,11 +59,11 @@ function getShaderLayerControlFactory<LayerType extends UserLayer>(
       return colorLayerControl(() => controlState.trackable);
     case 'checkbox':
       return checkboxLayerControl(() => controlState.trackable);
-    case 'imageInvlerp': {
+    case 'invlerp': {
       let histogramIndex = 0;
       for (const [otherName, {control: {type: otherType}}] of shaderControlState.state) {
         if (otherName === controlId) break;
-        if (otherType === 'imageInvlerp') ++histogramIndex;
+        if (otherType === 'invlerp') ++histogramIndex;
       }
       return channelInvlerpLayerControl(
           () => ({
@@ -72,21 +71,6 @@ function getShaderLayerControlFactory<LayerType extends UserLayer>(
             defaultChannel: control.default.channel,
             watchableValue: controlState.trackable,
             channelCoordinateSpaceCombiner: shaderControlState.channelCoordinateSpaceCombiner,
-            histogramSpecifications: shaderControlState.histogramSpecifications,
-            histogramIndex,
-            legendShaderOptions: layerShaderControls.legendShaderOptions,
-          }));
-    }
-    case 'propertyInvlerp': {
-      let histogramIndex = 0;
-      for (const [otherName, {control: {type: otherType}}] of shaderControlState.state) {
-        if (otherName === controlId) break;
-        if (otherType === 'propertyInvlerp') ++histogramIndex;
-      }
-      return propertyInvlerpLayerControl(
-          () => ({
-            properties: control.properties,
-            watchableValue: controlState.trackable,
             histogramSpecifications: shaderControlState.histogramSpecifications,
             histogramIndex,
             legendShaderOptions: layerShaderControls.legendShaderOptions,

@@ -20,13 +20,8 @@
 
 // This is based on goog/ui/keyboardshortcuthandler.js in the Google Closure library.
 
-import {WatchableValue} from 'neuroglancer/trackable_value';
 import {RefCounted} from 'neuroglancer/util/disposable';
-import {ActionEvent, dispatchEventWithModifiers, EventActionMap, EventActionMapInterface, registerActionListener, getEventModifierMask} from 'neuroglancer/util/event_action_map';
-
-export const globalModifiers = new WatchableValue<number>(0);
-window.addEventListener('keydown', event => {  globalModifiers.value = getEventModifierMask(event); });
-window.addEventListener('keyup', event => {  globalModifiers.value = getEventModifierMask(event); });
+import {ActionEvent, dispatchEventWithModifiers, EventActionMap, EventActionMapInterface, registerActionListener} from 'neuroglancer/util/event_action_map';
 
 const globalKeys = new Set(
     ['f1', 'f2', 'f3', 'f4', 'f5', 'f6', 'f7', 'f8', 'f9', 'f10', 'f11', 'f12', 'escape', 'pause']);

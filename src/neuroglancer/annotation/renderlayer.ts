@@ -19,7 +19,7 @@ import 'neuroglancer/annotation/line';
 import 'neuroglancer/annotation/point';
 import 'neuroglancer/annotation/ellipsoid';
 
-import {AnnotationBase, AnnotationSerializer, AnnotationSource, annotationTypes, formatAnnotationPropertyValue, SerializedAnnotations} from 'neuroglancer/annotation';
+import {AnnotationBase, AnnotationSerializer, AnnotationSource, annotationTypeHandlers, annotationTypes, formatAnnotationPropertyValue, SerializedAnnotations} from 'neuroglancer/annotation';
 import {AnnotationLayerState, OptionalSegmentationDisplayState} from 'neuroglancer/annotation/annotation_layer_state';
 import {ANNOTATION_PERSPECTIVE_RENDER_LAYER_UPDATE_SOURCES_RPC_ID, ANNOTATION_RENDER_LAYER_RPC_ID, ANNOTATION_RENDER_LAYER_UPDATE_SEGMENTATION_RPC_ID, ANNOTATION_SPATIALLY_INDEXED_RENDER_LAYER_RPC_ID, forEachVisibleAnnotationChunk} from 'neuroglancer/annotation/base';
 import {AnnotationGeometryChunkSource, AnnotationGeometryData, computeNumPickIds, MultiscaleAnnotationSource} from 'neuroglancer/annotation/frontend_source';
@@ -82,7 +82,7 @@ function segmentationFilter(segmentationStates: readonly OptionalSegmentationDis
 
 function serializeAnnotationSet(
     annotationSet: AnnotationSource, filter?: (annotation: AnnotationBase) => boolean) {
-  const serializer = new AnnotationSerializer(annotationSet.annotationPropertySerializers);
+  const serializer = new AnnotationSerializer(annotationSet.annotationPropertySerializer);
   for (const annotation of annotationSet) {
     if (filter === undefined || filter(annotation)) {
       serializer.add(annotation);
@@ -353,8 +353,6 @@ function AnnotationRenderLayer<TBase extends AnyConstructor<VisibilityTrackedRen
       this.role = base.state.role;
       this.registerDisposer(base.redrawNeeded.add(this.redrawNeeded.dispatch));
       this.handleRankChanged();
-      this.registerDisposer(this.base.state.displayState.shaderControls.histogramSpecifications
-                                .producerVisibility.add(this.visibility));
     }
 
     attach(attachment: VisibleLayerInfo<LayerView, AttachmentState>) {
@@ -455,8 +453,6 @@ function AnnotationRenderLayer<TBase extends AnyConstructor<VisibilityTrackedRen
         renderSubspaceInvModelMatrix: chunkDisplayTransform.displaySubspaceInvModelMatrix,
         chunkDisplayTransform,
       };
-      const computeHistograms =
-          this.base.state.displayState.shaderControls.histogramSpecifications.visibleHistograms > 0;
       for (const annotationType of annotationTypes) {
         const idMap = typeToIdMaps[annotationType];
         let count = idMap.size;
@@ -475,12 +471,7 @@ function AnnotationRenderLayer<TBase extends AnyConstructor<VisibilityTrackedRen
           context.count = count;
           context.bufferOffset = typeToOffset[annotationType];
           context.selectedIndex = selectedIndex;
-          const renderHelper = this.renderHelpers[annotationType];
-          renderHelper.draw(context);
-          if (computeHistograms) {
-            renderHelper.computeHistograms(context, renderContext.frameNumber);
-            renderContext.bindFramebuffer();
-          }
+          this.renderHelpers[annotationType].draw(context);
           context.basePickId += count * handler.pickIdsPerInstance;
         }
       }
@@ -497,6 +488,7 @@ function AnnotationRenderLayer<TBase extends AnyConstructor<VisibilityTrackedRen
       for (const annotationType of annotationTypes) {
         const ids = typeToIds[annotationType];
         const renderHandler = getAnnotationTypeRenderHandler(annotationType);
+        const handler = annotationTypeHandlers[annotationType];
         const {pickIdsPerInstance} = renderHandler;
         if (pickedOffset < ids.length * pickIdsPerInstance) {
           const instanceIndex = Math.floor(pickedOffset / pickIdsPerInstance);
@@ -507,10 +499,11 @@ function AnnotationRenderLayer<TBase extends AnyConstructor<VisibilityTrackedRen
           mouseState.pickedOffset = partIndex;
           mouseState.pickedAnnotationBuffer = serializedAnnotations.data.buffer;
           mouseState.pickedAnnotationType = annotationType;
-          mouseState.pickedAnnotationBufferBaseOffset = serializedAnnotations.data.byteOffset +
-            typeToOffset[annotationType];
-          mouseState.pickedAnnotationIndex = instanceIndex;
-          mouseState.pickedAnnotationCount = ids.length;
+          mouseState.pickedAnnotationBufferOffset = serializedAnnotations.data.byteOffset +
+              typeToOffset[annotationType] +
+              instanceIndex *
+                  (handler.serializedBytes(rank) +
+                   this.base.source.annotationPropertySerializer.serializedBytes);
           const chunkPosition = this.tempChunkPosition;
           const {chunkToLayerTransform, combinedGlobalLocalToChunkTransform, layerRank} =
               chunkTransform;
@@ -521,12 +514,9 @@ function AnnotationRenderLayer<TBase extends AnyConstructor<VisibilityTrackedRen
                   combinedGlobalLocalToChunkTransform)) {
             return;
           }
-          const propertySerializer = this.base.source.annotationPropertySerializers[annotationType];
           renderHandler.snapPosition(
               chunkPosition, mouseState.pickedAnnotationBuffer,
-              mouseState.pickedAnnotationBufferBaseOffset +
-                  mouseState.pickedAnnotationIndex * propertySerializer.propertyGroupBytes[0],
-              partIndex);
+              mouseState.pickedAnnotationBufferOffset, partIndex);
           const globalRank = globalToRenderLayerDimensions.length;
           for (let globalDim = 0; globalDim < globalRank; ++globalDim) {
             const layerDim = globalToRenderLayerDimensions[globalDim];
@@ -552,18 +542,14 @@ function AnnotationRenderLayer<TBase extends AnyConstructor<VisibilityTrackedRen
       if (pickedAnnotationBuffer === undefined) return undefined;
       const {properties} = this.base.source;
       if (properties.length === 0) return undefined;
-      const {
-        pickedAnnotationBufferBaseOffset,
-        pickedAnnotationType,
-        pickedAnnotationIndex,
-        pickedAnnotationCount
-      } = pickState;
-      const {annotationPropertySerializers} = this.base.source;
+      const {pickedAnnotationBufferOffset, pickedAnnotationType} = pickState;
+      const handler = annotationTypeHandlers[pickedAnnotationType!];
+      const {rank, annotationPropertySerializer} = this.base.source;
+      const baseNumBytes = handler.serializedBytes(rank);
       // Check if there are any properties.
       const propertyValues = new Array(properties.length);
-      annotationPropertySerializers[pickedAnnotationType!].deserialize(
-          new DataView(pickedAnnotationBuffer), pickedAnnotationBufferBaseOffset!,
-          pickedAnnotationIndex!, pickedAnnotationCount!,
+      annotationPropertySerializer.deserialize(
+          new DataView(pickedAnnotationBuffer), pickedAnnotationBufferOffset! + baseNumBytes,
           /*isLittleEndian=*/ Endianness.LITTLE === ENDIANNESS, propertyValues);
       return formatAnnotationPropertyValue(properties[0], propertyValues[0]);
     }
@@ -708,7 +694,6 @@ const SpatiallyIndexedAnnotationLayer = <TBase extends AnyConstructor<Annotation
             this.backend.rpc!.invoke(ANNOTATION_PERSPECTIVE_RENDER_LAYER_UPDATE_SOURCES_RPC_ID, {
               layer: this.backend.rpcId,
               view: attachment.view.rpcId,
-              displayDimensionRenderInfo,
               sources: serializeAllTransformedSources(transformedSources),
             });
             this.redrawNeeded.dispatch();

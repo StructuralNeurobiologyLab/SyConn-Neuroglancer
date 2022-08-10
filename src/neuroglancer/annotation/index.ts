@@ -80,18 +80,6 @@ export interface AnnotationNumericPropertySpec extends AnnotationPropertySpecBas
   step?: number;
 }
 
-export const propertyTypeDataType: Record<AnnotationPropertySpec['type'], DataType|undefined> = {
-  'float32': DataType.FLOAT32,
-  'uint32': DataType.UINT32,
-  'int32': DataType.INT32,
-  'uint16': DataType.UINT16,
-  'int16': DataType.INT16,
-  'uint8': DataType.UINT8,
-  'int8': DataType.INT8,
-  'rgb': undefined,
-  'rgba': undefined,
-};
-
 export type AnnotationPropertySpec = AnnotationColorPropertySpec|AnnotationNumericPropertySpec;
 
 export interface AnnotationPropertyTypeHandler {
@@ -289,126 +277,65 @@ export const annotationPropertyTypeHandlers:
       },
     };
 
-// Maximum stride value supported by WebGL.
-const MAX_BUFFER_STRIDE = 255;
-
 export function getPropertyOffsets(
-    rank: number, firstGroupInitialOffset: number,
-    propertySpecs: readonly Readonly<AnnotationPropertySpec>[]): {
-  serializedBytes: number,
-  offsets: {group: number, offset: number}[],
-  propertyGroupBytes: number[],
-} {
+    rank: number, propertySpecs: readonly Readonly<AnnotationPropertySpec>[]) {
   let serializedBytes = 0;
   const numProperties = propertySpecs.length;
   const permutation = new Array<number>(numProperties);
-  const propertyGroupBytes: number[] = [];
   for (let i = 0; i < numProperties; ++i) {
     permutation[i] = i;
   }
   const getAlignment = (i: number) =>
       annotationPropertyTypeHandlers[propertySpecs[i].type].alignment(rank);
   permutation.sort((i, j) => getAlignment(j) - getAlignment(i));
-  let propertyGroupIndex = 0;
-  const offsets = new Array<{group: number, offset: number}>(numProperties);
-  let propertyGroupOffset = firstGroupInitialOffset;
-  const nextPropertyGroup = () => {
-    propertyGroupOffset += (4 - (propertyGroupOffset % 4)) % 4;
-    serializedBytes += propertyGroupOffset;
-    propertyGroupBytes[propertyGroupIndex] = propertyGroupOffset;
-    propertyGroupOffset = 0;
-    ++propertyGroupIndex;
-  };
+  const offsets = new Array<number>(numProperties);
   for (let outputIndex = 0; outputIndex < numProperties; ++outputIndex) {
     const propertyIndex = permutation[outputIndex];
     const spec = propertySpecs[propertyIndex];
     const handler = annotationPropertyTypeHandlers[spec.type];
     const numBytes = handler.serializedBytes(rank);
     const alignment = handler.alignment(rank);
-    // Check if the property fits in the current property group.
-    const alignmentOffset = (alignment - (propertyGroupOffset % alignment)) % alignment
-    const newStartOffset = propertyGroupOffset + alignmentOffset;
-    const newEndOffset = newStartOffset + numBytes;
-    const newAlignedEndOffset = newEndOffset + (4 - (newEndOffset % 4)) % 4;
-    if (newAlignedEndOffset <= MAX_BUFFER_STRIDE) {
-      // Property fits
-      propertyGroupOffset += alignmentOffset;
-    } else {
-      // Property does not fit.
-      nextPropertyGroup();
-    }
-    offsets[propertyIndex] = {offset: propertyGroupOffset, group: propertyGroupIndex};
-    propertyGroupOffset += numBytes;
+    serializedBytes += (alignment - (serializedBytes % alignment)) % alignment;
+    offsets[propertyIndex] = serializedBytes;
+    serializedBytes += numBytes;
   }
-  nextPropertyGroup();
-  return {serializedBytes, offsets, propertyGroupBytes};
+  serializedBytes += (4 - (serializedBytes % 4)) % 4;
+  return {serializedBytes, offsets};
 }
 
 export class AnnotationPropertySerializer {
   serializedBytes: number;
-  serialize:
-      (buffer: DataView, offset: number, annotationIndex: number, annotationCount: number,
-       isLittleEndian: boolean, properties: any[]) => void;
+  serialize: (buffer: DataView, offset: number, isLittleEndian: boolean, properties: any[]) => void;
   deserialize:
-      (buffer: DataView, offset: number, annotationIndex: number, annotationCount: number,
-       isLittleEndian: boolean, properties: any[]) => void;
-  propertyGroupBytes: number[];
+      (buffer: DataView, offset: number, isLittleEndian: boolean, properties: any[]) => void;
   constructor(
-      public rank: number, public firstGroupInitialOffset: number,
-      public propertySpecs: readonly Readonly<AnnotationPropertySpec>[]) {
+      public rank: number, public propertySpecs: readonly Readonly<AnnotationPropertySpec>[]) {
     if (propertySpecs.length === 0) {
-      this.serializedBytes = firstGroupInitialOffset;
+      this.serializedBytes = 0;
       this.serialize = this.deserialize = () => {};
-      this.propertyGroupBytes = [firstGroupInitialOffset];
       return;
     }
-    const {serializedBytes, offsets, propertyGroupBytes} =
-        getPropertyOffsets(rank, firstGroupInitialOffset, propertySpecs);
-    this.propertyGroupBytes = propertyGroupBytes;
-    let groupOffsetCode = 'let groupOffset0 = offset;';
-    for (let groupIndex = 1; groupIndex < propertyGroupBytes.length; ++groupIndex) {
-      groupOffsetCode += `let groupOffset${groupIndex} = groupOffset${groupIndex - 1} + ${
-          propertyGroupBytes[groupIndex - 1]}*annotationCount;`;
-    }
-    for (let groupIndex = 0; groupIndex < propertyGroupBytes.length; ++groupIndex) {
-      groupOffsetCode +=
-          `groupOffset${groupIndex} += ${propertyGroupBytes[groupIndex]}*annotationIndex;`;
-    }
-    let serializeCode = groupOffsetCode;
-    let deserializeCode = groupOffsetCode;
+    let serializeCode = '';
+    let deserializeCode = '';
+    const {serializedBytes, offsets} = getPropertyOffsets(rank, propertySpecs);
     const numProperties = propertySpecs.length;
     for (let propertyIndex = 0; propertyIndex < numProperties; ++propertyIndex) {
-      const {group, offset} = offsets[propertyIndex];
       const spec = propertySpecs[propertyIndex];
       const handler = annotationPropertyTypeHandlers[spec.type];
       const propId = `properties[${propertyIndex}]`;
-      const offsetExpr = `groupOffset${group} + ${offset}`;
+      const offsetExpr = `offset + ${offsets[propertyIndex]}`;
       serializeCode += handler.serializeCode(propId, offsetExpr, rank);
       deserializeCode += handler.deserializeCode(propId, offsetExpr, rank);
     }
     this.serializedBytes = serializedBytes;
-    this.serialize = new Function(
-                         'dv', 'offset', 'annotationIndex', 'annotationCount', 'isLittleEndian',
-                         'properties', serializeCode) as any;
-    this.deserialize = new Function(
-                           'dv', 'offset', 'annotationIndex', 'annotationCount', 'isLittleEndian',
-                           'properties', deserializeCode) as any;
+    this.serialize =
+        new Function('dv', 'offset', 'isLittleEndian', 'properties', serializeCode) as any;
+    this.deserialize =
+        new Function('dv', 'offset', 'isLittleEndian', 'properties', deserializeCode) as any;
   }
 }
 
-export function makeAnnotationPropertySerializers(
-    rank: number, propertySpecs: readonly Readonly<AnnotationPropertySpec>[]) {
-  const serializers: AnnotationPropertySerializer[] = [];
-  for (const annotationType of annotationTypes) {
-    const handler = annotationTypeHandlers[annotationType];
-    serializers[annotationType] =
-        new AnnotationPropertySerializer(rank, handler.serializedBytes(rank), propertySpecs);
-  }
-  return serializers;
-}
-
-export function formatNumericProperty(
-    property: AnnotationNumericPropertySpec, value: number): string {
+export function formatNumericProperty(property: AnnotationNumericPropertySpec, value: number): string {
   const formattedValue = property.type === 'float32' ? value.toPrecision(6) : value.toString();
   const {enumValues, enumLabels} = property;
   if (enumValues !== undefined) {
@@ -420,8 +347,7 @@ export function formatNumericProperty(
   return formattedValue;
 }
 
-export function formatAnnotationPropertyValue(
-    property: AnnotationPropertySpec, value: any): string {
+export function formatAnnotationPropertyValue(property: AnnotationPropertySpec, value: any): string {
   switch (property.type) {
     case 'rgb':
       return serializeColor(unpackRGB(value));
@@ -593,7 +519,7 @@ function deserializeFloatVector(
 
 function deserializeTwoFloatVectors(
     buffer: DataView, offset: number, isLittleEndian: boolean, rank: number, vecA: Float32Array,
-    vecB: Float32Array) {
+  vecB: Float32Array) {
   offset = deserializeFloatVector(buffer, offset, isLittleEndian, rank, vecA);
   offset = deserializeFloatVector(buffer, offset, isLittleEndian, rank, vecB);
   return offset;
@@ -823,14 +749,14 @@ export class AnnotationSource extends RefCounted implements AnnotationSourceSign
     return this.rank_;
   }
 
-  annotationPropertySerializers: AnnotationPropertySerializer[];
+  annotationPropertySerializer: AnnotationPropertySerializer;
 
   constructor(
       rank: number, public readonly relationships: readonly string[] = [],
       public readonly properties: Readonly<AnnotationPropertySpec>[] = []) {
     super();
     this.rank_ = rank;
-    this.annotationPropertySerializers = makeAnnotationPropertySerializers(rank, properties);
+    this.annotationPropertySerializer = new AnnotationPropertySerializer(rank, properties);
   }
 
   hasNonSerializedProperties() {
@@ -1024,8 +950,8 @@ export class LocalAnnotationSource extends AnnotationSource {
     }
     if (this.rank_ !== sourceRank) {
       this.rank_ = sourceRank;
-      this.annotationPropertySerializers =
-          makeAnnotationPropertySerializers(this.rank_, this.properties);
+      this.annotationPropertySerializer =
+          new AnnotationPropertySerializer(this.rank_, this.properties);
     }
     this.changed.dispatch();
   }
@@ -1064,37 +990,38 @@ export interface SerializedAnnotations {
 
 function serializeAnnotations(
     allAnnotations: Annotation[][],
-    propertySerializers: AnnotationPropertySerializer[]): SerializedAnnotations {
+    propertySerializer: AnnotationPropertySerializer): SerializedAnnotations {
+  const {rank} = propertySerializer;
   let totalBytes = 0;
   const typeToOffset: number[] = [];
+  const serializedPropertiesBytes = propertySerializer.serializedBytes;
   for (const annotationType of annotationTypes) {
-    const propertySerializer = propertySerializers[annotationType];
-    const serializedPropertiesBytes = propertySerializer.serializedBytes;
     typeToOffset[annotationType] = totalBytes;
     const annotations: Annotation[] = allAnnotations[annotationType];
     const count = annotations.length;
-    totalBytes += serializedPropertiesBytes * count;
+    const handler = annotationTypeHandlers[annotationType];
+    totalBytes += (handler.serializedBytes(rank) + serializedPropertiesBytes) * count;
+    totalBytes += (4 - (totalBytes % 4)) % 4;
   }
+  const serializeProperties = propertySerializer.serialize;
   const typeToIds: string[][] = [];
   const typeToIdMaps: Map<string, number>[] = [];
   const data = new ArrayBuffer(totalBytes);
   const dataView = new DataView(data);
   const isLittleEndian = ENDIANNESS === Endianness.LITTLE;
   for (const annotationType of annotationTypes) {
-    const propertySerializer = propertySerializers[annotationType];
-    const {rank} = propertySerializer;
-    const serializeProperties = propertySerializer.serialize;
     const annotations: Annotation[] = allAnnotations[annotationType];
     typeToIds[annotationType] = annotations.map(x => x.id);
     typeToIdMaps[annotationType] = new Map(annotations.map((x, i) => [x.id, i]));
     const handler = annotationTypeHandlers[annotationType];
     const serialize = handler.serialize;
-    const offset = typeToOffset[annotationType];
-    const geometryDataStride = propertySerializer.propertyGroupBytes[0];
-    for (let i = 0, count = annotations.length; i < count; ++i) {
-      const annotation = annotations[i];
-      serialize(dataView, offset + i * geometryDataStride, isLittleEndian, rank, annotation);
-      serializeProperties(dataView, offset, i, count, isLittleEndian, annotation.properties);
+    const geometryBytes = handler.serializedBytes(rank);
+    let offset = typeToOffset[annotationType];
+    for (const annotation of annotations) {
+      serialize(dataView, offset, isLittleEndian, rank, annotation);
+      offset += geometryBytes;
+      serializeProperties(dataView, offset, isLittleEndian, annotation.properties);
+      offset += serializedPropertiesBytes;
     }
   }
   return {data: new Uint8Array(data), typeToIds, typeToOffset, typeToIdMaps};
@@ -1102,12 +1029,12 @@ function serializeAnnotations(
 
 export class AnnotationSerializer {
   annotations: [Point[], Line[], AxisAlignedBoundingBox[], Ellipsoid[]] = [[], [], [], []];
-  constructor(public propertySerializers: AnnotationPropertySerializer[]) {}
+  constructor(public propertySerializer: AnnotationPropertySerializer) {}
   add(annotation: Annotation) {
     (<Annotation[]>this.annotations[annotation.type]).push(annotation);
   }
   serialize(): SerializedAnnotations {
-    return serializeAnnotations(this.annotations, this.propertySerializers);
+    return serializeAnnotations(this.annotations, this.propertySerializer);
   }
 }
 

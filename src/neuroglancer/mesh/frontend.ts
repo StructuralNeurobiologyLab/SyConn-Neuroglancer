@@ -388,8 +388,7 @@ export class MeshLayer extends
           totalChunks += manifestChunk.fragmentIds.length;
 
           for (const fragmentId of manifestChunk.fragmentIds) {
-            const {key: fragmentKey} = this.source.getFragmentKey(key, fragmentId);
-            const fragment = fragmentChunks.get(fragmentKey);
+            const fragment = fragmentChunks.get(`${key}/${fragmentId}`);
             if (fragment !== undefined && fragment.state === ChunkState.GPU_MEMORY) {
               meshShaderManager.drawFragment(gl, shader, fragment);
               ++presentChunks;
@@ -419,8 +418,7 @@ export class MeshLayer extends
         return;
       }
       for (const fragmentId of manifestChunk.fragmentIds) {
-        const {key: fragmentKey} = this.source.getFragmentKey(key, fragmentId);
-        const fragmentChunk = fragmentChunks.get(fragmentKey);
+        const fragmentChunk = fragmentChunks.get(`${key}/${fragmentId}`);
         if (fragmentChunk === undefined || fragmentChunk.state !== ChunkState.GPU_MEMORY) {
           ready = false;
           return;
@@ -480,9 +478,6 @@ export class MeshSource extends ChunkSource {
   }
   getChunk(x: any) {
     return new ManifestChunk(this, x);
-  }
-  getFragmentKey(objectKey: string, fragmentId: string) {
-    return {key:`${objectKey}/${fragmentId}`, fragmentId: fragmentId}
   }
 }
 

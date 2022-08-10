@@ -1320,10 +1320,8 @@ export function UserLayerWithAnnotationsMixin<TBase extends {new (...args: any[]
 
       state.annotationId = mouseState.pickedAnnotationId;
       state.annotationType = mouseState.pickedAnnotationType;
-      state.annotationBuffer = new Uint8Array(
-        mouseState.pickedAnnotationBuffer!, mouseState.pickedAnnotationBufferBaseOffset!);
-      state.annotationIndex = mouseState.pickedAnnotationIndex!;
-      state.annotationCount = mouseState.pickedAnnotationCount!;
+      state.annotationSerialized = new Uint8Array(
+          mouseState.pickedAnnotationBuffer!, mouseState.pickedAnnotationBufferOffset!);
       state.annotationPartIndex = mouseState.pickedOffset;
       state.annotationSourceIndex = annotationLayer.sourceIndex;
       state.annotationSubsource = annotationLayer.subsourceId;
@@ -1351,26 +1349,22 @@ export function UserLayerWithAnnotationsMixin<TBase extends {new (...args: any[]
                     let statusText: string|undefined;
                     if (annotation == null) {
                       if (state.annotationType !== undefined &&
-                          state.annotationBuffer !== undefined) {
+                          state.annotationSerialized !== undefined) {
                         const handler = annotationTypeHandlers[state.annotationType];
                         const rank = annotationLayer.source.rank;
-                        const numGeometryBytes = handler.serializedBytes(rank);
-                        const baseOffset = state.annotationBuffer.byteOffset;
-                        const dataView = new DataView(state.annotationBuffer.buffer);
+                        const baseNumBytes = handler.serializedBytes(rank);
+                        const geometryOffset = state.annotationSerialized.byteOffset;
+                        const propertiesOffset = geometryOffset + baseNumBytes;
+                        const dataView = new DataView(state.annotationSerialized.buffer);
                         const isLittleEndian = Endianness.LITTLE === ENDIANNESS;
                         const {properties} = annotationLayer.source;
                         const annotationPropertySerializer =
-                          new AnnotationPropertySerializer(rank, numGeometryBytes, properties);
-                        const annotationIndex = state.annotationIndex!;
-                        const annotationCount = state.annotationCount!;
+                            new AnnotationPropertySerializer(rank, properties);
+
                         annotation = handler.deserialize(
-                            dataView,
-                            baseOffset +
-                                annotationPropertySerializer.propertyGroupBytes[0] *
-                                    annotationIndex,
-                            isLittleEndian, rank, state.annotationId!);
+                            dataView, geometryOffset, isLittleEndian, rank, state.annotationId!);
                         annotationPropertySerializer.deserialize(
-                            dataView, baseOffset, annotationIndex, annotationCount, isLittleEndian,
+                            dataView, propertiesOffset, isLittleEndian,
                             annotation.properties = new Array(properties.length));
                         if (annotationLayer.source.hasNonSerializedProperties()) {
                           statusText = 'Loading...';
@@ -1479,9 +1473,10 @@ export function UserLayerWithAnnotationsMixin<TBase extends {new (...args: any[]
                             break;
                           }
                           case 'rgba': {
-                            const colorVec = unpackRGB(value);
+                            const colorVec = unpackRGB(value >>> 8);
                             valueElement.textContent = serializeColor(unpackRGBA(value));
-                            valueElement.style.backgroundColor = serializeColor(unpackRGB(value));
+                            valueElement.style.backgroundColor =
+                                serializeColor(unpackRGB(value >>> 8));
                             valueElement.style.color =
                                 useWhiteBackground(colorVec) ? 'white' : 'black';
                             break;

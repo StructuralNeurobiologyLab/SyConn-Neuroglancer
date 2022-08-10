@@ -62,7 +62,6 @@ const DEFAULT_DATA_SOURCES = exports.DEFAULT_DATA_SOURCES = [
       'neuroglancer/async_computation/decode_jpeg',
       'neuroglancer/async_computation/decode_gzip',
       'neuroglancer/async_computation/decode_compresso',
-      'neuroglancer/async_computation/decode_png',
     ],
   },
   {
@@ -116,13 +115,6 @@ const DEFAULT_DATA_SOURCES = exports.DEFAULT_DATA_SOURCES = [
   },
   {
     source: 'neuroglancer/datasource/nggraph',
-  },
-  {
-    source: 'neuroglancer/datasource/graphene',
-    asyncComputation: [
-      'neuroglancer/async_computation/decode_jpeg',
-      'neuroglancer/async_computation/decode_gzip',
-    ],
   },
 ];
 

@@ -52,16 +52,10 @@ async function decodeChunk(
     chunk.chunkDataSize = this.spec.chunkDataSize;
     const {parameters} = this;
     const {chunkGridPosition} = chunk;
-    let {url, separator, order} = parameters;
+    let {url, separator} = parameters;
     const rank = this.spec.rank;
-    if (order === 'C') {
-      for (let i = rank; i > 0; --i) {
-        url += `${i == rank ? '/' : separator}${chunkGridPosition[i - 1]}`;
-      }
-    } else {
-      for (let i = 0; i < rank; ++i) {
-        url += `${i == 0 ? '/' : separator}${chunkGridPosition[i]}`;
-      }
+    for (let i = rank; i > 0; --i) {
+      url += `${i == rank ? '/' : separator}${chunkGridPosition[i - 1]}`;
     }
     const response = await cancellableFetchSpecialOk(
         this.credentialsProvider, url, {}, responseArrayBuffer, cancellationToken);

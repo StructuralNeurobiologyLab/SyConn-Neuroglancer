@@ -14,18 +14,18 @@
  * limitations under the License.
  */
 
-import {Annotation, AnnotationId, AnnotationPropertySerializer, AnnotationPropertySpec, AnnotationSerializer, AnnotationType, makeAnnotationPropertySerializers} from 'neuroglancer/annotation';
+import {Annotation, AnnotationId, AnnotationPropertySerializer, AnnotationPropertySpec, AnnotationSerializer, AnnotationType} from 'neuroglancer/annotation';
 import {deleteAnnotation, makeTemporaryChunk, updateAnnotation} from 'neuroglancer/annotation/frontend_source';
 
 class UpdateTester {
   annotations: Annotation[] = [];
   incrementalChunk = makeTemporaryChunk();
-  propertySerializers: AnnotationPropertySerializer[];
+  propertySerializer: AnnotationPropertySerializer;
   constructor(rank: number, propertySpecs: readonly Readonly<AnnotationPropertySpec>[]) {
-    this.propertySerializers = makeAnnotationPropertySerializers(rank, propertySpecs);
+    this.propertySerializer = new AnnotationPropertySerializer(rank, propertySpecs);
   }
   compare() {
-    const serializer = new AnnotationSerializer(this.propertySerializers);
+    const serializer = new AnnotationSerializer(this.propertySerializer);
     for (const annotation of this.annotations) serializer.add(annotation);
     const direct = serializer.serialize();
     const incremental = this.incrementalChunk.data!.serializedAnnotations;
@@ -41,7 +41,7 @@ class UpdateTester {
     } else {
       this.annotations[index] = annotation;
     }
-    updateAnnotation(this.incrementalChunk.data!, annotation, this.propertySerializers);
+    updateAnnotation(this.incrementalChunk.data!, annotation, this.propertySerializer);
     this.compare();
   }
   delete(id: AnnotationId, type: AnnotationType) {
@@ -49,8 +49,7 @@ class UpdateTester {
     expect(index).toBeGreaterThan(-1);
     expect(this.annotations[index].type).toEqual(type);
     this.annotations.splice(index, 1);
-    expect(deleteAnnotation(this.incrementalChunk.data!, type, id, this.propertySerializers))
-        .toBe(true);
+    expect(deleteAnnotation(this.incrementalChunk.data!, type, id, this.propertySerializer)).toBe(true);
     this.compare();
   }
 }
@@ -64,7 +63,7 @@ describe('updateAnnotations', () => {
         {id: 'a', type: AnnotationType.POINT, point: Float32Array.of(1, 2), properties: []});
     tester.delete('a', AnnotationType.POINT);
     tester.update(
-        {id: 'a', type: AnnotationType.POINT, point: Float32Array.of(1, 2), properties: []});
+      {id: 'a', type: AnnotationType.POINT, point: Float32Array.of(1, 2), properties: []});
 
     tester.update(
         {id: 'b', type: AnnotationType.POINT, point: Float32Array.of(2, 3), properties: []});

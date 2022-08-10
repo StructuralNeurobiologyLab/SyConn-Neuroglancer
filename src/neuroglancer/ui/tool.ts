@@ -45,17 +45,12 @@ export class ToolActivation<ToolType extends Tool = Tool> extends RefCounted {
   bindInputEventMap(inputEventMap: EventActionMap) {
     this.inputEventMapBinder(inputEventMap, this);
   }
-  cancel() {
-    if (this == this.tool.layer.manager.root.toolBinder.activeTool_) {
-      this.tool.layer.manager.root.toolBinder.deactivate_();
-    }
-  }
 }
 
 export abstract class Tool<LayerType extends UserLayer = UserLayer> extends RefCounted {
   changed = new Signal();
   keyBinding: string|undefined = undefined;
-  constructor(public layer: LayerType, public toggle: boolean = false) {
+  constructor(public layer: LayerType) {
     super();
   }
   get mouseState() {
@@ -63,6 +58,7 @@ export abstract class Tool<LayerType extends UserLayer = UserLayer> extends RefC
   }
   abstract activate(activation: ToolActivation<this>): void;
   abstract toJSON(): any;
+  deactivate(): void {}
   abstract description: string;
   unbind() {
     const {layer} = this;
@@ -214,14 +210,8 @@ export class SelectedLegacyTool extends RefCounted implements
 export class ToolBinder extends RefCounted {
   bindings = new Map<string, Borrowed<Tool>>();
   changed = new Signal();
-  activeTool_: Owned<ToolActivation>|undefined; // For internal use only- should only be called by ToolBinder and ToolActivation.cancel()
-  private queuedTool: Tool|undefined;
-  private debounceDeactivate = this.registerCancellable(debounce(() => this.deactivate_(), 100));
-  private debounceReactivate = this.registerCancellable(debounce(() => this.reactivateQueuedTool(), 100));
-
-  constructor(private inputEventMapBinder: InputEventMapBinder) {
-    super();
-  }
+  private activeTool: Owned<ToolActivation>|undefined;
+  private debounceDeactivate = this.registerCancellable(debounce(() => this.deactivate(), 1));
 
   get(key: string): Borrowed<Tool>|undefined {
     return this.bindings.get(key);
@@ -260,76 +250,48 @@ export class ToolBinder extends RefCounted {
     this.changed.dispatch();
   }
 
-  activate(key: string): Borrowed<Tool>|undefined {
+  activate(key: string, inputEventMapBinder: InputEventMapBinder): Borrowed<Tool>|undefined {
     const tool = this.get(key);
     if (tool === undefined) {
-      this.deactivate_();
+      this.deactivate();
       return;
     }
     this.debounceDeactivate.cancel();
-    this.debounceReactivate.cancel();
-    const activeTool = this.activeTool_;
-    if (tool === activeTool?.tool) {
-      if (tool.toggle) {
-        this.deactivate_();
-      }
+    if (tool === this.activeTool?.tool) {
       return;
     }
-    else if (activeTool !== undefined) {
-      if (activeTool.tool.toggle && !tool.toggle) {
-        this.queuedTool = activeTool.tool;
-      }
-      this.deactivate_();
-    }
-    const activation = new ToolActivation(tool, this.inputEventMapBinder);
-    this.activeTool_ = activation;
-    if (!tool.toggle) {
-      const expectedCode = `Key${key}`;
-      activation.registerEventListener(window, 'keyup', (event: KeyboardEvent) => {
-        if (event.code === expectedCode) {
-          this.debounceDeactivate();
-          this.debounceReactivate();
-        }
-      });
-      activation.registerEventListener(window, 'blur', () => {
+    const activation = new ToolActivation(tool, inputEventMapBinder);
+    this.activeTool = activation;
+    const expectedCode = `Key${key}`;
+    activation.registerEventListener(window, 'keyup', (event: KeyboardEvent) => {
+      if (event.code === expectedCode) {
         this.debounceDeactivate();
-        this.debounceReactivate();
-      });
-    }
+      }
+    });
+    activation.registerEventListener(window, 'blur', () => {
+      this.debounceDeactivate();
+    });
     tool.activate(activation);
     return tool;
   }
 
-  private reactivateQueuedTool() {
-    if (this.queuedTool) {
-      const activation = new ToolActivation(this.queuedTool, this.inputEventMapBinder);
-      this.activeTool_ = activation;
-      this.queuedTool.activate(activation);
-      this.queuedTool = undefined;
-    }
-  }
-
   destroyTool(tool: Owned<Tool>) {
-    if (this.queuedTool === tool) {
-      this.queuedTool = undefined;
-    }
-    if (this.activeTool_?.tool === tool) {
-      this.deactivate_();
+    if (this.activeTool?.tool === tool) {
+      this.deactivate();
     }
     tool.dispose();
   }
 
   disposed() {
-    this.deactivate_();
+    this.deactivate();
     super.disposed();
   }
 
-  deactivate_() {
-    // For internal use only- should only be called by ToolBinder and ToolActivation.cancel()
+  private deactivate() {
     this.debounceDeactivate.cancel();
-    const activation = this.activeTool_;
+    const activation = this.activeTool;
     if (activation === undefined) return;
-    this.activeTool_ = undefined;
+    this.activeTool = undefined;
     activation.dispose();
   }
 }

@@ -27,7 +27,7 @@ import {SegmentColorHash} from 'neuroglancer/segment_color';
 import {augmentSegmentId, bindSegmentListWidth, makeSegmentWidget, maybeAugmentSegmentId, registerCallbackWhenSegmentationDisplayStateChanged, SegmentationColorGroupState, SegmentationDisplayState, SegmentationGroupState, SegmentSelectionState, Uint64MapEntry} from 'neuroglancer/segmentation_display_state/frontend';
 import {getPreprocessedSegmentPropertyMap, PreprocessedSegmentPropertyMap, SegmentPropertyMap} from 'neuroglancer/segmentation_display_state/property_map';
 import {LocalSegmentationGraphSource} from 'neuroglancer/segmentation_graph/local';
-import {SegmentationGraphSource, SegmentationGraphSourceConnection, VisibleSegmentEquivalencePolicy} from 'neuroglancer/segmentation_graph/source';
+import {SegmentationGraphSource, SegmentationGraphSourceConnection} from 'neuroglancer/segmentation_graph/source';
 import {SharedDisjointUint64Sets} from 'neuroglancer/shared_disjoint_sets';
 import {SharedWatchableValue} from 'neuroglancer/shared_watchable_value';
 import {PerspectiveViewSkeletonLayer, SkeletonLayer, SkeletonRenderingOptions, SliceViewPanelSkeletonLayer} from 'neuroglancer/skeleton/frontend';
@@ -59,7 +59,6 @@ import {rangeLayerControl} from 'neuroglancer/widget/layer_control_range';
 import {renderScaleLayerControl} from 'neuroglancer/widget/render_scale_widget';
 import {colorSeedLayerControl, fixedColorLayerControl} from 'neuroglancer/widget/segmentation_color_mode';
 import {registerLayerShaderControlsTool} from 'neuroglancer/widget/shader_controls';
-import {registerSegmentSelectTools} from 'neuroglancer/ui/segment_select_tools';
 
 const SELECTED_ALPHA_JSON_KEY = 'selectedAlpha';
 const NOT_SELECTED_ALPHA_JSON_KEY = 'notSelectedAlpha';
@@ -145,7 +144,7 @@ export class SegmentationUserLayerGroupState extends RefCounted implements Segme
   segmentEquivalences = this.registerDisposer(SharedDisjointUint64Sets.makeWithCounterpart(
       this.layer.manager.rpc,
       this.layer.registerDisposer(makeCachedDerivedWatchableValue(
-          x => (x && x.visibleSegmentEquivalencePolicy) || VisibleSegmentEquivalencePolicy.MIN_REPRESENTATIVE, [this.graph]))));
+          x => x !== undefined && x.highBitRepresentative, [this.graph]))));
   localSegmentEquivalences: boolean = false;
   maxIdLength = new WatchableValue(1);
   hideSegmentZero = new TrackableBoolean(true, true);
@@ -155,7 +154,7 @@ export class SegmentationUserLayerGroupState extends RefCounted implements Segme
       this.layer.registerDisposer(Uint64Set.makeWithCounterpart(this.layer.manager.rpc));
   temporarySegmentEquivalences =
       this.layer.registerDisposer(SharedDisjointUint64Sets.makeWithCounterpart(
-          this.layer.manager.rpc, this.segmentEquivalences.disjointSets.visibleSegmentEquivalencePolicy));
+          this.layer.manager.rpc, this.segmentEquivalences.disjointSets.highBitRepresentative));
   useTemporaryVisibleSegments =
       this.layer.registerDisposer(SharedWatchableValue.make(this.layer.manager.rpc, false));
   useTemporarySegmentEquivalences =
@@ -196,7 +195,7 @@ export class SegmentationUserLayerColorGroupState extends RefCounted implements
     const {segmentStatedColors} = this;
     if (segmentStatedColors.size > 0) {
       const j: any = x[SEGMENT_STATED_COLORS_JSON_KEY] = {};
-      for (const [key, value] of segmentStatedColors.unsafeEntries()) {
+      for (const [key, value] of segmentStatedColors) {
         j[key.toString()] = serializeColor(unpackRGB(value.low));
       }
     }
@@ -482,17 +481,9 @@ export class SegmentationUserLayer extends Base {
             loadedSubsource.activate(refCounted => {
               this.graphConnection = refCounted.registerDisposer(
                   segmentationGraph.connect(this.displayState.segmentationGroupState.value));
-              const displayState = {
-                ...this.displayState,
-                transform: loadedSubsource.getRenderLayerTransform(),
-              };
-
-              const graphRenderLayers = this.graphConnection.createRenderLayers(
-                this.manager.chunkManager, displayState, this.localPosition
-              );
-              for (const renderLayer of graphRenderLayers) {
-                loadedSubsource.addRenderLayer(renderLayer);
-              }
+              refCounted.registerDisposer(() => {
+                this.graphConnection = undefined;
+              });
             });
           }
         }
@@ -936,4 +927,3 @@ registerLayerShaderControlsTool(
     SKELETON_RENDERING_SHADER_CONTROL_TOOL_ID);
 
 registerSegmentSplitMergeTools();
-registerSegmentSelectTools();

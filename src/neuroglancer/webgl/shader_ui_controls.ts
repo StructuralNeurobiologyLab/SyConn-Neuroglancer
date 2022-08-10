@@ -22,8 +22,8 @@ import {parseRGBColorSpecification, TrackableRGB} from 'neuroglancer/util/color'
 import {DataType} from 'neuroglancer/util/data_type';
 import {RefCounted} from 'neuroglancer/util/disposable';
 import {vec3} from 'neuroglancer/util/geom';
-import {parseFixedLengthArray, verifyFiniteFloat, verifyInt, verifyObject, verifyOptionalObjectProperty, verifyString} from 'neuroglancer/util/json';
-import {convertDataTypeInterval, DataTypeInterval, dataTypeIntervalToJson, defaultDataTypeRange, normalizeDataTypeInterval, parseDataTypeInterval, parseUnknownDataTypeInterval, validateDataTypeInterval} from 'neuroglancer/util/lerp';
+import {parseFixedLengthArray, verifyFiniteFloat, verifyInt, verifyObject, verifyOptionalObjectProperty} from 'neuroglancer/util/json';
+import {DataTypeInterval, dataTypeIntervalToJson, defaultDataTypeRange, normalizeDataTypeInterval, parseDataTypeInterval, validateDataTypeInterval} from 'neuroglancer/util/lerp';
 import {NullarySignal} from 'neuroglancer/util/signal';
 import {Trackable} from 'neuroglancer/util/trackable';
 import {GL} from 'neuroglancer/webgl/context';
@@ -47,20 +47,11 @@ export interface ShaderColorControl {
   default: vec3;
 }
 
-export interface ShaderImageInvlerpControl {
-  type: 'imageInvlerp';
+export interface ShaderInvlerpControl {
+  type: 'invlerp';
   dataType: DataType;
   clamp: boolean;
-  default: ImageInvlerpParameters;
-}
-
-export type PropertiesSpecification = Map<string, DataType>;
-
-export interface ShaderPropertyInvlerpControl {
-  type: 'propertyInvlerp';
-  clamp: boolean;
-  properties: PropertiesSpecification;
-  default: PropertyInvlerpParameters;
+  default: InvlerpParameters;
 }
 
 export interface ShaderCheckboxControl {
@@ -70,7 +61,7 @@ export interface ShaderCheckboxControl {
 }
 
 export type ShaderUiControl =
-    ShaderSliderControl|ShaderColorControl|ShaderImageInvlerpControl|ShaderPropertyInvlerpControl|ShaderCheckboxControl;
+    ShaderSliderControl|ShaderColorControl|ShaderInvlerpControl|ShaderCheckboxControl;
 
 export interface ShaderControlParseError {
   line: number;
@@ -90,7 +81,6 @@ export interface ShaderControlsBuilderState {
   key: string;
   parseResult: ShaderControlsParseResult;
   builderValues: ShaderBuilderValues;
-  referencedProperties: string[];
 }
 
 // Strips comments from GLSL code.  Also handles string literals since they are used in ui control
@@ -348,21 +338,12 @@ function parseInvlerpChannel(value: unknown, rank: number) {
 function parseInvlerpDirective(
     valueType: string, parameters: DirectiveParameters,
     dataContext: ShaderDataContext): DirectiveParseResult {
-  const {imageData, properties} = dataContext;
-  if (imageData !== undefined) {
-    return parseImageInvlerpDirective(valueType, parameters, imageData);
-  }
-  if (properties !== undefined) {
-    return parsePropertyInvlerpDirective(valueType, parameters, properties);
-  }
   let errors = [];
-  errors.push('invlerp control not supported');
-  return {errors};
-}
-
-function parseImageInvlerpDirective(
-    valueType: string, parameters: DirectiveParameters, imageData: ImageDataSpecification) {
-  let errors = [];
+  const {imageData} = dataContext;
+  if (imageData === undefined) {
+    errors.push('invlerp control not supported');
+    return {errors};
+  }
   if (valueType !== 'invlerp') {
     errors.push('type must be invlerp');
   }
@@ -407,83 +388,11 @@ function parseImageInvlerpDirective(
   }
   return {
     control: {
-      type: 'imageInvlerp',
+      type: 'invlerp',
       dataType,
       clamp,
       default: {range, window: window ?? normalizeDataTypeInterval(range), channel},
-    } as ShaderImageInvlerpControl,
-    errors: undefined,
-  };
-}
-
-function parsePropertyInvlerpDirective(
-    valueType: string, parameters: DirectiveParameters, properties: Map<string, DataType>) {
-  let errors = [];
-  if (valueType !== 'invlerp') {
-    errors.push('type must be invlerp');
-  }
-  let clamp = true;
-  let range: any;
-  let window: any;
-  let property: string|undefined;
-  for (let [key, value] of parameters) {
-    try {
-      switch (key) {
-        case 'range': {
-          range = parseUnknownDataTypeInterval(value);
-          break;
-        }
-        case 'window': {
-          window = parseUnknownDataTypeInterval(value);
-          break;
-        }
-        case 'clamp': {
-          if (typeof value !== 'boolean') {
-            errors.push(`Invalid clamp value: ${JSON.stringify(value)}`);
-          } else {
-            clamp = value;
-          }
-          break;
-        }
-        case 'property': {
-          const s = verifyString(value);
-          if (!properties.has(s)) {
-            throw new Error(`Property not defined: ${JSON.stringify(property)}`);
-          }
-          property = s;
-          break;
-        }
-        default:
-          errors.push(`Invalid parameter: ${key}`);
-          break;
-      }
-    } catch (e) {
-      errors.push(`Invalid ${key} value: ${e.message}`);
-    }
-  }
-  if (errors.length > 0) {
-    return {errors};
-  }
-  if (property === undefined) {
-    for (const p of properties.keys()) {
-      property = p;
-      break;
-    }
-  }
-  const dataType = properties.get(property!)!;
-  if (range !== undefined) {
-    range = convertDataTypeInterval(range, dataType);
-  }
-  if (window !== undefined) {
-    window = convertDataTypeInterval(window, dataType);
-  }
-  return {
-    control: {
-      type: 'propertyInvlerp',
-      clamp,
-      properties,
-      default: {range, window, property, dataType},
-    } as ShaderPropertyInvlerpControl,
+    } as ShaderInvlerpControl,
     errors: undefined,
   };
 }
@@ -495,7 +404,6 @@ export interface ImageDataSpecification {
 
 export interface ShaderDataContext {
   imageData?: ImageDataSpecification;
-  properties?: Map<string, DataType>;
 }
 
 const controlParsers = new Map<
@@ -576,7 +484,7 @@ export function addControlsToBuilder(
     const uName = uniformName(name);
     const builderValue = builderValues[name];
     switch (control.type) {
-      case 'imageInvlerp': {
+      case 'invlerp': {
         const code = [
           defineInvlerpShaderFunction(builder, uName, control.dataType, control.clamp), `
 float ${uName}() {
@@ -586,20 +494,6 @@ float ${uName}() {
         ];
         builder.addFragmentCode(code);
         builder.addFragmentCode(`#define ${name} ${uName}\n`);
-        break;
-      }
-      case 'propertyInvlerp': {
-        const property = builderValue.property;
-        const dataType = control.properties.get(property)!;
-        const code = [
-          defineInvlerpShaderFunction(builder, uName, dataType, control.clamp), `
-float ${uName}() {
-  return ${uName}(prop_${property}());
-}
-`
-        ];
-        builder.addVertexCode(code);
-        builder.addVertexCode(`#define ${name} ${uName}\n`);
         break;
       }
       case 'checkbox': {
@@ -626,16 +520,9 @@ function objectFromEntries(entries: Iterable<[string, any]>) {
   return obj;
 }
 
-function replaceMap(_key: string, value: unknown) {
-  if (value instanceof Map) {
-    return Array.from(value.entries());
-  }
-  return value;
-}
-
 function encodeControls(controls: Controls|undefined) {
   if (controls === undefined) return undefined;
-  return JSON.stringify(objectFromEntries(controls), replaceMap);
+  return JSON.stringify(objectFromEntries(controls));
 }
 
 export class WatchableShaderUiControls implements WatchableValueInterface<Controls|undefined> {
@@ -656,22 +543,11 @@ export class WatchableShaderUiControls implements WatchableValueInterface<Contro
 export interface InvlerpParameters {
   range: DataTypeInterval;
   window: DataTypeInterval;
-}
-
-export interface ImageInvlerpParameters extends InvlerpParameters {
   channel: number[];
 }
 
-export interface PropertyInvlerpParameters {
-  range: DataTypeInterval|undefined;
-  window: DataTypeInterval|undefined;
-  property: string;
-  dataType: DataType;
-}
-
-function parseImageInvlerpParameters(
-    obj: unknown, dataType: DataType,
-    defaultValue: ImageInvlerpParameters): ImageInvlerpParameters {
+function parseInvlerpParameters(
+    obj: unknown, dataType: DataType, defaultValue: InvlerpParameters): InvlerpParameters {
   if (obj === undefined) return defaultValue;
   verifyObject(obj);
   return {
@@ -686,9 +562,9 @@ function parseImageInvlerpParameters(
   };
 }
 
-class TrackableImageInvlerpParameters extends TrackableValue<ImageInvlerpParameters> {
-  constructor(public dataType: DataType, public defaultValue: ImageInvlerpParameters) {
-    super(defaultValue, obj => parseImageInvlerpParameters(obj, dataType, defaultValue));
+class TrackableInvlerpParameters extends TrackableValue<InvlerpParameters> {
+  constructor(public dataType: DataType, public defaultValue: InvlerpParameters) {
+    super(defaultValue, obj => parseInvlerpParameters(obj, dataType, defaultValue));
   }
 
   toJSON() {
@@ -700,51 +576,6 @@ class TrackableImageInvlerpParameters extends TrackableValue<ImageInvlerpParamet
       return undefined;
     }
     return {range: rangeJson, window: windowJson, channel: channelJson};
-  }
-}
-
-function parsePropertyInvlerpParameters(
-    obj: unknown, properties: PropertiesSpecification,
-    defaultValue: PropertyInvlerpParameters): PropertyInvlerpParameters {
-  if (obj === undefined) return defaultValue;
-  verifyObject(obj);
-  const property =
-    verifyOptionalObjectProperty(obj, 'property', property => {
-      property = verifyString(property);
-      if (!properties.has(property)) {
-        throw new Error(`Invalid value: ${JSON.stringify(property)}`);
-      }
-      return property;
-    }, defaultValue.property);
-  const dataType = properties.get(property)!;
-  return {
-    property,
-    dataType,
-    range: verifyOptionalObjectProperty(
-        obj, 'range', x => parseDataTypeInterval(x, dataType), defaultValue.range),
-    window: verifyOptionalObjectProperty(
-        obj, 'window', x => validateDataTypeInterval(parseDataTypeInterval(x, dataType)),
-        defaultValue.window),
-  };
-}
-
-class TrackablePropertyInvlerpParameters extends TrackableValue<PropertyInvlerpParameters> {
-  constructor(public properties: PropertiesSpecification, public defaultValue: PropertyInvlerpParameters) {
-    super(defaultValue, obj => parsePropertyInvlerpParameters(obj, properties, defaultValue));
-  }
-
-  toJSON() {
-    const {value: {range, window, property, dataType}, defaultValue} = this;
-    const defaultRange = defaultDataTypeRange[dataType];
-    const rangeJson =
-        dataTypeIntervalToJson(range ?? defaultRange, dataType, defaultValue.range ?? defaultRange);
-    const windowJson = dataTypeIntervalToJson(
-        window ?? defaultRange, dataType, defaultValue.window ?? defaultRange);
-    const propertyJson = property === defaultValue.property ? undefined : property;
-    if (rangeJson === undefined && windowJson === undefined && propertyJson === undefined) {
-      return undefined;
-    }
-    return {range: rangeJson, window: windowJson, property: propertyJson};
   }
 }
 
@@ -772,17 +603,11 @@ function getControlTrackable(control: ShaderUiControl):
       };
     case 'color':
       return {trackable: new TrackableRGB(control.default), getBuilderValue: () => null};
-    case 'imageInvlerp':
+    case 'invlerp':
       return {
-        trackable: new TrackableImageInvlerpParameters(control.dataType, control.default),
-        getBuilderValue: (value: ImageInvlerpParameters) =>
+        trackable: new TrackableInvlerpParameters(control.dataType, control.default),
+        getBuilderValue: (value: InvlerpParameters) =>
             ({channel: value.channel, dataType: control.dataType}),
-      };
-    case 'propertyInvlerp':
-      return {
-        trackable: new TrackablePropertyInvlerpParameters(control.properties, control.default),
-        getBuilderValue: (value: PropertyInvlerpParameters) =>
-            ({property: value.property, dataType: value.dataType}),
       };
     case 'checkbox':
       return {
@@ -812,21 +637,11 @@ function encodeBuilderStateKey(
 export function getFallbackBuilderState(parseResult: ShaderControlsParseResult):
     ShaderControlsBuilderState {
   const builderValues: ShaderBuilderValues = {};
-  const referencedProperties = [];
   for (const [key, control] of parseResult.controls) {
     const {trackable, getBuilderValue} = getControlTrackable(control);
-    const builderValue = getBuilderValue(trackable.value);
-    builderValues[key] = builderValue;
-    if (control.type === 'propertyInvlerp') {
-      referencedProperties.push(builderValue.property);
-    }
+    builderValues[key] = getBuilderValue(trackable.value);
   }
-  return {
-    builderValues,
-    parseResult,
-    key: encodeBuilderStateKey(builderValues, parseResult),
-    referencedProperties,
-  };
+  return {builderValues, parseResult, key: encodeBuilderStateKey(builderValues, parseResult)};
 }
 
 export class ShaderControlState extends RefCounted implements
@@ -881,19 +696,14 @@ export class ShaderControlState extends RefCounted implements
     this.builderState = makeCachedDerivedWatchableValue(
         (parseResult: ShaderControlsParseResult, state: ShaderControlMap) => {
           const builderValues: ShaderBuilderValues = {};
-          const referencedProperties = [];
-          for (const [key, {control, trackable, getBuilderValue}] of state) {
+          for (const [key, {trackable, getBuilderValue}] of state) {
             const builderValue = getBuilderValue(trackable.value);
             builderValues[key] = builderValue;
-            if (control.type === 'propertyInvlerp') {
-              referencedProperties.push(builderValue.property);
-            }
           }
           return {
             key: encodeBuilderStateKey(builderValues, parseResult),
             parseResult,
-            builderValues,
-            referencedProperties,
+            builderValues
           };
         },
         [this.parseResult, this], (a, b) => a.key === b.key);
@@ -901,35 +711,23 @@ export class ShaderControlState extends RefCounted implements
         state => {
           const channels: HistogramChannelSpecification[] = [];
           for (const {control, trackable} of state.values()) {
-            if (control.type !== 'imageInvlerp') continue;
+            if (control.type !== 'invlerp') continue;
             channels.push({channel: trackable.value.channel});
           }
           return channels;
         },
         [this],
         (a, b) => arraysEqualWithPredicate(a, b, (ca, cb) => arraysEqual(ca.channel, cb.channel)));
-    const histogramProperties = makeCachedDerivedWatchableValue(state => {
-      const properties: string[] = [];
-      for (const {control, trackable} of state.values()) {
-        if (control.type !== 'propertyInvlerp') continue;
-        properties.push(trackable.value.property);
-      }
-      return properties;
-    }, [this], arraysEqual);
     const histogramBounds = makeCachedLazyDerivedWatchableValue(state => {
       const bounds: DataTypeInterval[] = [];
       for (const {control, trackable} of state.values()) {
-        if (control.type === 'imageInvlerp') {
-          bounds.push(trackable.value.window);
-        } else if (control.type === 'propertyInvlerp') {
-          const {dataType, range, window} = trackable.value as PropertyInvlerpParameters;
-          bounds.push(window ?? range ?? defaultDataTypeRange[dataType]);
-        }
+        if (control.type !== 'invlerp') continue;
+        bounds.push(trackable.value.window);
       }
       return bounds;
     }, this);
-    this.histogramSpecifications = this.registerDisposer(
-        new HistogramSpecifications(histogramChannels, histogramProperties, histogramBounds));
+    this.histogramSpecifications =
+        this.registerDisposer(new HistogramSpecifications(histogramChannels, histogramBounds));
   }
 
   private handleFragmentMainChanged() {
@@ -1104,15 +902,9 @@ function setControlInShader(
     case 'color':
       gl.uniform3fv(uniform, value);
       break;
-    case 'imageInvlerp':
+    case 'invlerp':
       enableLerpShaderFunction(shader, uName, control.dataType, value.range);
       break;
-    case 'propertyInvlerp': {
-      const {dataType} = value as PropertyInvlerpParameters;
-      enableLerpShaderFunction(
-          shader, uName, dataType, value.range ?? defaultDataTypeRange[dataType]);
-      break;
-    }
     case 'checkbox':
       // Value is hard-coded in shader.
       break;

@@ -16,20 +16,15 @@
 
 import {AsyncComputationSpec} from 'neuroglancer/async_computation';
 import {CANCELED, CancellationToken} from 'neuroglancer/util/cancellation';
-import {WORKER_RPC_ID} from 'neuroglancer/worker_rpc';
-import {rpc} from 'neuroglancer/worker_rpc_context';
 
-const freeWorkers: (Worker|MessagePort)[] = [];
+const freeWorkers: Worker[] = [];
 const pendingTasks = new Map<number, {msg: any, transfer: Transferable[] | undefined}>();
 const tasks = new Map<
     number, {resolve: (value: any) => void, reject: (error: any) => void, cleanup: () => void}>();
-// On Safari, `navigator.hardwareConcurrency` is not defined.
-const maxWorkers = typeof navigator.hardwareConcurrency === 'undefined' ?
-    4 :
-    Math.min(12, navigator.hardwareConcurrency);
+const maxWorkers = Math.min(12, navigator.hardwareConcurrency);
 let nextTaskId = 0;
 
-function returnWorker(worker: Worker|MessagePort) {
+function returnWorker(worker: Worker) {
   for (const [id, task] of pendingTasks) {
     pendingTasks.delete(id);
     worker.postMessage(task.msg, task.transfer as Transferable[]);
@@ -38,21 +33,11 @@ function returnWorker(worker: Worker|MessagePort) {
   freeWorkers.push(worker);
 }
 
-function getNewWorker(): Worker|MessagePort {
-  let port: Worker|MessagePort;
-  if (typeof Worker === 'undefined') {
-    // On Safari, the `Worker` constructor is not available from workers.  Instead, we request the
-    // main thread to create a worker.
-    const channel = new MessageChannel();
-    port = channel.port2;
-    rpc.invoke(
-        WORKER_RPC_ID, {port: channel.port1, path: 'async_computation.bundle.js'}, [channel.port1]);
-  } else {
-    port = new Worker('async_computation.bundle.js');
-  }
-  port.onmessage = msg => {
+function getNewWorker(): Worker {
+  const worker = new Worker('async_computation.bundle.js');
+  worker.onmessage = msg => {
     const {id, value, error} = msg.data as {id: number, value?: any, error?: string};
-    returnWorker(port);
+    returnWorker(worker);
     const callbacks = tasks.get(id)!;
     tasks.delete(id);
     if (callbacks === undefined) return;
@@ -63,7 +48,7 @@ function getNewWorker(): Worker|MessagePort {
       callbacks.resolve(value);
     }
   };
-  return port;
+  return worker;
 }
 
 export function requestAsyncComputation<Signature extends(...args: any) => any>(

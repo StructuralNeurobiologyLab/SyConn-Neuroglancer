@@ -21,9 +21,8 @@ export class HttpError extends Error {
   url: string;
   status: number;
   statusText: string;
-  response?: Response;
 
-  constructor(url: string, status: number, statusText: string, response?: Response) {
+  constructor(url: string, status: number, statusText: string) {
     let message = `Fetching ${JSON.stringify(url)} resulted in HTTP error ${status}`;
     if (statusText) {
       message += `: ${statusText}`;
@@ -35,13 +34,10 @@ export class HttpError extends Error {
     this.url = url;
     this.status = status;
     this.statusText = statusText;
-    if (response) {
-      this.response = response;
-    }
   }
 
   static fromResponse(response: Response) {
-    return new HttpError(response.url, response.status, response.statusText, response);
+    return new HttpError(response.url, response.status, response.statusText);
   }
 
   static fromRequestError(input: RequestInfo, error: unknown) {

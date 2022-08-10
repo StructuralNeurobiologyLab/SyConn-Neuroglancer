@@ -16,12 +16,3 @@ tsconfig.tsbuildinfo
 *.egg-info
 *.mailmap
 *.map
-
-# Image files
-*.png
-*.PNG
-*.gif
-
-# Pickled files
-*.pkl
-*.pickle

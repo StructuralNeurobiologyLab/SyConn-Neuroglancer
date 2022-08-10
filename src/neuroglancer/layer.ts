@@ -68,9 +68,7 @@ export interface UserLayerSelectionState {
 
   annotationId: string|undefined;
   annotationType: AnnotationType|undefined;
-  annotationBuffer: Uint8Array|undefined;
-  annotationIndex: number|undefined;
-  annotationCount: number|undefined;
+  annotationSerialized: Uint8Array|undefined;
   annotationSourceIndex: number|undefined;
   annotationSubsource: string|undefined;
   annotationPartIndex: number|undefined;
@@ -118,9 +116,7 @@ export class UserLayer extends RefCounted {
     state.localCoordinateSpace = undefined;
     state.annotationId = undefined;
     state.annotationType = undefined;
-    state.annotationBuffer = undefined;
-    state.annotationIndex = undefined;
-    state.annotationCount = undefined;
+    state.annotationSerialized = undefined;
     state.annotationSourceIndex = undefined;
     state.annotationSubsource = undefined;
     state.annotationPartIndex = undefined;
@@ -217,9 +213,7 @@ export class UserLayer extends RefCounted {
     }
     dest.annotationId = source.annotationId;
     dest.annotationType = source.annotationType;
-    dest.annotationBuffer = source.annotationBuffer;
-    dest.annotationIndex = source.annotationIndex;
-    dest.annotationCount = source.annotationCount;
+    dest.annotationSerialized = source.annotationSerialized;
     dest.annotationSourceIndex = source.annotationSourceIndex;
     dest.annotationSubsource = source.annotationSubsource;
     dest.annotationPartIndex = source.annotationPartIndex;
@@ -884,9 +878,7 @@ export interface PickState {
   pickedAnnotationLayer: AnnotationLayerState|undefined;
   pickedAnnotationId: string|undefined;
   pickedAnnotationBuffer: ArrayBuffer|undefined;
-  pickedAnnotationBufferBaseOffset: number|undefined;
-  pickedAnnotationIndex: number|undefined;
-  pickedAnnotationCount: number|undefined;
+  pickedAnnotationBufferOffset: number|undefined;
   pickedAnnotationType: AnnotationType|undefined;
 }
 
@@ -903,12 +895,7 @@ export class MouseSelectionState implements PickState {
   pickedAnnotationLayer: AnnotationLayerState|undefined = undefined;
   pickedAnnotationId: string|undefined = undefined;
   pickedAnnotationBuffer: ArrayBuffer|undefined = undefined;
-  // Base offset into `pickedAnnotationBuffer` of the `pickedAnnotationCount` serialized annotations
-  // of `pickedAnnotationType`.
-  pickedAnnotationBufferBaseOffset: number|undefined = undefined;
-  // Index (out of a total of `pickedAnnotationCount`) of the picked annotation.
-  pickedAnnotationIndex: number|undefined = undefined;
-  pickedAnnotationCount: number|undefined = undefined;
+  pickedAnnotationBufferOffset: number|undefined = undefined;
   pickedAnnotationType: AnnotationType|undefined = undefined;
   pageX: number;
   pageY: number;

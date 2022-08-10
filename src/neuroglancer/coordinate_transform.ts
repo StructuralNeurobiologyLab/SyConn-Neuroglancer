@@ -1499,7 +1499,13 @@ export function permuteTransformedBoundingBox(
   const inputRank = boundingBox.box.lowerBounds.length;
   const outputRank = newToOld.length;
   const newTransform = new Float64Array((inputRank + 1) * outputRank);
-  matrix.permuteRows(newTransform, outputRank, transform, oldOutputRank, newToOld, inputRank + 1);
+  for (let outputDim = 0; outputDim < outputRank; ++outputDim) {
+    for (let inputDim = 0; inputDim <= inputRank; ++inputDim) {
+      const oldOutputDim = newToOld[outputDim];
+      newTransform[outputDim + inputDim * outputRank] =
+          transform[oldOutputDim + inputDim * oldOutputRank];
+    }
+  }
   if (newTransform.every(x => x === 0)) return undefined;
   return {
     transform: newTransform,
