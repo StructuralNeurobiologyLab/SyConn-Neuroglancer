@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 # @license
 # Copyright 2017 Google Inc.
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,6 +24,7 @@ import argparse
 import threading
 import multiprocessing
 import weakref
+import time
 
 import tornado.httpserver
 import tornado.ioloop
@@ -128,7 +131,8 @@ class Server(object):
             self.server_url = f'http://{hostname}:{actual_port}'
 
         elif config.dev_environ_nginx:
-            self.server_url = f'http://{hostname}:9005'
+            # self.server_url = f'http://{hostname}:9005'
+            self.server_url = f'http://{hostname}:9000'
 
         else:
             self.server_url = 'https://syconn.esc.mpcdf.mpg.de'
@@ -260,3 +264,6 @@ if __name__ == "__main__":
     start()
 
     logger.info(f"Neuroglancer server running at {get_server_url()}")
+
+    while True:
+        time.sleep(1000)

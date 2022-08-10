@@ -122,7 +122,8 @@ class TokenHandler(BaseRequestHandler):
             source = f'http://{host}:{port}' 
 
         elif config.dev_environ_nginx:
-            source = f'http://localhost:9005'
+            # source = f'http://localhost:9005'
+            source = f'http://localhost:9000'
 
         else:
             source = f'https://syconn.esc.mpcdf.mpg.de'
@@ -175,7 +176,8 @@ class SharedURLHandler(BaseRequestHandler):
             source = f'http://{host}:{port}' 
 
         elif config.dev_environ_nginx:
-            source = f'http://localhost:9005'
+            # source = f'http://localhost:9005'
+            source = f'http://localhost:9000'
             
         else:
             source = f'https://syconn.esc.mpcdf.mpg.de'
@@ -398,7 +400,10 @@ class PrecomputedVolumeInfoHandler(BaseRequestHandler):
     def get(self, volume_type):
         from neuroglancer.config import params
         try:
-            # logger.debug(f"Retrieving info for {params["acquisition"]}_{version}")
+            print(f'In Volume Info Handler')
+            acq = params["acquisition"]
+            ver = params["version"]
+            logger.debug(f"Retrieving info for {acq}_{ver}")
             info = params["info"]
             info["type"] = volume_type
 
