@@ -8,8 +8,6 @@ import json
 import numpy as np
 import compressed_segmentation as cseg
 import gzip
-import concurrent.futures
-import zipfile
 import urllib
 import re
 from concurrent.futures import ThreadPoolExecutor
@@ -32,7 +30,7 @@ from neuroglancer import url_state
 from neuroglancer import config
 from neuroglancer.random_token import make_random_token
 from neuroglancer.chunks import encode_raw
-from neuroglancer.json_utils import json_encoder_default
+from neuroglancer.json_utils import encode_json, json_encoder_default
 
 
 SHARED_URL_REGEX = r'^/share/(?P<acquisition>[^/]+)/(?P<version>[^/]+)/.+'
@@ -71,6 +69,13 @@ PRECOMPUTED_SEG_PROPS_INFO_REGEX = r'^/(?P<acquisition>[^/]+)/(?P<version>[^/]+)
 
 # ZEBRAFISH_SYN_COORD_REGEX = r'^/(?P<sv_ids>[0-9]+)$'
 ZEBRAFISH_SYN_COORD_REGEX = r'^/zf'
+
+EVENTS_PATH_REGEX = r'^/events/(?P<viewer_token>[^/]+)$'
+
+SET_STATE_PATH_REGEX = r'^/state/(?P<viewer_token>[^/]+)$'
+
+CREDENTIALS_PATH_REGEX = r'^/credentials/(?P<viewer_token>[^/]+)$'
+
 
 
 class BaseRequestHandler(tornado.web.RequestHandler):
@@ -122,7 +127,8 @@ class TokenHandler(BaseRequestHandler):
             source = f'http://{host}:{port}' 
 
         elif config.dev_environ_nginx:
-            source = f'http://localhost:9005'
+            # source = f'http://localhost:9005'
+            source = f'http://localhost:9000'
 
         else:
             source = f'https://syconn.esc.mpcdf.mpg.de'
@@ -156,6 +162,46 @@ class TokenHandler(BaseRequestHandler):
         except Exception as e:
             self.send_error(404, message=e.args[0])
             return
+
+class SetStateHandler(BaseRequestHandler):
+    def post(self, viewer_token: str):
+        viewer = self.server.viewers.get(viewer_token)
+        if viewer is None:
+            self.send_error(404)
+            return
+        msg = json.loads(self.request.body)
+        generation = msg['g']
+        state = msg['s']
+        client_id = msg['c']
+        viewer.set_state(state, f'{client_id}/{generation}')
+
+class CredentialsHandler(BaseRequestHandler):
+    async def post(self, viewer_token: str):
+        print('in credentials')
+        viewer = self.server.viewers.get(viewer_token)
+        if viewer is None:
+            self.send_error(404)
+            return
+        if not viewer.allow_credentials:
+            self.send_error(403)
+            return
+        if self.server._credentials_manager is None:
+            from .default_credentials_manager import default_credentials_manager
+            self.server._credentials_manager = default_credentials_manager
+        msg = json.loads(self.request.body)
+        invalid = msg.get('invalid')
+        provider = self.server._credentials_manager.get(msg['key'], msg.get('parameters'))
+        if provider is None:
+            self.send_error(400)
+            return
+        try:
+            credentials = await asyncio.wrap_future(provider.get(invalid))
+            self.set_header('Content-type', 'application/json')
+            self.finish(json.dumps(credentials))
+        except:
+            import traceback
+            traceback.print_exc()
+            self.send_error(401)
 
 class SharedURLHandler(BaseRequestHandler):
     def get(self, acquisition, version):
