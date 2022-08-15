@@ -91,9 +91,12 @@ class MainHandler(tornado.web.RequestHandler):
 
 class NotFoundHandler(tornado.web.RequestHandler):
     def get(self):  # for all methods
-        logger.info('In Not Found Handler')
-        logger.debug(f"URI not found: {self.request.uri}")
-        self.render("notFound.html")
+        if self.request.uri.split('/')[1] == 'socket':
+            self.render("notFound.html")
+        else:
+            logger.info('In Not Found Handler')
+            logger.debug(f"URI not found: {self.request.uri}")
+            self.render("notFound.html")
 
 
 class TutorialsHandler(tornado.web.RequestHandler):
