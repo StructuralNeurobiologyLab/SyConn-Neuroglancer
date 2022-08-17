@@ -98,6 +98,7 @@ class Builder {
       for (const filename of paths) {
         const p = path.resolve(this.outDir, filename);
         if (!pattern.test(p)) continue;
+        if (path.basename(p) == "dataset_selection.js" || path.basename(p) == "gif_modal.js" || path.basename(p) == "style.css") continue;
         try {
           await fs.promises.unlink(p);
         } catch {
