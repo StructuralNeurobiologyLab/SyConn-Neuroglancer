@@ -102,7 +102,7 @@ class Server(object):
                 (PRECOMPUTED_VOLUME_INFO_REGEX, PrecomputedVolumeInfoHandler, dict(server=self)),
                 (PRECOMPUTED_VOLUME_REGEX, PrecomputedVolumeHandler, dict(server=self)),
                 (PRECOMPUTED_SEG_PROPS_INFO_REGEX, PrecomputedSegPropsInfoHandler, dict(server=self)),
-                # (ZEBRAFISH_SYN_COORD_REGEX, ZebraFishSyn2CoordHandler, dict(server=self)),
+                (ZEBRAFISH_SYN_COORD_REGEX, ZebraFishSyn2CoordHandler, dict(server=self)),
                 (STATIC_PATH_REGEX, StaticPathHandler, dict(server=self)),
                 (EVENTS_PATH_REGEX, EventStreamHandler, dict(server=self)),
                 (SET_STATE_PATH_REGEX, SetStateHandler, dict(server=self)),
