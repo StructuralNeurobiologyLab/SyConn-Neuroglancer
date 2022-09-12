@@ -172,7 +172,7 @@ class StaticPathHandler(BaseRequestHandler):
         try:
             data, content_type = global_static_content_source.get(path)
         except ValueError as e:
-            logger.error("Error sending files")
+            logger.error(e)
             self.send_error(404, message=e.args[0])
             return
         self.set_header('Content-type', content_type)
@@ -343,19 +343,29 @@ if __name__ == "__main__":
     config.global_server_args = global_server_args
 
     if args.dev or args.dev_nginx:
-        assert args.dev != args.dev_nginx, "--dev and --dev-nginx are mutually exclusive"
+        assert args.dev != args.dev_nginx, "--dev and --dev-nginx cannot be set toegether. Use --dev-nginx if you are using nginx"
 
     config.dev_environ = args.dev
     config.dev_environ_nginx = args.dev_nginx
 
     if config.dev_environ_nginx:
+        # always use the default port when using nginx
         config.global_server_args['port'] = 8005
     elif config.dev_environ:
-        assert config.global_server_args['port'] != None, "--port must be specified when using --dev"
+        # use a user-specified port when not using nginx
+        assert config.global_server_args['port'] != None, "'--port' must be specified when using '--dev'"
     else:
+        # production mode 
         config.global_server_args['port'] = 5000
 
-    initialize_server(dev=args.dev or args.dev_nginx)
+    if args.dev or args.dev_nginx:
+        # development mode
+        assert args.dataset != None, "'--dataset' must be specified when using '--dev' or '--dev-nginx'. Choices = ['v3', 'agglo2', 'areaxfs', 'assembled']"
+        initialize_server(dev=args.dev or args.dev_nginx, dataset=args.dataset)
+    else:
+        # production mode
+        initialize_server()
+
     start()
 
     logger.info(f"Neuroglancer server running at {get_server_url()}")
