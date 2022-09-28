@@ -35,191 +35,194 @@
         </a>
 			</div>
 		</nav>
-    <hr class="border border-dark rounded border-1 mx-3">  
+
+    <div class="bg-custom">
+      <hr class="border border-dark rounded border-1 mx-3">  
     
+      <!-- Welcome header -->
+      <div class="container my-4 mx-4">   
+        <div class="row justify-content-around align-items-center">
+          <div class="col-8 col-md-4 col-xxl-4 text-center">  
+            <div class="display-5">SyConn-Neuroglancer Viewer</div>
+            <p class="lead my-4 text-muted">New to this page?<br>Check out the <a class="text-success" href="tutorials.html">tutorials!</a></p>
+          </div>
 
-    <!-- Welcome header -->
-    <div class="container my-4 mx-4">   
-      <div class="row justify-content-around align-items-center">
-        <div class="col-8 col-md-4 col-xxl-4 text-center">  
-          <div class="display-5">SyConn-Neuroglancer Viewer</div>
-          <p class="lead my-4 text-muted">New to this page?<br>Check out the <a class="text-success" href="tutorials.html">tutorials!</a></p>
-        </div>
-        <div class="col-md-8 col-xxl-6 text-center d-none d-md-block">
+          <div class="col-md-8 col-xxl-6 text-center d-none d-md-block">
 
-          <!-- Image slideshow -->
-          <div class="carousel slide" data-bs-ride="carousel" id="viewerExamples">
-            <div class="carousel-indicators">
-              <button type="button" data-bs-target="#viewerExamples" data-bs-slide-to="0" class="active" aria-current="true" aria-label="Slide 1"></button>
-              <button type="button" data-bs-target="#viewerExamples" data-bs-slide-to="1" aria-label="Slide 2"></button>
-              <button type="button" data-bs-target="#viewerExamples" data-bs-slide-to="2" aria-label="Slide 3"></button>
-              <button type="button" data-bs-target="#viewerExamples" data-bs-slide-to="3" aria-label="Slide 4"></button>
-              <button type="button" data-bs-target="#viewerExamples" data-bs-slide-to="4" aria-label="Slide 5"></button>
-              <!-- <button type="button" data-bs-target="#viewerExamples" data-bs-slide-to="5" aria-label="Slide 6"></button> -->
-            </div>
-            <div class="carousel-inner">
-              <div class="carousel-item active">
-                <!-- <img src="../static/image_view.PNG" alt="First slide" class="d-block w-100"> -->
-                <img src="{{static_url('image_view.PNG')}}" alt="First slide" class="d-block w-100">
-                <div class="carousel-caption d-none d-md-block">
-                  <p class="carouselCaptions">XY cross-sectional view of the raw data</p>
-                </div>
+            <!-- Image slideshow -->
+            <div class="carousel slide" data-bs-ride="carousel" id="viewerExamples">
+              <div class="carousel-indicators">
+                <button type="button" data-bs-target="#viewerExamples" data-bs-slide-to="0" class="active" aria-current="true" aria-label="Slide 1"></button>
+                <button type="button" data-bs-target="#viewerExamples" data-bs-slide-to="1" aria-label="Slide 2"></button>
+                <button type="button" data-bs-target="#viewerExamples" data-bs-slide-to="2" aria-label="Slide 3"></button>
+                <button type="button" data-bs-target="#viewerExamples" data-bs-slide-to="3" aria-label="Slide 4"></button>
+                <button type="button" data-bs-target="#viewerExamples" data-bs-slide-to="4" aria-label="Slide 5"></button>
+                <!-- <button type="button" data-bs-target="#viewerExamples" data-bs-slide-to="5" aria-label="Slide 6"></button> -->
               </div>
-              <div class="carousel-item">
-                <!-- <img src="../static/seg_view.PNG" alt="Second slide" class="d-block w-100"> -->
-                <img src="{{static_url('seg_view.PNG')}}" alt="Second slide" class="d-block w-100">
-                <div class="carousel-caption d-none d-md-block">
-                  <p class="carouselCaptions">XY cross-sectional view of the segmentation data</p>
+              <div class="carousel-inner">
+                <div class="carousel-item active">
+                  <!-- <img src="../static/image_view.PNG" alt="First slide" class="d-block w-100"> -->
+                  <img src="{{static_url('image_view.PNG')}}" alt="First slide" class="d-block w-100">
+                  <div class="carousel-caption d-none d-md-block">
+                    <p class="carouselCaptions">XY cross-sectional view of the raw data</p>
+                  </div>
                 </div>
+                <div class="carousel-item">
+                  <!-- <img src="../static/seg_view.PNG" alt="Second slide" class="d-block w-100"> -->
+                  <img src="{{static_url('seg_view.PNG')}}" alt="Second slide" class="d-block w-100">
+                  <div class="carousel-caption d-none d-md-block">
+                    <p class="carouselCaptions">XY cross-sectional view of the segmentation data</p>
+                  </div>
+                </div>
+                <div class="carousel-item">
+                  <!-- <img src="../static/composite_view.PNG" alt="Third slide" class="d-block w-100"> -->
+                  <img src="{{static_url('composite_view.PNG')}}" alt="Third slide" class="d-block w-100">
+                  <div class="carousel-caption d-none d-md-block">
+                    <p class="carouselCaptions">XY composite view of the raw and segmentation data</p>
+                  </div>
+                </div>
+                <div class="carousel-item">
+                  <!-- <img src="../static/cell_example.PNG" alt="Fourth slide" class="d-block w-100"> -->
+                  <img src="{{static_url('cell_example.PNG')}}" alt="Fourth slide" class="d-block w-100">
+                  <div class="carousel-caption d-none d-md-block">
+                    <p class="carouselCaptions">Example neuron with skeleton, cell mesh and organelle meshes (blue: mitochondria, green: vesicle clouds, red: synaptic junctions)</p>
+                  </div>
+                </div>
+                <div class="carousel-item">
+                  <!-- <img src="../static/three_cells.PNG" alt="Fifth slide" class="d-block w-100"> -->
+                  <img src="{{static_url('three_cells.PNG')}}" alt="Fifth slide" class="d-block w-100">
+                  <div class="carousel-caption d-none d-md-block">
+                    <p class="carouselCaptions">TAN, GPe and NGF neurons with over 2000 mitochondria</p>
+                  </div>
+                </div>
+                <!-- <div class="carousel-item">
+                  <img src="../static/facade.PNG" alt="Sixth slide" class="d-block w-100">
+                  <img src="{{static_url('facade.PNG')}}" alt="Sixth slide" class="d-block w-100">
+                  <div class="carousel-caption d-none d-md-block">
+                    <p class="carouselCaptions">Synapse between an LMAN and MSN neuron</p>
+                  </div>
+                </div> -->
               </div>
-              <div class="carousel-item">
-                <!-- <img src="../static/composite_view.PNG" alt="Third slide" class="d-block w-100"> -->
-                <img src="{{static_url('composite_view.PNG')}}" alt="Third slide" class="d-block w-100">
-                <div class="carousel-caption d-none d-md-block">
-                  <p class="carouselCaptions">XY composite view of the raw and segmentation data</p>
-                </div>
-              </div>
-              <div class="carousel-item">
-                <!-- <img src="../static/cell_example.PNG" alt="Fourth slide" class="d-block w-100"> -->
-                <img src="{{static_url('cell_example.PNG')}}" alt="Fourth slide" class="d-block w-100">
-                <div class="carousel-caption d-none d-md-block">
-                  <p class="carouselCaptions">Example neuron with skeleton, cell mesh and organelle meshes (blue: mitochondria, green: vesicle clouds, red: synaptic junctions)</p>
-                </div>
-              </div>
-              <div class="carousel-item">
-                <!-- <img src="../static/three_cells.PNG" alt="Fifth slide" class="d-block w-100"> -->
-                <img src="{{static_url('three_cells.PNG')}}" alt="Fifth slide" class="d-block w-100">
-                <div class="carousel-caption d-none d-md-block">
-                  <p class="carouselCaptions">TAN, GPe and NGF neurons with over 2000 mitochondria</p>
-                </div>
-              </div>
-              <!-- <div class="carousel-item">
-                <img src="../static/facade.PNG" alt="Sixth slide" class="d-block w-100">
-                <img src="{{static_url('facade.PNG')}}" alt="Sixth slide" class="d-block w-100">
-                <div class="carousel-caption d-none d-md-block">
-                  <p class="carouselCaptions">Synapse between an LMAN and MSN neuron</p>
-                </div>
-              </div> -->
-            </div>
-            <button class="carousel-control-prev" type="button" data-bs-target="#viewerExamples" data-bs-slide="prev">
-              <span class="carousel-control-prev-icon" aria-hidden="true"></span>
-              <span class="visually-hidden">Previous</span>
-            </button>
-            <button class="carousel-control-next" type="button" data-bs-target="#viewerExamples" data-bs-slide="next">
-              <span class="carousel-control-next-icon" aria-hidden="true"></span>
-              <span class="visually-hidden">Next</span>
-            </button>
-          </div> 
-        </div>
+              <button class="carousel-control-prev" type="button" data-bs-target="#viewerExamples" data-bs-slide="prev">
+                <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+                <span class="visually-hidden">Previous</span>
+              </button>
+              <button class="carousel-control-next" type="button" data-bs-target="#viewerExamples" data-bs-slide="next">
+                <span class="carousel-control-next-icon" aria-hidden="true"></span>
+                <span class="visually-hidden">Next</span>
+              </button>
+            </div> 
+          </div>
+        </div> 
       </div> 
-    </div> 
 
-    <div class="container">
-      <hr class="border border-dark rounded border-1">  
-      <div class="row">
-        <div class="col-12 col-md-8 col-lg-6 text-md-start text-center mb-3">
-          <h3 class="header display-6">Get started</h3>
-          <form action="/_generate_token" method="post">
-            <div class="form-floating">
-                <select class="form-select my-4" name="acq_name" aria-label="Floating select example" id="acquisition"> 
-                    <option value="j0251" selected>j0251</option>
-                    <option value="j0126">j0126</option>
-                </select>
-                <label for="acquisition">Dataset</label>
-            </div>
-            
-            <div class="form-floating">
-                <select class="form-select" name="data_version" id="version">
-                    <option value="72_seg_20210127_agglo2" selected>j0251_72_seg_20210127_agglo2</option>
-                    <option value="rag_flat_Jan2019_v3">j0251_rag_flat_Jan2019_v3</option>
-                </select>
-                <label for="version">Version</label>
-            </div>
-    
-            <div class="d-grid mt-4 justify-content-center justify-content-md-start">
-                <button type="submit" id="submit"  class="btn btn-outline-success btn-lg">Show data</button>
-            </div>
-          </form>
-        </div>
-      </div>
-      <hr class="border border-dark rounded border-1"> 
-    </div>
-
+      <div class="container">
+        <hr class="border border-dark rounded border-1">  
+        <div class="row">
+          <div class="col-12 col-md-8 col-lg-6 text-md-start text-center mb-3">
+            <h3 class="header display-6">Get started</h3>
+            <form action="/_generate_token" method="post">
+              <div class="form-floating">
+                  <select class="form-select my-4" name="acq_name" aria-label="Floating select example" id="acquisition"> 
+                      <option value="j0251" selected>j0251</option>
+                      <option value="j0126">j0126</option>
+                  </select>
+                  <label for="acquisition">Dataset</label>
+              </div>
+              
+              <div class="form-floating">
+                  <select class="form-select" name="data_version" id="version">
+                      <option value="72_seg_20210127_agglo2" selected>j0251_72_seg_20210127_agglo2</option>
+                      <option value="rag_flat_Jan2019_v3">j0251_rag_flat_Jan2019_v3</option>
+                  </select>
+                  <label for="version">Version</label>
+              </div>
       
+              <div class="d-grid mt-4 justify-content-center justify-content-md-start">
+                  <button type="submit" id="submit"  class="btn btn-outline-success btn-lg">Show data</button>
+              </div>
+            </form>
+          </div>
+        </div>
+        <hr class="border border-dark rounded border-1"> 
+      </div>
 
-    <div class="container">
-      <div class="row">
-        <div class="col-12">
-          <h3 class="header display-6" id="properties">Quick start</h4>
-          <p class="lead" style="text-align: justify;">The following properties are currently used for connectomic queries. The names are defined here as present in a syconn-neuroglancer viewer instance.</p> 
-          <ol>
-            <li class="lead">Neuroglancer inline properties</li><br>
-            <dl class="row">
-              <dt class="col-sm-4">Cell-types</dt>
-              <dd class="col-sm-8">
-                <p>The following cell types are available from the latest segmentation, labeled as:</p>
-                <p><kbd>j0251</kbd> : <kbd>STN, DA, MSN, LMAN, HVC, TAN, GP, FS, LTS, NGF</kbd></p>
-                <p><kbd>j0126</kbd> : <kbd>STN, modulatory, MSN, LMAN, HVC, GP</kbd></p>
-              </dd> 
+        
 
-              <dt class="col-sm-4">Volume</dt>
-              <dd class="col-sm-8">
-                <p>Cell volume in <em>µm³</em></p>
-              </dd>
+      <div class="container">
+        <div class="row">
+          <div class="col-12">
+            <h3 class="header display-6" id="properties">Quick start</h4>
+            <p class="lead" style="text-align: justify;">The following properties are currently used for connectomic queries. The names are defined here as present in a syconn-neuroglancer viewer instance.</p> 
+            <ol>
+              <li class="lead">Neuroglancer inline properties</li><br>
+              <dl class="row">
+                <dt class="col-sm-4">Cell-types</dt>
+                <dd class="col-sm-8">
+                  <p>The following cell types are available from the latest segmentation, labeled as:</p>
+                  <p><kbd>j0251</kbd> : <kbd>STN, DA, MSN, LMAN, HVC, TAN, GP, FS, LTS, NGF</kbd></p>
+                  <p><kbd>j0126</kbd> : <kbd>STN, modulatory, MSN, LMAN, HVC, GP</kbd></p>
+                </dd> 
 
-              <dt class="col-sm-4">TotalPathLength</dt>
-              <dd class="col-sm-8">
-                <p>Perimeter of the cell. Sum of the compartment (axon and its terminals, dendrite and soma) path lengths in <em>µm</em></p>
-              </dd>
+                <dt class="col-sm-4">Volume</dt>
+                <dd class="col-sm-8">
+                  <p>Cell volume in <em>µm³</em></p>
+                </dd>
 
-              <dt class="col-sm-4">MeanSynapseArea</dt>
-              <dd class="col-sm-8">Mean mesh area of the synapses for each cell in <em>µm²</em></dd>
+                <dt class="col-sm-4">TotalPathLength</dt>
+                <dd class="col-sm-8">
+                  <p>Perimeter of the cell. Sum of the compartment (axon and its terminals, dendrite and soma) path lengths in <em>µm</em></p>
+                </dd>
 
-              <dt class="col-sm-4">NSynapses</dt>
-              <dd class="col-sm-8">
-                <p>Number of synapses for each cell</p>
-              </dd>
-            </dl>
-            <p class="lead">Note: The <kbd>j0251_72_seg_20210127_agglo2</kbd> and <kbd>j0126_areaxfs_v10</kbd> datasets do not currently support the <strong>MeanMeshArea</strong> property while the <kbd>j0126_assembled_core_relabeled</kbd> dataset supports only the <strong>Cell-types</strong>, <strong>Volume</strong> and <strong>NSynapses</strong> properties. More inline properties will be added soon!</p>
-            <li class="lead">Dynamic properties</li><br>
-            <dl class="row">
-              <dt class="col-sm-4">show-synaptic-partner-with-largest-area</dt>
-              <dd class="col-sm-8">
-                <p>Retrieve the synaptic partner of the selected cell with the largest synapse area and synapse probability >= 0.5. Additionally, this property considers the <em>axo-dendritic</em> and <em>axo-somatic</em> synapses.</p>
-                <p>Hotkey: <kbd>p</kbd></p>
-              </dd>
+                <dt class="col-sm-4">MeanSynapseArea</dt>
+                <dd class="col-sm-8">Mean mesh area of the synapses for each cell in <em>µm²</em></dd>
 
-              <dt class="col-sm-4">show-presynaptic-partners</dt>
-              <dd class="col-sm-8">
-                <p>Retrieve the presynaptic partners of the selected cell with synapse probability >= 0.5. This property considers the <em>axo-dendritic</em> and <em>axo-somatic</em> synapses with axon terminals (en-passant and terminal boutons). The hotkey call displays a list of presynaptic  partners of the currently selected cell on the right panel. This should be followed up with the <strong>cycle-synaptic-partners</strong> call to display the synaptic partners one by one.</p>
-                <p>Hotkey: <kbd>ctrl + i</kbd></p>
-              </dd>
+                <dt class="col-sm-4">NSynapses</dt>
+                <dd class="col-sm-8">
+                  <p>Number of synapses for each cell</p>
+                </dd>
+              </dl>
+              <p class="lead">Note: The <kbd>j0251_72_seg_20210127_agglo2</kbd> and <kbd>j0126_areaxfs_v10</kbd> datasets do not currently support the <strong>MeanMeshArea</strong> property while the <kbd>j0126_assembled_core_relabeled</kbd> dataset supports only the <strong>Cell-types</strong>, <strong>Volume</strong> and <strong>NSynapses</strong> properties. More inline properties will be added soon!</p>
+              <li class="lead">Dynamic properties</li><br>
+              <dl class="row">
+                <dt class="col-sm-4">show-synaptic-partner-with-largest-area</dt>
+                <dd class="col-sm-8">
+                  <p>Retrieve the synaptic partner of the selected cell with the largest synapse area and synapse probability >= 0.5. Additionally, this property considers the <em>axo-dendritic</em> and <em>axo-somatic</em> synapses.</p>
+                  <p>Hotkey: <kbd>p</kbd></p>
+                </dd>
 
-              <dt class="col-sm-4">show-postsynaptic-partners</dt>
-              <dd class="col-sm-8">
-                <p>Retrieve the postsynaptic partners of the selected cell with synapse probability >= 0.5. This property considers the <em>axo-dendritic</em> and <em>axo-somatic</em> synapses with axon terminals (en-passant and terminal boutons). The hotkey call displays a list of postsynaptic partners of the currently selected cell on the right panel. This should be followed up with the <strong>cycle-synaptic-partners</strong> call to display the synaptic partners one by one.</p>
-                <p>Hotkey: <kbd>ctrl + o</kbd></p>
-              </dd>
+                <dt class="col-sm-4">show-presynaptic-partners</dt>
+                <dd class="col-sm-8">
+                  <p>Retrieve the presynaptic partners of the selected cell with synapse probability >= 0.5. This property considers the <em>axo-dendritic</em> and <em>axo-somatic</em> synapses with axon terminals (en-passant and terminal boutons). The hotkey call displays a list of presynaptic  partners of the currently selected cell on the right panel. This should be followed up with the <strong>cycle-synaptic-partners</strong> call to display the synaptic partners one by one.</p>
+                  <p>Hotkey: <kbd>ctrl + i</kbd></p>
+                </dd>
 
-              <dt class="col-sm-4">cycle-synaptic-partners</dt>
-              <dd class="col-sm-8">
-                <p>Cycle the retrieved pre- or postsynaptic partners and display the partner cells at the location of the synapse. Cycling starts from the synapse with the largest synaptic area. Each hotkey call displays a pair of synaptic partners.</p>
-                <p>Hotkey: <kbd>ctrl + u</kbd></p>
-              </dd>
+                <dt class="col-sm-4">show-postsynaptic-partners</dt>
+                <dd class="col-sm-8">
+                  <p>Retrieve the postsynaptic partners of the selected cell with synapse probability >= 0.5. This property considers the <em>axo-dendritic</em> and <em>axo-somatic</em> synapses with axon terminals (en-passant and terminal boutons). The hotkey call displays a list of postsynaptic partners of the currently selected cell on the right panel. This should be followed up with the <strong>cycle-synaptic-partners</strong> call to display the synaptic partners one by one.</p>
+                  <p>Hotkey: <kbd>ctrl + o</kbd></p>
+                </dd>
 
-              <dt class="col-sm-4">depth-first-search</dt>
-              <dd class="col-sm-8">
-                <p>Do a depth-first search along the biological neural network starting from the selected cell. The synaptic partner is chosen that has the strongest connection with the currently selected cell. Each hotkey call is 1 level into the depth-first search. The maximum depth is 3.</p>
-                <p>Hotkey: <kbd>ctrl + d</kbd></p>
-              </dd>
+                <dt class="col-sm-4">cycle-synaptic-partners</dt>
+                <dd class="col-sm-8">
+                  <p>Cycle the retrieved pre- or postsynaptic partners and display the partner cells at the location of the synapse. Cycling starts from the synapse with the largest synaptic area. Each hotkey call displays a pair of synaptic partners.</p>
+                  <p>Hotkey: <kbd>ctrl + u</kbd></p>
+                </dd>
 
-              <dt class="col-sm-4">reset-viewer-state</dt>
-              <dd class="col-sm-8">
-                <p>Reset the viewer state. This clears the selected segments and the segment ids in the segment query (if present). Additionally, it also sets the viewer position to the center (as seen when the viewer is first launched). This property comes in handy when clearing the list of presynaptic or postsynaptic partners. Note that <kbd>x</kbd> only clears the segments in the cross-section and 3d viewport.</p>
-                <p>Hotkey: <kbd>ctrl + x</kbd></p>
-              </dd>
-            </dl>
-          </ol>
+                <dt class="col-sm-4">depth-first-search</dt>
+                <dd class="col-sm-8">
+                  <p>Do a depth-first search along the biological neural network starting from the selected cell. The synaptic partner is chosen that has the strongest connection with the currently selected cell. Each hotkey call is 1 level into the depth-first search. The maximum depth is 3.</p>
+                  <p>Hotkey: <kbd>ctrl + d</kbd></p>
+                </dd>
+
+                <dt class="col-sm-4">reset-viewer-state</dt>
+                <dd class="col-sm-8">
+                  <p>Reset the viewer state. This clears the selected segments and the segment ids in the segment query (if present). Additionally, it also sets the viewer position to the center (as seen when the viewer is first launched). This property comes in handy when clearing the list of presynaptic or postsynaptic partners. Note that <kbd>x</kbd> only clears the segments in the cross-section and 3d viewport.</p>
+                  <p>Hotkey: <kbd>ctrl + x</kbd></p>
+                </dd>
+              </dl>
+            </ol>
+          </div>
         </div>
       </div>
     </div>
