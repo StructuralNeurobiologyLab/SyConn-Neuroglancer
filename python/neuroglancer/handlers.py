@@ -567,7 +567,7 @@ class ZebraFishSyn2CoordHandler(BaseRequestHandler):
     @asynchronous
     def get(self):
         logger.debug('Zebrafish synapse coordinates requested')
-        # sv_ids is a comma separated list of supervoxel ids 
+        # sv_ids is a comma separated list of supervoxel ids
         sv_ids = self.get_arguments('sv_ids')
         if len(sv_ids) == 0:
             m = "Query argument 'sv_ids' is not found"
@@ -605,17 +605,31 @@ class ZebraFishSyn2CoordHandler(BaseRequestHandler):
         from neuroglancer.config import zf_params
 
         # extract the synapse coordinates of the supervoxels
+        # def extract_syn_coords(svs):
+        #     svs = set(svs)
+        #     syn_coords = defaultdict(list)
+        #     syn_indexes = defaultdict(list)
+        #     for sv in svs:
+        #         if zf_params["cs_lookup"][sv]:
+        #             syn_indexes[zf_params["ssv_lookup"][sv]].extend(zf_params["cs_lookup"][sv])
+        #
+        #     for ssv_id, syn_indexs in syn_indexes.items():
+        #         # keys of the json response should be int or str; numpy.uint64 is not supported
+        #         syn_coords[int(ssv_id)] = zf_params["rep_coord"][syn_indexs]
+        #     return syn_coords
+
         def extract_syn_coords(svs):
             svs = set(svs)
             syn_coords = defaultdict(list)
-            syn_indexes = defaultdict(list)
-            for sv in svs:
-                if zf_params["cs_lookup"][sv]:
-                    syn_indexes[zf_params["ssv_lookup"][sv]].extend(zf_params["cs_lookup"][sv])
 
-            for ssv_id, syn_indexs in syn_indexes.items():
-                # keys of the json response should be int or str; numpy.uint64 is not supported
-                syn_coords[int(ssv_id)] = zf_params["rep_coord"][syn_indexs]
+            for sv in svs:  # Iterate through the list of supervoxels
+                # From the back to the front:
+                # 1. Check whether the current sv is a cs sv of a synapse
+                # 2. Iterate through the indices of the cs sv which will be the same as the indices of the stored synapse(s)
+                # 3. For each index retrieve the representative coordinates of the synapse(s)
+                syn_coords[sv].extend([zf_params['rep_coord'][cs_index].tolist() for cs_index in
+                                       zf_params['cs_lookup'][sv] if zf_params['cs_lookup'][sv]])
+
             return syn_coords
 
         future = self.server.thread_executor.submit(
@@ -638,14 +652,10 @@ class ZebraFishSyn2CoordHandler(BaseRequestHandler):
             self.set_header('Content-type', 'application/json')
             self.finish(json.dumps(data, cls=NumpyEncoder))
 
-        # result = {}
-        # id_keys = list(zf_params["ssv_lookup"].keys())
-        # random_sv = np.random.choice(id_keys)
-        # ssv_id = zf_params["ssv_lookup"][random_sv]
-        # queried_svs = zf_params["ssd"].mapping_dict[ssv_id]
-
-        # result = extract_syn_coords(queried_svs)
-
+        # queried_sv = [1529653281, 1731486518, 531477370, 733325923, 84697179, 286584291, 1093575352,
+        #               1295425556, 5549538080, 5551684580, 5549538080, 5551684989]
+        # result = extract_syn_coords(queried_sv)
+        # print(result)
 
 class ActionHandler(BaseRequestHandler):
     def post(self, viewer_token):

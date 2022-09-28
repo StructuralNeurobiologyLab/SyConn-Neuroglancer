@@ -247,18 +247,19 @@ def initialize_server(dev: bool = False):
     params = NeuroConfig()
 
     root = "/wholebrain/songbird"
-    
-    # logger.info("Initializing segmentation datasets and property arrays for fw363-2021-11-02-full-nokd-nossv")
-    # global_params.wd = os.path.join(root, "fw363-2021-11-02-full-nokd-nossv")
-    # zf_params = {}
-    # zf_params["working_dir"] = global_params.config.working_dir
+
+    logger.info(
+        "Initializing segmentation datasets and property arrays for fw363-2021-11-02-full-nokd-nossv")
+    global_params.wd = os.path.join(root, "fw363-2021-11-02-full-nokd-nossv")
+    zf_params = {}
+    zf_params["working_dir"] = global_params.config.working_dir
     # ssd = SuperSegmentationDataset(global_params.config.working_dir)
     # ssd.load_mapping_dict()
     # sd_sv = SegmentationDataset("sv", working_dir=global_params.config.working_dir)
-    # sd_syn_ssv = SegmentationDataset("syn_ssv", working_dir=global_params.config.working_dir)
+    sd_syn_ssv = SegmentationDataset("syn_ssv", working_dir=global_params.config.working_dir)
 
-    # with open(os.path.join(root, 'cs_lookup.pickle'), 'rb') as handle:
-    #     cs_lookup = pickle.load(handle)
+    with open(os.path.join(root, 'cs_lookup2.pickle'), 'rb') as handle:
+        cs_lookup = pickle.load(handle)
 
     # with open(os.path.join(root, 'ssv_lookup.pickle'), 'rb') as handle:
     #     ssv_lookup = pickle.load(handle)
@@ -266,9 +267,9 @@ def initialize_server(dev: bool = False):
     # zf_params["ssd"] = ssd
     # zf_params["syn_ssv_ids"] = sd_syn_ssv.load_numpy_data("id")
     # zf_params["cs_ids"] = sd_syn_ssv.load_numpy_data("cs_ids")
-    # zf_params["rep_coord"] = sd_syn_ssv.load_numpy_data("rep_coord")
+    zf_params["rep_coord"] = sd_syn_ssv.load_numpy_data("rep_coord")
     # zf_params["sv_ids"] = sd_sv.load_numpy_data("id")
-    # zf_params["cs_lookup"] = cs_lookup
+    zf_params["cs_lookup"] = cs_lookup
     # zf_params["ssv_lookup"] = ssv_lookup
 
     acquisitions = ('j0126', 'j0126', 'j0251', 'j0251')
