@@ -131,7 +131,7 @@ class TokenHandler(BaseRequestHandler):
 
         elif config.dev_environ_nginx:
             # source = f'http://localhost:9005'
-            source = f'http://localhost:9000'
+            source = f'http://localhost:8080'
 
         else:
             source = f'https://syconn.esc.mpcdf.mpg.de'

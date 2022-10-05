@@ -145,7 +145,7 @@ class Server(object):
             self.server_url = f'http://{hostname}:{actual_port}'
 
         elif config.dev_environ_nginx:
-            self.server_url = f'http://{hostname}:9000'
+            self.server_url = f'http://{hostname}:8080'
 
         else:
             self.server_url = 'https://syconn.esc.mpcdf.mpg.de'
