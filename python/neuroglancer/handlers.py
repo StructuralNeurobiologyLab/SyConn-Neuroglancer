@@ -61,9 +61,9 @@ PRECOMPUTED_MESH_META_REGEX = r'^/(?P<viewer_token>[^/]+)/(?P<acquisition>[^/]+)
 
 PRECOMPUTED_MESH_REGEX = r'^/(?P<viewer_token>[^/]+)/(?P<acquisition>[^/]+)/(?P<version>[^/]+)/(?P<obj_type>[a-z]{2})/(?P<ssv_id>[0-9]+):(?P<lod>[0-9]):\5_mesh$'
 
-PRECOMPUTED_VOLUME_INFO_REGEX = r'^/volume/(?P<volume_type>[a-zA-Z]+)/info$'
+PRECOMPUTED_VOLUME_INFO_REGEX = r'^/in_memory_volume/(?P<volume_type>[a-zA-Z]+)/info$'
 
-PRECOMPUTED_VOLUME_REGEX = r'^/volume/(?P<volume_type>[a-zA-Z]+)/(?P<scale_key>[^/]+)/(?P<chunk>[^/]+)$'
+PRECOMPUTED_VOLUME_REGEX = r'^/in_memory_volume/(?P<volume_type>[a-zA-Z]+)/(?P<scale_key>[^/]+)/(?P<chunk>[^/]+)$'
 
 PRECOMPUTED_SEG_PROPS_INFO_REGEX = r'^/(?P<acquisition>[^/]+)/(?P<version>[^/]+)/properties/info$'
 
@@ -79,6 +79,13 @@ CREDENTIALS_PATH_REGEX = r'^/credentials/(?P<viewer_token>[^/]+)$'
 
 
 class BaseRequestHandler(tornado.web.RequestHandler):
+    # def set_default_headers(self):
+    #     self.set_header("Access-Control-Allow-Origin", "*")
+    #     self.set_header("Access-Control-Allow-Headers", "x-requested-with")
+    #     self.set_header('Access-Control-Allow-Methods', 'POST, GET, OPTIONS')
+    #     self.set_header('Access-Control-Allow-Credentials', 'true')
+    #     self.set_header("DNT", "Authorization, Content-Type, Depth, User-Agent, X-File-Size, X-Requested-With, If-Modified-Since, Keep-Alive, Cache-Control")
+
     def initialize(self, server):
         # self.set_secure_cookie("session_id", session_key, samesite="None")
         self.server = server
@@ -110,6 +117,14 @@ class AboutHandler(tornado.web.RequestHandler):
 
 
 class TokenHandler(BaseRequestHandler):
+
+    # def set_default_headers(self):
+    #     self.set_header("Access-Control-Allow-Origin", "*")
+    #     self.set_header("Access-Control-Allow-Headers", "x-requested-with")
+    #     self.set_header('Access-Control-Allow-Methods', 'POST, GET, OPTIONS')
+    #     self.set_header('Access-Control-Allow-Credentials', 'true')
+    #     self.set_header("DNT", "Authorization, Content-Type, Depth, User-Agent, X-File-Size, X-Requested-With, If-Modified-Since, Keep-Alive, Cache-Control")
+        
     def post(self):
         logger.info("TokenHandler invoked")
         from neuroglancer.config import params
@@ -124,38 +139,68 @@ class TokenHandler(BaseRequestHandler):
             self.send_error(404)
             return
 
+        prefix = 'precomputed://'
+        use_tpl_mask = False
         if config.dev_environ:
+            # Development mode without nginx
             host = config.global_server_args['host']
             port = config.global_server_args['port']
-            source = f'http://{host}:{port}' 
-
-        elif config.dev_environ_nginx:
-            # source = f'http://localhost:9005'
-            source = f'http://localhost:8080'
-
+            source = f'http://{host}:{port}'
+            prefix += source + '/in_memory_volume'
+            if params.acquisition == 'zf':
+                seg_src = 'precomputed://http://knossosstreaming-mf.esc.rzg.mpg.de/fw363_seg_140180724fb_rsg_or_sc06_cbsplit_neuroglancer/mesh'
+                img_src = 'precomputed://http://knossosstreaming-mf.esc.rzg.mpg.de/fw363_raw_neuroglancer'
+            else:
+                seg_src = prefix + '/segmentation'
+                img_src = prefix + '/image' 
         else:
-            source = f'https://syconn.esc.mpcdf.mpg.de'
-
+            if config.dev_environ_nginx:
+                # Development mode with nginx
+                # Note: This is not the same as the dev_environ
+                # The port here is the port of the nginx server
+                # with the dev.syconn.esc.mpcdf.mpg.de domain
+                source = f'http://localhost:9000'
+            else:
+                # Production mode
+                # Nginx server reverse proxies to the neuroglancer 
+                # server running at https://localhost:5000
+                source = f'https://syconn.esc.mpcdf.mpg.de'
+            
+            prefix += source
+            if params.acquisition == 'j0126':
+                seg_src = prefix + '/volume/segmentation'
+                img_src = prefix + '/j0126/volume/image'
+            elif params.acquisition == 'zf':
+                seg_src = 'precomputed://http://knossosstreaming-mf.esc.rzg.mpg.de/fw363_seg_140180724fb_rsg_or_sc06_cbsplit_neuroglancer/mesh'
+                img_src = 'precomputed://http://knossosstreaming-mf.esc.rzg.mpg.de/fw363_raw_neuroglancer'
+            else:
+                use_tpl_mask = True
+                seg_src = prefix + f'/{params.acquisition}_{params.version}' + '/segmentation'
+                if params.version == 'rag_flat_Jan2019_v3':
+                    img_src = prefix + f'/{params.acquisition}_{params.version}' + '/image/test'
+                elif params.version == '72_seg_20210127_agglo2':
+                    img_src = prefix + f'/{params.acquisition}_{params.version}' + '/image'
+            
         token = make_random_token()
         
-        use_tpl_mask = True
-        if params.version == "rag_flat_Jan2019_v3":
-            logger.debug("Using j0251_rag_flat_Jan2019_v3")
-            # sharded precomputed
-            seg_src = 'precomputed://' + source + f'/{params.acquisition}_{params.version}/segmentation'
-            img_src = 'precomputed://' + source + f'/{params.acquisition}_{params.version}/image/test'
+        # use_tpl_mask = True
+        # if params.version == "rag_flat_Jan2019_v3":
+        #     logger.debug("Using j0251_rag_flat_Jan2019_v3")
+        #     # sharded precomputed
+        #     seg_src = 'precomputed://' + source + f'/{params.acquisition}_{params.version}/segmentation'
+        #     img_src = 'precomputed://' + source + f'/{params.acquisition}_{params.version}/image/test'
             
-        elif params.version == "72_seg_20210127_agglo2":
-            logger.debug("Using j0251_72_seg_20210127_agglo2")
-            # sharded precomputed
-            seg_src = 'precomputed://' + source + f'/{params.acquisition}_{params.version}/segmentation'
-            img_src = 'precomputed://' + source + f'/{params.acquisition}_{params.version}/image'
+        # elif params.version == "":
+        #     logger.debug("Using j0251_72_seg_20210127_agglo2")
+        #     # sharded precomputed
+        #     seg_src = 'precomputed://' + source + f'/{params.acquisition}_{params.version}/segmentation'
+        #     img_src = 'precomputed://' + source + f'/{params.acquisition}_{params.version}/image'
 
-        else: 
-            logger.debug("Using j0126")
-            seg_src = 'precomputed://' + source + '/volume/segmentation'  # unsharded precomputed segmentation
-            img_src = 'precomputed://' + source + '/j0126/volume/image'  # sharded precomputed image
-            use_tpl_mask = False
+        # else: 
+        #     logger.debug("Using j0126")
+        #     seg_src = 'precomputed://' + source + '/volume/segmentation'  # unsharded precomputed segmentation
+        #     img_src = 'precomputed://' + source + '/j0126/volume/image'  # sharded precomputed image
+        #     use_tpl_mask = False
 
         pf = PropertyFilter(params, token, ['mi', 'vc', 'sj'], use_tpl_mask=use_tpl_mask, seg_src=seg_src, img_src=img_src)
         # logger.debug(f"Viewer instances in memory: {len(config.global_server.viewers.keys())}")
@@ -298,6 +343,7 @@ class PrecomputedSkeletonHandler(BaseRequestHandler):
     def get(self, viewer_token, acquisition, version, ssv_id):
         ssv_id = int(ssv_id)
         from neuroglancer.config import params
+        # from syconn.cli.property_filter import get_segmentation_layer
 
         if acquisition == "j0126":
             viewer = self.server.viewers.get(viewer_token)
@@ -308,11 +354,13 @@ class PrecomputedSkeletonHandler(BaseRequestHandler):
                 #         seg_layer = l
                 #         break
                 try:
-                    if not (params["ssd"].ssv_ids == ssv_id).any():
+                    # TODO(hashir): use equivalenes to
+                    # treat all sv ids of an ssv together
+                    if not (params["ssd"].ssv_ids == ssv_id).any():  # supervoxel id
                         logger.info("Cell ID not found in ssv_ids. Trying to load cell ID from sv2ssv mapping")
                         new_ssv_id = params["ssd"].sv2ssv_ids(ids=np.array([ssv_id]))[ssv_id]
                         # seg_layer.equivalences = [tuple(params["ssd"].mapping_dict[new_ssv_id])]
-                    else:
+                    else:  # super-supervoxel id
                         new_ssv_id = ssv_id
 
                 except Exception as e:
