@@ -115,6 +115,9 @@ class AboutHandler(tornado.web.RequestHandler):
     def get(self):
         self.render("about.html")
 
+class DataHandler(tornado.web.RequestHandler):
+    def get(self):
+        self.render("data.html")
 
 class TokenHandler(BaseRequestHandler):
 

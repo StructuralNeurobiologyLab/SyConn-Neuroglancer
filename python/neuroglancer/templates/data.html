@@ -17,7 +17,7 @@
     <body>
       <nav class="navbar navbar-light navbar-expand-lg">
 		 <div class="container-fluid">
-          <a class="navbar-brand" href="https://structuralneurobiologylab.github.io/SyConn/">
+          <a class="navbar-brand" href="https://github.com/StructuralNeurobiologyLab/SyConn">
             <img src="{{ static_url('syconn-logo.png') }}" alt="SyConn logo" height="90" class="d-inline-block align-text-top center">
             <!-- <img src="../static/syconn-logo.png" alt="SyConn logo" height="90" class="d-inline-block align-text-top center"> -->
           </a>
@@ -61,6 +61,40 @@
                 The currently available data sets, j0251 (256 x 256 x 384 µm) and j0126 (96 x 98 x 114 µm), were acquired from adult male zebra finch area X, a basal ganglia area responsible for song learning that contains striatal and pallidal-like cell types.
             </p>
         </div>
+      <div>
+        <hr class="border border-dark rounded border-1 mx-3">
+        <!-- <div class="row"> -->
+          <div class="container m-3">
+        <!-- <div class="lead" style="text-align: justify;" > -->
+          <div class="col-12 col-md-8 col-lg-6 text-md-start text-center mb-3">
+            <h3 class="header display-6">Get Started</h3>
+            <form action="/_generate_token" method="post">
+              <div class="form-floating">
+                  <select class="form-select my-4" name="acq_name" aria-label="Floating select example" id="acquisition">
+                      <option value="j0251" selected>j0251</option>
+                      <option value="j0126">j0126</option>
+                  </select>
+                  <label for="acquisition">Dataset</label>
+              </div>
+
+              <div class="form-floating">
+                  <select class="form-select" name="data_version" id="version">
+                      <option value="72_seg_20210127_agglo2" selected>j0251_72_seg_20210127_agglo2</option>
+                      <option value="rag_flat_Jan2019_v3">j0251_rag_flat_Jan2019_v3</option>
+                  </select>
+                  <label for="version">Version</label>
+              </div>
+
+              <div class="d-grid mt-4 justify-content-center justify-content-md-start">
+                  <button type="submit" id="submit"  class="btn btn-outline-success btn-lg">Show data</button>
+              </div>
+            </form>
+          </div>
       </div>
+        <!-- </div> -->
+        <!-- </div> -->
+        <!-- <hr class="border border-dark rounded border-1"> -->
+      </div>
+    </div>
     </body>
 </html>

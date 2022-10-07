@@ -93,6 +93,7 @@ class Server(object):
                 (r'^/index.html', MainHandler),
                 (r'^/tutorials.html', TutorialsHandler),
                 (r'^/about.html', AboutHandler),
+                (r'^/data.html', DataHandler),
                 # (SHARED_URL_REGEX, SharedURLHandler, dict(server=self)),
                 (PRECOMPUTED_SKELETON_INFO_REGEX, PrecomputedSkeletonInfoHandler, dict(server=self)), 
                 (PRECOMPUTED_SKELETON_REGEX, PrecomputedSkeletonHandler, dict(server=self)),
