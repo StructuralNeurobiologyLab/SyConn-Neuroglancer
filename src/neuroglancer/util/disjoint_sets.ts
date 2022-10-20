@@ -165,6 +165,9 @@ export class DisjointUint64Sets {
       map.delete(y.toString());
       changed = true;
     }
+    if (changed) {
+      ++this.generation;
+    }
     return changed;
   }
 

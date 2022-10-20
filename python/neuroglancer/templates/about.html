@@ -17,7 +17,7 @@
     <body>
       <nav class="navbar navbar-light navbar-expand-lg">
 			  <div class="container-fluid">
-          <a class="navbar-brand" href="https://structuralneurobiologylab.github.io/SyConn/">
+          <a class="navbar-brand" href="https://github.com/StructuralNeurobiologyLab/SyConn">
             <img src="{{ static_url('syconn-logo.png') }}" alt="SyConn logo" height="90" class="d-inline-block align-text-top center">
             <!-- <img src="../static/syconn-logo.png" alt="SyConn logo" height="90" class="d-inline-block align-text-top center"> -->
           </a>
@@ -25,6 +25,7 @@
             <div class="navbar-nav" id="navItems">
               <a class="nav-link" aria-current="page" href="index.html">Home</a>
               <a class="nav-link" href="tutorials.html">Tutorials</a>
+              <a class="nav-link" href="data.html">Data</a>
               <a class="nav-link active" href="about.html">About</a>
             </div>
           </div>
@@ -34,29 +35,31 @@
           </a>
 			  </div>
 		  </nav>
-      <hr class="border border-dark rounded border-2 mx-3"> 
+      <hr class="border border-dark rounded border-1 mx-3"> 
 
       <div class="container m-3">
         <h3 class="display-6 header">Project</h3>
         <p class="lead" style="text-align: justify;">SyConn-Neuroglancer provides web access to connectomic datasets processed with SyConn. It is based on a fork of the original <a href="https://github.com/google/neuroglancer">google/neuroglancer</a> project developed and maintained by Jeremy Maitin-Shepard at Google Research in Viren Jain’s team, with contributions from many other research organizations. We aim to keep our fork in sync with the upstream project and contribute as much as possible back to the original code base.</p> 
         <p class="lead" style="text-align: justify;">SyConn web provides an analysis interface for simple connectomic queries, such as filtering of the neurons based on properties, the identification of pre- and postsynaptic neurons or the listing of different cell types and is continuously extended by us based on actual analysis needs. Please write to us if you are interested in a specific analysis that might be particularly useful.</p>
         
-        <h3 class="display-6 header" id="dataset">Dataset</h3>
-        <h4>j0251</h4>
-        <p class="lead" style="text-align: justify;">
-        EM data acquisition: <i>J. Kornfeld</i> <br>
-        Alignment: <i>J. Kornfeld & A. Pope (V. Jain's team, Google Research)</i> <br>
-        SyConn processing: <i>P. Schubert</i> <br>
-        Cell & ultrastructure segmentation: <i>M. Januszewski (V. Jain's team, Google Research)</i>
-        </p>
-        <h4>j0126</h4>
-        <p class="lead" style="text-align: justify;">
-          EM data acquisition: <i>J. Kornfeld</i> <br>
-          Alignment: <i>J. Kornfeld & A. Pope (V. Jain's team, Google Research)</i> <br>
-          SyConn processing: <i>P. Schubert</i> <br>
-          Cell & ultrastructure segmentation: <i>M. Januszewski (V. Jain's team, Google Research), S. Dorkenwald, P. Schubert</i>
-        </p>
-
+{#        <h3 class="display-6 header" id="dataset">Dataset</h3>#}
+{#        <h4>j0251</h4>#}
+{#        <p class="lead" style="text-align: justify;">#}
+{#        EM data acquisition: <i>J. Kornfeld</i> <br>#}
+{#        Alignment: <i>J. Kornfeld & A. Pope (V. Jain's team, Google Research)</i> <br>#}
+{#        SyConn processing: <i>P. Schubert</i> <br>#}
+{#        Cell & ultrastructure segmentation: <i>M. Januszewski (V. Jain's team, Google Research)</i>#}
+{#        </p>#}
+{#        <h4>j0126</h4>#}
+{#        <p class="lead" style="text-align: justify;">#}
+{#          EM data acquisition: <i>J. Kornfeld</i> <br>#}
+{#          Alignment: <i>J. Kornfeld & A. Pope (V. Jain's team, Google Research)</i> <br>#}
+{#          SyConn processing: <i>P. Schubert</i> <br>#}
+{#          Cell & ultrastructure segmentation: <i>M. Januszewski (V. Jain's team, Google Research), S. Dorkenwald, P. Schubert</i>#}
+{#        </p>#}
+{#        <p class="lead" style="text-align: justify;">#}
+{#          Please note that the neuron reconstructions, synapse predictions and cell type classifications are best effort. We would appreciate feedback if you think you have discovered a systematic problem that deserves more attention! We are also currently working on creating a downloadable version of the data for offline analysis.#}
+{#        </p>#}
         <h3 class="display-6 header">The Team</h3>
         <p class="lead" style="text-align: justify;">This project is developed in the Kornfeld laboratory at the Max Planck Institute for Biological Intelligence (in foundation) in Martinsried, Germany. We would like to thank Eric Perlman for neuroglancer development support. 
         <div class="row">
@@ -76,7 +79,27 @@
                 <h5 class="card-title">Andrei Mancu</h5>
                 <h6 class="card-subtitle text-muted">Developer</h6>
                 <p class="card-text"></p>
-                <a href="mailto:amancu@neuro.mpg.de" class="btn btn-primary">Contact</a>
+                <a href="mailto:andrei.mancu@bi.mpg.de" class="btn btn-primary">Contact</a>
+                </div>
+            </div>
+          </div>
+          <div class="col-sm-3">
+            <div class="card">
+              <div class="card-body">
+                <h5 class="card-title">Alexandra Rother</h5>
+                <h6 class="card-subtitle text-muted">Developer</h6>
+                <p class="card-text"></p>
+                <a href="mailto:alexandra.rother@bi.mpg.de" class="btn btn-primary">Contact</a>
+                </div>
+            </div>
+          </div>
+          <div class="col-sm-3">
+            <div class="card">
+              <div class="card-body">
+                <h5 class="card-title">Ana-Maria Lacatusu</h5>
+                <h6 class="card-subtitle text-muted">Developer</h6>
+                <p class="card-text"></p>
+                <a href="mailto:anamaria.lacatusu@bi.mpg.de" class="btn btn-primary">Contact</a>
                 </div>
             </div>
           </div>
@@ -94,14 +117,31 @@
             <div class="card">
               <div class="card-body">
                 <h5 class="card-title">Jörgen Kornfeld</h5>
-                <h6 class="card-subtitle text-muted">Supervisor</h6>
+                <h6 class="card-subtitle text-muted">PI</h6>
                 <p class="card-text"></p>
-                <a href="mailto:kornfeld@neuro.mpg.de" class="btn btn-primary">Contact</a>
+                <a href="mailto:joergen.kornfeld@bi.mpg.de" class="btn btn-primary">Contact</a>
                 </div>
             </div>
           </div>
           
         </div>
+        <p></p>
+        <h3 class="display-6 header" id="publications">Publications</h3>
+        <p class="lead" style="text-align: justify;">
+          Schubert PJ, Dorkenwald S, Januszewski M, Klimesch J, Svara F, Mancu A, Ahmad H, Fee M, Jain V, Kornfeld J. <cite>SyConn2: Dense synaptic connectivity inference for volume EM.</cite> Nat Methods. 2022, in the press.
+        </p>
+        <p class="lead" style="text-align: justify;">
+          Dorkenwald S, Schubert PJ, Killinger MF, Urban G, Mikula S, Svara F, Kornfeld J. <cite>Automated synaptic connectivity inference for volume electron microscopy.</cite> Nat Methods. 2017 Apr;14(4):435-442. doi:<a href="https://www.nature.com/articles/nmeth.4206">10.1038/nmeth.4206.</a> Epub 2017 Feb 27. PMID: 28250467.
+        </p>
+        <p class="lead" style="text-align: justify;">
+          Kornfeld J, Januszewski M, Schubert PJ, Jain V, Denk W, Fee M. <cite>An anatomical substrate of credit assignment in reinforcement learning.</cite> bioRxiv. 2020 Jan. doi:<a href="https://doi.org/10.1101/2020.02.18.954354">10.1101/2020.02.18.954354</a>
+        </p>
+        <p class="lead" style="text-align: justify;">
+          Januszewski M, Kornfeld J, Li P.H. et al. <cite>High-precision automated reconstruction of neurons with flood-filling networks.</cite> Nat Methods 15, 605–610 (2018). doi:<a href="https://doi.org/10.1038/s41592-018-0049-4">10.1038/s41592-018-0049-4</a>
+        </p>
+        <p class="lead" style="...">
+          Schubert PJ, Dorkenwald S, Januszewski M et al. <cite>Learning cellular morphology with neural networks.</cite> Nat Commun 10, 2736 (2019). doi: <a href="https://doi.org/10.1038/s41467-019-10836-3">10.1038/s41467-019-10836-3</a>
+        </p>
       </div>
     </body>
 </html>

@@ -134,6 +134,29 @@ class NeuroConfig(object):
                     "tpl_mask": None,
                     "info": None,
                 }
+            },
+            "zf": {
+                "fw363": {
+                    "working_dir": None,
+                    "ssd": None,
+                    "segmentation": None,
+                    "segmentation_path": None,
+                    "image": None,
+                    "boundary": None,
+                    "scale": None,
+                    "ssvs": None,
+                    "celltypes": None,
+                    "mis": None,
+                    "sizes": None,
+                    "neuron_partners": None,
+                    "partner_axoness": None,
+                    "partner_celltypes": None,
+                    "syn_probs": None,
+                    "syn_areas": None,
+                    "rep_coords": None,
+                    "tpl_mask": None,
+                    "info": None,
+                },
             }
         }
 
@@ -212,11 +235,14 @@ def load_dataset(wd: str, global_params, logger):
 
     params["working_dir"] = global_params.config.working_dir
     params["ssd"] = ssd
-    params["segmentation"] = KnossosDataset(global_params.config.kd_seg_path)
-    params["segmentation_path"] = global_params.config.kd_seg_path
-    params["image"] = KnossosDataset(os.path.join(global_params.config.kd_seg_path))
-    params["boundary"] = [int(b) for b in params["segmentation"].boundary]
-    params["scale"] = [int(s) for s in params["segmentation"].scale]
+
+    # load zebra fish segmentation and image from the web
+    if params.acquisition != 'zf':  
+        params["segmentation"] = KnossosDataset(global_params.config.kd_seg_path)
+        params["segmentation_path"] = global_params.config.kd_seg_path
+        params["image"] = KnossosDataset(os.path.join(global_params.config.kd_seg_path))
+        params["boundary"] = [int(b) for b in params["segmentation"].boundary]
+        params["scale"] = [int(s) for s in params["segmentation"].scale]
 
     params["ssvs"] = ssd.ssv_ids
     params["celltypes"] = ssd.load_numpy_data("celltype_cnn_e3")
@@ -228,7 +254,9 @@ def load_dataset(wd: str, global_params, logger):
     params["syn_probs"] = sd.load_numpy_data("syn_prob")
     params["mesh_areas"] = sd.load_numpy_data("mesh_area")
     params["rep_coords"] = sd.load_numpy_data("rep_coord")
-    params["info"] = generate_info(params["segmentation"])
+    if params.acquisition != 'zf':
+        params["info"] = generate_info(params["segmentation"])
+        
     if 'j0251' in wd:
         name = wd.split('/')[-1]
         if name == "rag_flat_Jan2019_v3":
@@ -237,7 +265,7 @@ def load_dataset(wd: str, global_params, logger):
             params['tpl_mask'] = ssd.load_numpy_data('total_edge_length_mask')
         
 
-def initialize_server(dev: bool = False):
+def initialize_server(dev: bool = False, dataset: str = None):
     # server variables
     global global_server
     global_server = None
@@ -247,8 +275,9 @@ def initialize_server(dev: bool = False):
     params = NeuroConfig()
 
     root = "/wholebrain/songbird"
-    
-    # logger.info("Initializing segmentation datasets and property arrays for fw363-2021-11-02-full-nokd-nossv")
+
+    # logger.info(
+    #     "Initializing segmentation datasets and property arrays for fw363-2021-11-02-full-nokd-nossv")
     # global_params.wd = os.path.join(root, "fw363-2021-11-02-full-nokd-nossv")
     # zf_params = {}
     # zf_params["working_dir"] = global_params.config.working_dir
@@ -257,8 +286,8 @@ def initialize_server(dev: bool = False):
     # sd_sv = SegmentationDataset("sv", working_dir=global_params.config.working_dir)
     # sd_syn_ssv = SegmentationDataset("syn_ssv", working_dir=global_params.config.working_dir)
 
-    # with open(os.path.join(root, 'cs_lookup.pickle'), 'rb') as handle:
-    #     cs_lookup = pickle.load(handle)
+    # with open(os.path.join(root, 'cs_lookup2.pickle'), 'rb') as handle:
+        # cs_lookup = pickle.load(handle)
 
     # with open(os.path.join(root, 'ssv_lookup.pickle'), 'rb') as handle:
     #     ssv_lookup = pickle.load(handle)
@@ -271,17 +300,45 @@ def initialize_server(dev: bool = False):
     # zf_params["cs_lookup"] = cs_lookup
     # zf_params["ssv_lookup"] = ssv_lookup
 
-    acquisitions = ('j0126', 'j0126', 'j0251', 'j0251')
-    versions = ('areaxfs_v10', 'assembled_core_relabeled', 'rag_flat_Jan2019_v3', '72_seg_20210127_agglo2')
-
-    datasets = ('/wholebrain/songbird/j0126/ssdscratch_wds/areaxfs_v10_v4b_base_20180214_full_agglo_cbsplit', '/wholebrain/songbird/j0126/ssdscratch_wds/assembled_core_relabeled_base_merges_relabeled_to_v4b_base_20180214_full_agglo_cbsplit_with_reconnects_no_soma_merger_manual_edges_removed', '/ssdscratch/songbird/j0251/rag_flat_Jan2019_v3', '/ssdscratch/songbird/j0251/j0251_72_seg_20210127_agglo2')
-
+    # map command line arguments to dataset names
+    ds_key = {
+        'v3': {
+            'acq': 'j0251',
+            'ver': 'rag_flat_Jan2019_v3',
+            'wd': '/ssdscratch/songbird/j0251/rag_flat_Jan2019_v3'
+        },
+        'agglo2': {
+            'acq': 'j0251',
+            'ver': '72_seg_20210127_agglo2',
+            'wd': '/ssdscratch/songbird/j0251/j0251_72_seg_20210127_agglo2'
+        },
+        'areaxfs': {
+            'acq': 'j0126',
+            'ver': 'areaxfs_v10',
+            'wd': '/wholebrain/songbird/j0126/ssdscratch_wds/areaxfs_v10_v4b_base_20180214_full_agglo_cbsplit'
+        },
+        'assembled': {
+            'acq': 'j0126',
+            'ver': 'assembled_core_relabeled',
+            'wd': '/wholebrain/songbird/j0126/ssdscratch_wds/assembled_core_relabeled_base_merges_relabeled_to_v4b_base_20180214_full_agglo_cbsplit_with_reconnects_no_soma_merger_manual_edges_removed'
+        },
+        'zf': {
+            'acq': 'zf',
+            'ver': 'fw363',
+            'wd': '/wholebrain/songbird/fw363-2021-11-02-full-nokd-nossv'
+        }
+    }
+    
     if dev:
-        params.acquisition = 'j0126'
-        params.version = 'areaxfs_v10'
-        load_dataset(datasets[0], global_params, logger)
+        # development mode, load user-specified dataset
+        params.acquisition = ds_key[dataset]['acq']
+        params.version = ds_key[dataset]['ver']
+        # if params.acquisition != 'zf':
+        load_dataset(ds_key[dataset]['wd'], global_params, logger)
     else:
-        for acq, ver, wd in zip(acquisitions, versions, datasets):
+        # production mode, load all datasets
+        for _, v in ds_key.items():
+            acq, ver, wd = v.values()
             params.acquisition = acq
             params.version = ver
             load_dataset(wd, global_params, logger)

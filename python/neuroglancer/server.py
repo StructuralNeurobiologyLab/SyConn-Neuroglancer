@@ -14,28 +14,29 @@
 
 from __future__ import absolute_import, print_function
 
+import asyncio
 import concurrent.futures
-from http import server
 import socket
 import sys
 import argparse
 import threading
 import multiprocessing
 import weakref
+import numpy as np
 
 import tornado.httpserver
-import tornado.ioloop
+import tornado.platform.asyncio
 import tornado.netutil
 import tornado.web
 import tornado.template
 import sockjs.tornado
 
+from http import server
 from syconn.handler.logger import log_main as logger
 from neuroglancer import static
 from neuroglancer import config
 from neuroglancer.config import initialize_server
 from neuroglancer.random_token import make_random_token
-from neuroglancer.sockjs_handler import SOCKET_PATH_REGEX, SOCKET_PATH_REGEX_WITHOUT_GROUP, SockJSHandler
 from neuroglancer.cli import add_server_arguments
 from neuroglancer.handlers import *
 
@@ -44,6 +45,26 @@ global_static_content_source = None
 global_server_args = dict(host='localhost', port=0)
 
 debug = False
+
+_IS_GOOGLE_COLAB = 'google.colab' in sys.modules
+
+def _get_server_url(bind_address: str, port: int) -> str:
+    if _IS_GOOGLE_COLAB:
+        return _get_colab_server_url(port)
+    return _get_regular_server_url(bind_address, port)
+
+def _get_regular_server_url(bind_address: str, port: int) -> str:
+    if bind_address == '0.0.0.0' or bind_address == '::':
+        hostname = socket.getfqdn()
+    else:
+        hostname = bind_address
+
+    return f'http://{hostname}:{port}'
+	
+def _get_colab_server_url(port: int) -> str:
+    import google.colab.output
+    return google.colab.output.eval_js(f'google.colab.kernel.proxyPort({port})') 
+
 
 
 class Server(object):
@@ -64,6 +85,12 @@ class Server(object):
             "serve_traceback": True # default error page will include the traceback of the error
         }
 
+        settings = {
+            "template_path": os.path.join(os.path.dirname(__file__), "templates"),
+            "static_path": os.path.join(os.path.dirname(__file__), "static"),
+            "serve_traceback": True # default error page will include the traceback of the error
+        }
+
         def log_function(handler):
             if debug:
                 print("%d %s %.2fs" % (handler.get_status(),
@@ -77,6 +104,7 @@ class Server(object):
                 (r'^/index.html', MainHandler),
                 (r'^/tutorials.html', TutorialsHandler),
                 (r'^/about.html', AboutHandler),
+                (r'^/data.html', DataHandler),
                 # (SHARED_URL_REGEX, SharedURLHandler, dict(server=self)),
                 (PRECOMPUTED_SKELETON_INFO_REGEX, PrecomputedSkeletonInfoHandler, dict(server=self)), 
                 (PRECOMPUTED_SKELETON_REGEX, PrecomputedSkeletonHandler, dict(server=self)),
@@ -86,16 +114,18 @@ class Server(object):
                 (PRECOMPUTED_VOLUME_INFO_REGEX, PrecomputedVolumeInfoHandler, dict(server=self)),
                 (PRECOMPUTED_VOLUME_REGEX, PrecomputedVolumeHandler, dict(server=self)),
                 (PRECOMPUTED_SEG_PROPS_INFO_REGEX, PrecomputedSegPropsInfoHandler, dict(server=self)),
-                # (ZEBRAFISH_SYN_COORD_REGEX, ZebraFishSyn2CoordHandler, dict(server=self)),
+                (ZEBRAFISH_SYN_COORD_REGEX, ZebraFishSyn2CoordHandler, dict(server=self)),
                 (STATIC_PATH_REGEX, StaticPathHandler, dict(server=self)),
+                (EVENTS_PATH_REGEX, EventStreamHandler, dict(server=self)),
+                (SET_STATE_PATH_REGEX, SetStateHandler, dict(server=self)),
+                (CREDENTIALS_PATH_REGEX, CredentialsHandler, dict(server=self)),
                 # (INFO_PATH_REGEX, VolumeInfoHandler, dict(server=self)),
                 # (SKELETON_INFO_PATH_REGEX, SkeletonInfoHandler, dict(server=self)),
                 # (DATA_PATH_REGEX, SubvolumeHandler, dict(server=self)),
                 # (SKELETON_PATH_REGEX, SkeletonHandler, dict(server=self)),
                 # (MESH_PATH_REGEX, MeshHandler, dict(server=self)),
                 (ACTION_PATH_REGEX, ActionHandler, dict(server=self)),
-            ] + sockjs_router.urls,
-            # + [(r"/(.*)", tornado.web.FallbackHandler, dict(fallback=flask_app))],
+            ],
             default_handler_class=NotFoundHandler,
             log_function=log_function,
             # Set a large maximum message size to accommodate large screenshot
@@ -111,7 +141,6 @@ class Server(object):
             xheaders=True # Allow X-headers when running behind a reverse proxy
         )
         sockets = tornado.netutil.bind_sockets(port=port, address=host)
-        # tornado.process.fork_processes(0)
         http_server.add_sockets(sockets)
         actual_port = sockets[0].getsockname()[1]
 
@@ -128,10 +157,12 @@ class Server(object):
             self.server_url = f'http://{hostname}:{actual_port}'
 
         elif config.dev_environ_nginx:
-            self.server_url = f'http://{hostname}:9005'
+            self.server_url = f'http://{hostname}:8080'
 
         else:
             self.server_url = 'https://syconn.esc.mpcdf.mpg.de'
+
+        self._credentials_manager = None 
 
     def get_volume(self, key):
         dot_index = key.find('.')
@@ -153,12 +184,92 @@ class StaticPathHandler(BaseRequestHandler):
         try:
             data, content_type = global_static_content_source.get(path)
         except ValueError as e:
-            logger.error("Error sending files")
+            logger.error(e)
             self.send_error(404, message=e.args[0])
             return
         self.set_header('Content-type', content_type)
         self.finish(data)
 
+class EventStreamStateWatcher:
+    def __init__(self, key: str, client_id: str, state, last_generation: str, wake_up):
+        self.key = key
+        self.state = state
+        self.last_generation = last_generation
+        self._wake_up = wake_up
+        self._client_id = client_id
+        state.add_changed_callback(wake_up)
+
+    def unregister(self):
+        self.state.remove_changed_callback(self._wake_up)
+
+    def maybe_send_update(self, handler):
+        raw_state, generation = self.state.raw_state_and_generation
+        if generation == self.last_generation: return False
+        if generation.startswith(self._client_id + '/'): return False
+        self.last_generation = generation
+        msg = {'k': self.key, 's': raw_state, 'g': generation}
+        handler.write(f'data: {encode_json(msg)}\n\n')
+        return True
+
+class EventStreamHandler(BaseRequestHandler):
+    async def get(self, viewer_token: str):
+        viewer = self.server.viewers.get(viewer_token)
+        if viewer is None:
+            self.send_error(404)
+            return
+        self.set_header('content-type', 'text/event-stream')
+        self.set_header('cache-control', 'no-cache')
+        must_flush = True
+        wake_event = asyncio.Event()
+        self._wake_up = lambda: self.server.ioloop.add_callback(wake_event.set)
+        client_id = self.get_query_argument('c')
+        self._closed = False
+
+        watchers = []
+
+        def watch(key: str, state):
+            watchers.append(
+                EventStreamStateWatcher(key=key,
+                                        state=state,
+                                        client_id=client_id,
+                                        wake_up=self._wake_up,
+                                        last_generation=self.get_query_argument(f'g{key}')))
+
+        watch('c', viewer.config_state)
+        if hasattr(viewer, 'shared_state'):
+            watch('s', viewer.shared_state)
+
+        try:
+            while True:
+                wake_event.clear()
+                if self._closed: break
+                try:
+                    sent = False
+                    for watcher in watchers:
+                        sent = watcher.maybe_send_update(self) or sent
+                    if sent:
+                        self.flush()
+                        if _IS_GOOGLE_COLAB:
+                            # The proxy used by colab buffers the entire
+                            # response.  Therefore we must end the response for
+                            # the client to receive it.
+                            break
+                    elif must_flush:
+                        self.flush()
+                except tornado.iostream.StreamClosedError:
+                    break
+                await wake_event.wait()
+                must_flush = False
+        finally:
+            for watcher in watchers:
+                watcher.unregister()
+
+    def on_connection_close(self):
+        if debug:
+            print('connection closed')
+        super().on_connection_close()
+        self._wake_up()
+        self._closed = True
 
 def set_static_content_source(*args, **kwargs):
     global global_static_content_source
@@ -211,8 +322,9 @@ def start():
         logger.warning('Starting server')
         def start_server():
             # global global_server
-            ioloop = tornado.ioloop.IOLoop()
+            ioloop = tornado.platform.asyncio.AsyncIOLoop()
             ioloop.make_current()
+            asyncio.set_event_loop(ioloop.asyncio_loop)
             config.global_server = Server(ioloop=ioloop, **global_server_args)
             done.set()
             ioloop.start()
@@ -244,19 +356,29 @@ if __name__ == "__main__":
     config.global_server_args = global_server_args
 
     if args.dev or args.dev_nginx:
-        assert args.dev != args.dev_nginx, "--dev and --dev-nginx are mutually exclusive"
+        assert args.dev != args.dev_nginx, "--dev and --dev-nginx cannot be set toegether. Use --dev-nginx if you are using nginx"
 
     config.dev_environ = args.dev
     config.dev_environ_nginx = args.dev_nginx
 
     if config.dev_environ_nginx:
+        # always use the default port when using nginx
         config.global_server_args['port'] = 8005
     elif config.dev_environ:
-        assert config.global_server_args['port'] != None, "--port must be specified when using --dev"
+        # use a user-specified port when not using nginx
+        assert config.global_server_args['port'] != None, "'--port' must be specified when using '--dev'"
     else:
+        # production mode 
         config.global_server_args['port'] = 5000
 
-    initialize_server(dev=args.dev or args.dev_nginx)
+    if args.dev or args.dev_nginx:
+        # development mode
+        assert args.dataset != None, "'--dataset' must be specified when using '--dev' or '--dev-nginx'. Choices = ['v3', 'agglo2', 'areaxfs', 'assembled']"
+        initialize_server(dev=args.dev or args.dev_nginx, dataset=args.dataset)
+    else:
+        # production mode
+        initialize_server()
+
     start()
 
     logger.info(f"Neuroglancer server running at {get_server_url()}")

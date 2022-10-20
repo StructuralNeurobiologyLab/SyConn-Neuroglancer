@@ -71,6 +71,7 @@ export interface UserLayerSelectionState {
   annotationSerialized: Uint8Array|undefined;
   annotationSourceIndex: number|undefined;
   annotationSubsource: string|undefined;
+  annotationSubsubsourceId: string|undefined;
   annotationPartIndex: number|undefined;
 
   value: any;
