@@ -61,9 +61,9 @@ PRECOMPUTED_MESH_META_REGEX = r'^/(?P<viewer_token>[^/]+)/(?P<acquisition>[^/]+)
 
 PRECOMPUTED_MESH_REGEX = r'^/(?P<viewer_token>[^/]+)/(?P<acquisition>[^/]+)/(?P<version>[^/]+)/(?P<obj_type>[a-z]{2})/(?P<ssv_id>[0-9]+):(?P<lod>[0-9]):\5_mesh$'
 
-PRECOMPUTED_VOLUME_INFO_REGEX = r'^/in_memory_volume/(?P<volume_type>[a-zA-Z]+)/info$'
+PRECOMPUTED_VOLUME_INFO_REGEX = r'^/volume/(?P<volume_type>[a-zA-Z]+)/info$'
 
-PRECOMPUTED_VOLUME_REGEX = r'^/in_memory_volume/(?P<volume_type>[a-zA-Z]+)/(?P<scale_key>[^/]+)/(?P<chunk>[^/]+)$'
+PRECOMPUTED_VOLUME_REGEX = r'^/volume/(?P<volume_type>[a-zA-Z]+)/(?P<scale_key>[^/]+)/(?P<chunk>[^/]+)$'
 
 PRECOMPUTED_SEG_PROPS_INFO_REGEX = r'^/(?P<acquisition>[^/]+)/(?P<version>[^/]+)/properties/info$'
 
