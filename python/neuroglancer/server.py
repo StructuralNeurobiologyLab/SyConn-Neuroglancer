@@ -103,7 +103,8 @@ class Server(object):
                 (PRECOMPUTED_VOLUME_INFO_REGEX, PrecomputedVolumeInfoHandler, dict(server=self)),
                 (PRECOMPUTED_VOLUME_REGEX, PrecomputedVolumeHandler, dict(server=self)),
                 (PRECOMPUTED_SEG_PROPS_INFO_REGEX, PrecomputedSegPropsInfoHandler, dict(server=self)),
-                (ZEBRAFISH_SYN_COORD_REGEX, ZebraFishSyn2CoordHandler, dict(server=self)),
+                (ZEBRAFISH_SYN_COORD_REGEX_JSON, ZebraFishSyn2CoordHandlerJSON, dict(server=self)),
+                (ZEBRAFISH_SYN_COORD_REGEX_HTML, ZebraFishSyn2CoordHandlerHTML, dict(server=self)),
                 (STATIC_PATH_REGEX, StaticPathHandler, dict(server=self)),
                 (EVENTS_PATH_REGEX, EventStreamHandler, dict(server=self)),
                 (SET_STATE_PATH_REGEX, SetStateHandler, dict(server=self)),
@@ -114,6 +115,7 @@ class Server(object):
                 # (SKELETON_PATH_REGEX, SkeletonHandler, dict(server=self)),
                 # (MESH_PATH_REGEX, MeshHandler, dict(server=self)),
                 (ACTION_PATH_REGEX, ActionHandler, dict(server=self)),
+                (r'^/zebrafish_button.html', ZebraFishButtonHandler),
             ],
             default_handler_class=NotFoundHandler,
             log_function=log_function,
@@ -361,10 +363,9 @@ if __name__ == "__main__":
 
     if args.dev or args.dev_nginx:
         # development mode
-        assert args.dataset != None, "'--dataset' must be specified when using '--dev' or '--dev-nginx'. Choices = ['v3', 'agglo2', 'areaxfs', 'assembled']"
+        assert args.dataset != None, "'--dataset' must be specified when using '--dev' or '--dev-nginx'. Choices = ['v3', 'agglo2', 'agglo2_syn', 'areaxfs', 'assembled']"
         initialize_server(dev=args.dev or args.dev_nginx, dataset=args.dataset)
     else:
-        # production mode
         initialize_server()
 
     start()

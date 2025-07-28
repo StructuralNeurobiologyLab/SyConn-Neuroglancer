@@ -31,7 +31,7 @@
           </div>
         </div>
         <a class="navbar-brand" href="https://www.neuro.mpg.de/en">
-          <img src="{{ static_url('mpi-bi-logo.webp') }}" alt="MPI for Biological Intelligence logo" height="80" class="d-inline-block align-text-top center">
+          <img src="{{ static_url('mpi-bi-logo.png') }}" alt="MPI for Biological Intelligence logo" height="60" class="d-inline-block align-text-top center">
           <!-- <img src="../static/mpi-bi-logo.webp" alt="MP Neurobiology image" height="80" class="d-inline-block align-text-top center"> -->
         </a>
 			</div>
@@ -133,8 +133,9 @@
               
               <div class="form-floating">
                   <select class="form-select" name="data_version" id="version">
-                      <option value="72_seg_20210127_agglo2" selected>j0251_72_seg_20210127_agglo2</option>
-                      <option value="rag_flat_Jan2019_v3">j0251_rag_flat_Jan2019_v3</option>
+                    <option value="72_seg_20210127_agglo2_syn_20220811_celltypes_20230822" selected>j0251_72_seg_20210127_agglo2_syn_20220811_celltypes_20230822</option>
+                    <option value="72_seg_20210127_agglo2">j0251_72_seg_20210127_agglo2</option>
+		                <option value="rag_flat_Jan2019_v3">j0251_rag_flat_Jan2019_v3</option>
                   </select>
                   <label for="version">Version</label>
               </div>
@@ -159,14 +160,14 @@
         <div class="row">
           <div class="col-12">
             <h3 class="header display-6" id="properties">Quick start</h3>
-            <p class="lead" style="text-align: justify;">The following properties are currently used for connectomic queries. The names are defined here as present in a syconn-neuroglancer viewer instance.</p> 
+            <p class="lead" style="text-align: justify;">The connectomic queries currently utilize the properties listed below. The names are specified here as they appear in a syconn-neuroglancer viewer instance.</p> 
             <ol>
               <li class="lead">Neuroglancer inline properties</li><br>
               <dl class="row">
                 <dt class="col-sm-4">Cell-types</dt>
                 <dd class="col-sm-8">
-                  <p>The following cell types are available from the latest segmentation, labeled as:</p>
-                  <p><kbd>j0251</kbd> : <kbd>STN, DA, MSN, LMAN, HVC, TAN, GP, FS, LTS, NGF</kbd></p>
+                  <p>The following (putative) cell types are available from the latest j0251 (version 72_seg_20210127_agglo2_syn_20220811_celltypes_20230822) and j0126 (areaxfs_v10), labeled as:</p>
+                  <p><kbd>j0251</kbd> : <kbd>DA, LMAN, HVC, MSN, STN, TAN, GPe, GPi, LTS, INT1, INT2, INT3, ASTRO, OLIGO, MICRO, MIGR, FRAG</kbd></p>
                   <p><kbd>j0126</kbd> : <kbd>STN, modulatory, MSN, LMAN, HVC, GP</kbd></p>
                 </dd> 
 
@@ -188,42 +189,42 @@
                   <p>Number of synapses for each cell</p>
                 </dd>
               </dl>
-              <p class="lead">Note: The <kbd>j0251_72_seg_20210127_agglo2</kbd> and <kbd>j0126_areaxfs_v10</kbd> datasets do not currently support the <strong>MeanMeshArea</strong> property while the <kbd>j0126_assembled_core_relabeled</kbd> dataset supports only the <strong>Cell-types</strong>, <strong>Volume</strong> and <strong>NSynapses</strong> properties. More inline properties will be added soon!</p>
+              <p class="lead">Note that not all the properties listed above are available in the different datasets. Have a property or a feature in mind that you would like to add here? Please <a href="mailto:joergen.kornfeld@bi.mpg.de?cc=hashir.ahmad@bi.mpg.de, andrei.mancu@bi.mpg.de&subject=Feature request">contact us.</a></p>
               <li class="lead">Dynamic properties</li><br>
               <dl class="row">
                 <dt class="col-sm-4">show-synaptic-partner-with-largest-area</dt>
                 <dd class="col-sm-8">
-                  <p>Retrieve the synaptic partner of the selected cell with the largest synapse area and synapse probability >= 0.5. Additionally, this property considers the <em>axo-dendritic</em> and <em>axo-somatic</em> synapses.</p>
+                  <p>Retrieve the synaptic partner associated with the selected cell, specifically focusing on the one with the largest synapse area and a synapse probability equal to or greater than 0.5. This property takes into account both <em>axo-dendritic</em> and <em>axo-somatic</em> synapses.</p>
                   <p>Hotkey: <kbd>p</kbd></p>
                 </dd>
 
                 <dt class="col-sm-4">show-presynaptic-partners</dt>
                 <dd class="col-sm-8">
-                  <p>Retrieve the presynaptic partners of the selected cell with synapse probability >= 0.5. This property considers the <em>axo-dendritic</em> and <em>axo-somatic</em> synapses with axon terminals (en-passant and terminal boutons). The hotkey call displays a list of presynaptic  partners of the currently selected cell on the right panel. This should be followed up with the <strong>cycle-synaptic-partners</strong> call to display the synaptic partners one by one.</p>
+                  <p>Fetch the presynaptic partners associated with the selected cell, considering synapse probability equal to or greater than 0.5. This feature encompasses both <em>axo-dendritic</em> and <em>axo-somatic</em> synapses, including axon terminals such as en-passant and terminal boutons. Activating the hotkey results in the presentation of a list of presynaptic partners for the currently selected cell in the right panel. Subsequently, a <strong>cycle-synaptic-partners</strong> call should be made to sequentially display the synaptic partners.</p>
                   <p>Hotkey: <kbd>ctrl + i</kbd></p>
                 </dd>
 
                 <dt class="col-sm-4">show-postsynaptic-partners</dt>
                 <dd class="col-sm-8">
-                  <p>Retrieve the postsynaptic partners of the selected cell with synapse probability >= 0.5. This property considers the <em>axo-dendritic</em> and <em>axo-somatic</em> synapses with axon terminals (en-passant and terminal boutons). The hotkey call displays a list of postsynaptic partners of the currently selected cell on the right panel. This should be followed up with the <strong>cycle-synaptic-partners</strong> call to display the synaptic partners one by one.</p>
+                  <p>Similar to <kbd>show-presynaptic-partners</kbd> but fetches the postsynaptic partners associated with the selected cell, considering synapse probability equal to or greater than 0.5. This feature also encompasses both <em>axo-dendritic</em> and <em>axo-somatic</em> synapses, including en-passant and terminal boutons. Activating the hotkey results in the presentation of a list of postsynaptic partners for the currently selected cell in the right panel. Subsequently, a <strong>cycle-synaptic-partners</strong> call should be made to sequentially display the synaptic partners.</p>
                   <p>Hotkey: <kbd>ctrl + o</kbd></p>
                 </dd>
 
                 <dt class="col-sm-4">cycle-synaptic-partners</dt>
                 <dd class="col-sm-8">
-                  <p>Cycle the retrieved pre- or postsynaptic partners and display the partner cells at the location of the synapse. Cycling starts from the synapse with the largest synaptic area. Each hotkey call displays a pair of synaptic partners.</p>
+                  <p>This action is a direct follow-up of the <kbd>show-presynaptic-partners</kbd> and <kbd>show-postsynaptic-partners</kbd> actions. Iterate through the obtained pre- or postsynaptic partners and present the partner cells at the synapse location. The cycling initiates from the synapse with the largest synaptic area. Each activation of the hotkey reveals a pair of synaptic partners in the order of their synaptic area.</p>
                   <p>Hotkey: <kbd>ctrl + u</kbd></p>
                 </dd>
 
                 <dt class="col-sm-4">depth-first-search</dt>
                 <dd class="col-sm-8">
-                  <p>Do a depth-first search along the biological neural network starting from the selected cell. The synaptic partner is chosen that has the strongest connection with the currently selected cell. Each hotkey call is 1 level into the depth-first search. The maximum depth is 3.</p>
+                  <p>Conduct a depth-first search within the biological neural network, commencing from the chosen cell. Select the synaptic partner exhibiting the most robust connection with the presently chosen cell. Each activation of the hotkey corresponds to advancing 1 level in the depth-first search. The maximum allowable depth is set at 3 levels.</p>
                   <p>Hotkey: <kbd>ctrl + d</kbd></p>
                 </dd>
 
                 <dt class="col-sm-4">reset-viewer-state</dt>
                 <dd class="col-sm-8">
-                  <p>Reset the viewer state. This clears the selected segments and the segment ids in the segment query (if present). Additionally, it also sets the viewer position to the center (as seen when the viewer is first launched). This property comes in handy when clearing the list of presynaptic or postsynaptic partners. Note that <kbd>x</kbd> only clears the segments in the cross-section and 3d viewport.</p>
+                  <p>Restore the viewer state to its initial configuration. This action removes selected segments and segment IDs in the segment query (if any). It also centers the viewer position, resembling the initial launch view. This feature is useful for clearing lists of presynaptic or postsynaptic partners. It's important to note that pressing the <kbd>x</kbd> key (natively provided in neuroglancer) only clears segments in the cross-section and 3D viewport.</p>
                   <p>Hotkey: <kbd>ctrl + x</kbd></p>
                 </dd>
               </dl>

@@ -12,6 +12,7 @@ import urllib
 import re
 from concurrent.futures import ThreadPoolExecutor
 from collections import defaultdict
+import pandas as pd
 
 try:
     # Newer versions of tornado do not have the asynchronous decorator
@@ -55,11 +56,11 @@ PRECOMPUTED_SKELETON_INFO_REGEX = r'^/(?P<viewer_token>[^/]+)/(?P<acquisition>[^
 
 PRECOMPUTED_SKELETON_REGEX = r'^/(?P<viewer_token>[^/]+)/(?P<acquisition>[^/]+)/(?P<version>[^/]+)/skeletons/(?P<ssv_id>[0-9]+)$'
 
-PRECOMPUTED_MESH_INFO_REGEX = r'^/(?P<viewer_token>[^/]+)/(?P<acquisition>[^/]+)/(?P<version>[^/]+)/(?P<obj_type>[a-z]{2})/info$'
+PRECOMPUTED_MESH_INFO_REGEX = r'^/(?P<viewer_token>[^/]+)/(?P<acquisition>[^/]+)/(?P<version>[^/]+)/(?P<obj_type>[a-z]+)/info$'
 
-PRECOMPUTED_MESH_META_REGEX = r'^/(?P<viewer_token>[^/]+)/(?P<acquisition>[^/]+)/(?P<version>[^/]+)/(?P<obj_type>[a-z]{2})/(?P<ssv_id>[0-9]+):(?P<lod>[0-9])$'
+PRECOMPUTED_MESH_META_REGEX = r'^/(?P<viewer_token>[^/]+)/(?P<acquisition>[^/]+)/(?P<version>[^/]+)/(?P<obj_type>[a-z]+)/(?P<ssv_id>[0-9]+):(?P<lod>[0-9])$'
 
-PRECOMPUTED_MESH_REGEX = r'^/(?P<viewer_token>[^/]+)/(?P<acquisition>[^/]+)/(?P<version>[^/]+)/(?P<obj_type>[a-z]{2})/(?P<ssv_id>[0-9]+):(?P<lod>[0-9]):\5_mesh$'
+PRECOMPUTED_MESH_REGEX = r'^/(?P<viewer_token>[^/]+)/(?P<acquisition>[^/]+)/(?P<version>[^/]+)/(?P<obj_type>[a-z]+)/(?P<ssv_id>[0-9]+):(?P<lod>[0-9]):\5_mesh$'
 
 PRECOMPUTED_VOLUME_INFO_REGEX = r'^/volume/(?P<volume_type>[a-zA-Z]+)/info$'
 
@@ -68,7 +69,9 @@ PRECOMPUTED_VOLUME_REGEX = r'^/volume/(?P<volume_type>[a-zA-Z]+)/(?P<scale_key>[
 PRECOMPUTED_SEG_PROPS_INFO_REGEX = r'^/(?P<acquisition>[^/]+)/(?P<version>[^/]+)/properties/info$'
 
 # ZEBRAFISH_SYN_COORD_REGEX = r'^/(?P<sv_ids>[0-9]+)$'
-ZEBRAFISH_SYN_COORD_REGEX = r'^/zf'
+ZEBRAFISH_SYN_COORD_REGEX_HTML = r'^/zf/html'
+
+ZEBRAFISH_SYN_COORD_REGEX_JSON = r'^/zf/json'
 
 EVENTS_PATH_REGEX = r'^/events/(?P<viewer_token>[^/]+)$'
 
@@ -119,6 +122,10 @@ class DataHandler(tornado.web.RequestHandler):
     def get(self):
         self.render("data.html")
 
+class ZebraFishButtonHandler(tornado.web.RequestHandler):
+    def get(self):
+        self.render("zebrafish_button.html")
+
 class TokenHandler(BaseRequestHandler):
 
     # def set_default_headers(self):
@@ -144,6 +151,8 @@ class TokenHandler(BaseRequestHandler):
 
         prefix = 'precomputed://'
         use_tpl_mask = False
+        seg_src = None
+        img_src = None
         if config.dev_environ:
             # Development mode without nginx
             host = config.global_server_args['host']
@@ -181,7 +190,7 @@ class TokenHandler(BaseRequestHandler):
                 seg_src = prefix + f'/{params.acquisition}_{params.version}' + '/segmentation'
                 if params.version == 'rag_flat_Jan2019_v3':
                     img_src = prefix + f'/{params.acquisition}_{params.version}' + '/image/test'
-                elif params.version == '72_seg_20210127_agglo2':
+                elif params.version in ('72_seg_20210127_agglo2', '72_seg_20210127_agglo2_syn_20220811_celltypes_20230822'):
                     img_src = prefix + f'/{params.acquisition}_{params.version}' + '/image'
             
         token = make_random_token()
@@ -204,8 +213,12 @@ class TokenHandler(BaseRequestHandler):
         #     seg_src = 'precomputed://' + source + '/volume/segmentation'  # unsharded precomputed segmentation
         #     img_src = 'precomputed://' + source + '/j0126/volume/image'  # sharded precomputed image
         #     use_tpl_mask = False
+        organelles = ['mi', 'vc', 'sj']
+        if params.version == "72_seg_20210127_agglo2_syn_20220811_celltypes_20230822":
+            organelles.append('golgi')
+            organelles.append('er')
 
-        pf = PropertyFilter(params, token, ['mi', 'vc', 'sj'], use_tpl_mask=use_tpl_mask, seg_src=seg_src, img_src=img_src)
+        pf = PropertyFilter(params, token, organelles, use_tpl_mask=use_tpl_mask, seg_src=seg_src, img_src=img_src)
         # logger.debug(f"Viewer instances in memory: {len(config.global_server.viewers.keys())}")
 
         try:
@@ -280,15 +293,15 @@ class SharedURLHandler(BaseRequestHandler):
         token = make_random_token()
 
         use_tpl_mask = True
-        if params.version == "j0251_rag_flat_Jan2019_v3":
+        if params.version == "rag_flat_Jan2019_v3":
             logger.debug("Shared URL: Using j0251_rag_flat_Jan2019_v3")
-            seg_src = 'precomputed://' + source + f'/{params.version}/segmentation'
-            img_src = 'precomputed://' + source + f'/{params.version}/image/test'
+            seg_src = 'precomputed://' + source + f'/{params.acquisition}_{params.version}/segmentation'
+            img_src = 'precomputed://' + source + f'/{params.acquisition}_{params.version}/image/test'
 
-        elif params.version == "j0251_72_seg_20210127_agglo2":
-            logger.debug("Shared URL: Using j0251_72_seg_20210127_agglo2")
-            seg_src = 'precomputed://' + source + f'/{params.version}/segmentation'
-            img_src = 'precomputed://' + source + f'/{params.version}/image'
+        elif params.version in ("72_seg_20210127_agglo2", "72_seg_20210127_agglo2_syn_20220811_celltypes_20230822"):
+            logger.debug("Shared URL: Using j0251")
+            seg_src = 'precomputed://' + source + f'/{params.acquisition}_{params.version}/segmentation'
+            img_src = 'precomputed://' + source + f'/{params.acquisition}_{params.version}/image'
 
         else:  # for j0126
             logger.debug("Shared URL: Using j0126")
@@ -296,7 +309,12 @@ class SharedURLHandler(BaseRequestHandler):
             img_src = 'precomputed://' + source + '/j0126/volume/image'
             use_tpl_mask = False  # total path length filtering is not required
 
-        pf = PropertyFilter(params, token, ['mi', 'vc', 'sj'], use_tpl_mask=use_tpl_mask, seg_src=seg_src, img_src=img_src)
+        organelles = ['mi', 'vc', 'sj']
+        if params.version == "72_seg_20210127_agglo2_syn_20220811_celltypes_20230822":
+            organelles.append('golgi')
+            organelles.append('er')
+
+        pf = PropertyFilter(params, token, organelles, use_tpl_mask=use_tpl_mask, seg_src=seg_src, img_src=img_src)
         pf.viewer.set_state(state)
 
         # logger.debug(f"Viewer instances in memory: {len(config.global_server.viewers.keys())}")
@@ -332,6 +350,7 @@ class PrecomputedSkeletonInfoHandler(BaseRequestHandler):
                 "spatial_index": None
             }
 
+            self.set_header('Access-Control-Allow-Origin', '*')
             self.set_header('Content-type', 'application/json')
             self.finish(json.dumps(info))
 
@@ -397,6 +416,7 @@ class PrecomputedSkeletonHandler(BaseRequestHandler):
                 self.send_error(404)
                 return
 
+            self.set_header('Access-Control-Allow-Origin', '*')
             self.set_header('Content-type', 'application/octet-stream')
             self.set_header('Content-encoding', 'gzip')
             self.finish(gzip.compress(encoded_skeleton, compresslevel=6))
@@ -432,6 +452,7 @@ class PrecomputedMeshMetaHandler(BaseRequestHandler):
                 meta = f.result()
 
             except Exception as e:
+                logger.error(f"Error sending {obj_type} mesh manifest file for {ssv_id}. {e}")
                 self.send_error(500, message=e.args[0])
                 return
 
@@ -468,7 +489,7 @@ class PrecomputedMeshHandler(BaseRequestHandler):
             new_ssv_id = ssv_id
 
         future = self.server.thread_executor.submit(
-            get_encoded_mesh, params["ssd"], new_ssv_id, obj_type
+            get_encoded_mesh, params["ssd"] if obj_type != "er" else params["sd_er"], new_ssv_id, obj_type
         )
 
         tornado.concurrent.future_add_done_callback(
@@ -481,6 +502,7 @@ class PrecomputedMeshHandler(BaseRequestHandler):
                 encoded_mesh = f.result()
 
             except Exception as e:
+                logger.error(f"Error sending {obj_type} mesh for {ssv_id}. {e}")
                 self.send_error(500, message=e.args[0])
                 return
 
@@ -614,9 +636,11 @@ class NumpyEncoder(json.JSONEncoder):
             return super(NumpyEncoder, self).default(obj)
 
 
-class ZebraFishSyn2CoordHandler(BaseRequestHandler):
+class ZebraFishSyn2CoordHandlerJSON(BaseRequestHandler):
+
     @asynchronous
     def get(self):
+        
         logger.debug('Zebrafish synapse coordinates requested')
         # sv_ids is a comma separated list of supervoxel ids
         sv_ids = self.get_arguments('sv_ids')
@@ -641,48 +665,117 @@ class ZebraFishSyn2CoordHandler(BaseRequestHandler):
             self.send_error(400, message=e)
             return
 
-        # if isinstance(sv_ids, int):
-        #     sv_ids = [sv_ids]
-        # elif isinstance(sv_ids, str):
-        #     try:
-        #         sv_ids = int(sv_ids)
-        #         sv_ids = [sv_ids]
-        #     except ValueError as e:
-        #         # invalid input, return error
-        #         logger.error(e.args[0])
-        #         self.send_error(400, message=e.args[0])
-        #         return
 
         from neuroglancer.config import zf_params
 
-        # extract the synapse coordinates of the supervoxels
-        # def extract_syn_coords(svs):
-        #     svs = set(svs)
-        #     syn_coords = defaultdict(list)
-        #     syn_indexes = defaultdict(list)
-        #     for sv in svs:
-        #         if zf_params["cs_lookup"][sv]:
-        #             syn_indexes[zf_params["ssv_lookup"][sv]].extend(zf_params["cs_lookup"][sv])
-        #
-        #     for ssv_id, syn_indexs in syn_indexes.items():
-        #         # keys of the json response should be int or str; numpy.uint64 is not supported
-        #         syn_coords[int(ssv_id)] = zf_params["rep_coord"][syn_indexs]
-        #     return syn_coords
-
         def extract_syn_coords(svs):
             svs = set(svs)
-            syn_coords = defaultdict(list)
+            data = []
 
             for sv in svs:  # Iterate through the list of supervoxels
                 # From the back to the front:
                 # 1. Check whether the current sv is a cs sv of a synapse
                 # 2. Iterate through the indices of the cs sv which will be the same as the indices of the stored synapse(s)
                 # 3. For each index retrieve the representative coordinates of the synapse(s)
-                syn_coords[sv].extend([zf_params['rep_coord'][cs_index].tolist() for cs_index in
-                                       zf_params['cs_lookup'][sv] if zf_params['cs_lookup'][sv]])
+                
+                # syn_coords[sv].extend([zf_params['rep_coord'][cs_index].tolist() for cs_index in
+                #                        zf_params['cs_lookup'][sv] if zf_params['cs_lookup'][sv]])
+                # if zf_params['cs_lookup'][sv]:
+                #     partners[sv].extend(list(zf_params['partner_lookup'][sv]))
 
-            return syn_coords
+                if zf_params['cs_lookup'][sv]:
+                    for cs_index in zf_params['cs_lookup'][sv]:
+                        partners = set(list(sum(zf_params['cs_ids'][cs_index], ())))
+                        partners.discard(sv)
+                        data.append([sv, zf_params['rep_coord'][cs_index], partners])
 
+            
+            df = pd.DataFrame(data, columns=['Queried SV', 'SYN Coordinates', 'CS Partner(s)'])
+            return df.to_json(orient='records')
+            
+        
+        future = self.server.thread_executor.submit(
+            extract_syn_coords, sv_ids
+        )
+
+        tornado.concurrent.future_add_done_callback(
+            future,
+            lambda f: self.server.ioloop.add_callback(lambda: handle_result(f))
+        )
+
+        
+        def handle_result(f):
+            try:
+                data = f.result()
+            except Exception as e:
+                logger.error(e.args[0])
+                self.send_error(500, message=e.args[0])
+                return
+
+            # Convert JSON string back to DataFrame
+            df = pd.read_json(data)
+            
+            # Send JSON response
+            self.set_header('Content-Type', 'application/json')
+            self.finish(json.dumps(data))
+            
+class ZebraFishSyn2CoordHandlerHTML(BaseRequestHandler):
+
+    @asynchronous
+    def get(self):
+        
+        logger.debug('Zebrafish synapse coordinates requested')
+        # sv_ids is a comma separated list of supervoxel ids
+        sv_ids = self.get_arguments('sv_ids')
+        if len(sv_ids) == 0:
+            m = "Query argument 'sv_ids' is not found"
+            logger.error(m)
+            self.send_error(400, message=m)
+            return
+
+        if sv_ids[0] == '':
+            m = "No supervoxel ids provided"
+            logger.error(m)
+            self.send_error(400, message=m)
+            return
+
+        # sv_ids is a list of string, need to convert to list of ints
+        try:
+            sv_ids = sv_ids[0].replace(' ', '').split(',')
+            sv_ids = list(map(int, sv_ids))
+        except ValueError as e:
+            logger.error(e)
+            self.send_error(400, message=e)
+            return
+
+
+        from neuroglancer.config import zf_params
+
+        def extract_syn_coords(svs):
+            svs = set(svs)
+            data = []
+
+            for sv in svs:  # Iterate through the list of supervoxels
+                # From the back to the front:
+                # 1. Check whether the current sv is a cs sv of a synapse
+                # 2. Iterate through the indices of the cs sv which will be the same as the indices of the stored synapse(s)
+                # 3. For each index retrieve the representative coordinates of the synapse(s)
+                
+                # syn_coords[sv].extend([zf_params['rep_coord'][cs_index].tolist() for cs_index in
+                #                        zf_params['cs_lookup'][sv] if zf_params['cs_lookup'][sv]])
+                # if zf_params['cs_lookup'][sv]:
+                #     partners[sv].extend(list(zf_params['partner_lookup'][sv]))
+
+                if zf_params['cs_lookup'][sv]:
+                    for cs_index in zf_params['cs_lookup'][sv]:
+                        partners = set(list(sum(zf_params['cs_ids'][cs_index], ())))
+                        partners.discard(sv)
+                        data.append([sv, zf_params['rep_coord'][cs_index], partners])
+
+            
+            df = pd.DataFrame(data, columns=['Queried SV', 'SYN Coordinates', 'CS Partner(s)'])
+            return df.to_json(orient='records')
+        
         future = self.server.thread_executor.submit(
             extract_syn_coords, sv_ids
         )
@@ -700,13 +793,14 @@ class ZebraFishSyn2CoordHandler(BaseRequestHandler):
                 self.send_error(500, message=e.args[0])
                 return
 
-            self.set_header('Content-type', 'application/json')
-            self.finish(json.dumps(data, cls=NumpyEncoder))
-
-        # queried_sv = [1529653281, 1731486518, 531477370, 733325923, 84697179, 286584291, 1093575352,
-        #               1295425556, 5549538080, 5551684580, 5549538080, 5551684989]
-        # result = extract_syn_coords(queried_sv)
-        # print(result)
+            # Convert JSON string back to DataFrame
+            df = pd.read_json(data)
+            # Render DataFrame as HTML table
+            html_table = df.to_html(index=False)
+            self.set_header('Content-type', 'text/html')
+            self.finish(html_table)
+            
+            
 
 class ActionHandler(BaseRequestHandler):
     def post(self, viewer_token):

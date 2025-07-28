@@ -24,7 +24,7 @@ def add_server_arguments(ap):
     g.add_argument('--dev-nginx', default=False, action='store_true',\
                         dest='dev_nginx', help='dev-nginx=TRUE launches the server in a development enviroment with nginx')
     g.add_argument('-d', '--dataset', type=str, dest='dataset', 
-                        choices=('v3', 'agglo2', 'areaxfs', 'assembled', 'zf'),
+                        choices=('v3', 'agglo2', 'agglo2_syn', 'areaxfs', 'assembled', 'zf'),
                         help='Key for the dataset to be served in the dev mode.')
     g.add_argument('-o', '--organelles', default=[], nargs='+', help='Organelles to load')
     g.add_argument('--static-content-url',

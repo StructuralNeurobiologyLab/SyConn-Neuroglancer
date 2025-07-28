@@ -30,7 +30,7 @@
             </div>
           </div>
 				  <a class="navbar-brand" href="https://www.neuro.mpg.de/en">
-            <img src="{{ static_url('mpi-bi-logo.webp') }}" alt="MP Neurobiology image" height="80" class="d-inline-block align-text-top center">
+            <img src="{{ static_url('mpi-bi-logo.png') }}" alt="MP Neurobiology image" height="60" class="d-inline-block align-text-top center">
             <!-- <img src="../static/mpi-logo.png" alt="MP Neurobiology image" height="60" class="d-inline-block align-text-top center"> -->
           </a>
 		  </div>
@@ -55,7 +55,11 @@
               Cell & ultrastructure segmentation: <i>M. Januszewski (V. Jain's team, Google Research), S. Dorkenwald, P. Schubert</i>
             </p>
             <p class="lead" style="text-align: justify;">
-              Please note that the neuron reconstructions, synapse predictions and cell type classifications are best effort. We would appreciate feedback if you think you have discovered a systematic problem that deserves more attention! We are also currently working on creating a downloadable version of the data for offline analysis.
+              Please note that the neuron reconstructions, synapse predictions and cell type classifications are best effort. We would appreciate feedback if you think you have discovered a systematic problem that deserves more attention! We are also currently working on creating a downloadable version of the data for offline analysis. If you are interested in running the SyConn analysis steps (
+	      cf. <a href="https://www.nature.com/articles/s41592-022-01624-x">SyConn2 paper</a>
+	      ), you can find the example data and models 
+	      <a href="https://datashare.mpcdf.mpg.de/s/OuP4ST7AbNo8qYE">here</a>.
+
             </p>
             <p class="lead" style="text-align: justify;">
                 The currently available data sets, j0251 (256 x 256 x 384 µm) and j0126 (96 x 98 x 114 µm), were acquired from adult male zebra finch area X, a basal ganglia area responsible for song learning that contains striatal and pallidal-like cell types. Both data sets were acquired in the department of Winfried Denk at the MPI for Medical Research, Heidelberg.
@@ -79,8 +83,9 @@
 
               <div class="form-floating">
                   <select class="form-select" name="data_version" id="version">
-                      <option value="72_seg_20210127_agglo2" selected>j0251_72_seg_20210127_agglo2</option>
-                      <option value="rag_flat_Jan2019_v3">j0251_rag_flat_Jan2019_v3</option>
+                    <option value="72_seg_20210127_agglo2_syn_20220811_celltypes_20230822" selected>j0251_72_seg_20210127_agglo2_syn_20220811_celltypes_20230822</option>
+                    <option value="72_seg_20210127_agglo2">j0251_72_seg_20210127_agglo2</option>
+                    <option value="rag_flat_Jan2019_v3">j0251_rag_flat_Jan2019_v3</option>
                   </select>
                   <label for="version">Version</label>
               </div>

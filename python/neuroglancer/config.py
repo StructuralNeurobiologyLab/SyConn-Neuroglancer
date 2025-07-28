@@ -89,6 +89,27 @@ class NeuroConfig(object):
                     "rep_coords": None,
                     "tpl_mask": None,
                     "info": None,
+                },
+                "72_seg_20210127_agglo2_syn_20220811_celltypes_20230822": {
+                    "working_dir": None,
+                    "ssd": None,
+                    "segmentation": None,
+                    "segmentation_path": None,
+                    "image": None,
+                    "boundary": None,
+                    "scale": None,
+                    "ssvs": None,
+                    "celltypes": None,
+                    "mis": None,
+                    "sizes": None,
+                    "neuron_partners": None,
+                    "partner_axoness": None,
+                    "partner_celltypes": None,
+                    "syn_probs": None,
+                    "syn_areas": None,
+                    "rep_coords": None,
+                    "tpl_mask": None,
+                    "info": None,    
                 }
             },
             "j0126": {
@@ -209,7 +230,7 @@ def generate_info(kd: KnossosDataset) -> dict:
             "resolution": [int(s) * int(i) for s in kd.scale],
             "chunk_sizes": [[64, 64, 64]],
             "encoding": "raw",
-        } for i in sorted(kd.available_mags)
+        } for i in sorted([16, 8, 32, 2, 4, 64, 1])
     ]
 
     return info
@@ -232,20 +253,38 @@ def load_dataset(wd: str, global_params, logger):
     
     ssd = SuperSegmentationDataset(global_params.config.working_dir)
     sd = SegmentationDataset(obj_type='syn_ssv', working_dir=global_params.config.working_dir)
+    
 
     params["working_dir"] = global_params.config.working_dir
     params["ssd"] = ssd
+    if "celltypes_20230822" in wd:  # load er SegmentationDataset (only available for j0251_72_seg_20210127_agglo2_syn_20220811_celltypes_20230822)
+        sd_er = SegmentationDataset(obj_type='er', working_dir=global_params.config.working_dir)
+        params["sd_er"] = sd_er
 
     # load zebra fish segmentation and image from the web
-    if params.acquisition != 'zf':  
-        params["segmentation"] = KnossosDataset(global_params.config.kd_seg_path)
-        params["segmentation_path"] = global_params.config.kd_seg_path
-        params["image"] = KnossosDataset(os.path.join(global_params.config.kd_seg_path))
-        params["boundary"] = [int(b) for b in params["segmentation"].boundary]
-        params["scale"] = [int(s) for s in params["segmentation"].scale]
-
+    if params.acquisition == 'zf':  
+        # params["segmentation"] = KnossosDataset(global_params.config.kd_seg_path)
+        # params["segmentation_path"] = global_params.config.kd_seg_path
+        # params["image"] = KnossosDataset(os.path.join(global_params.config.kd_seg_path))
+        # params["boundary"] = [int(b) for b in params["segmentation"].boundary]
+        # params["scale"] = [int(s) for s in params["segmentation"].scale]
+        return
+   
+    print(f'Path: {global_params.config.kd_seg_path}')
+    if global_params.config.kd_seg_path == f'/cajal/nvmescratch/projects/songbird/j0126/areaxfs_v5/knossosdatasets/':
+        path = f'/new_mounts/wholebrain/songbird/j0126/areaxfs_v5/knossosdatasets'
+        params["segmentation"] = KnossosDataset(path)
+    elif params.version == 'assembled_core_relabeled':
+        path = f'/new_mounts/wholebrain/songbird/j0126/areaxfs_v5/knossosdatasets'
+        params["segmentation"] = KnossosDataset(path)
+    else:
+        params["segmentation"] = KnossosDataset('/new_mounts/ssdscratch/songbird/j0251/segmentation/j0251_72_seg_20210127_agglo2')
+    params["boundary"] = params["segmentation"].boundary
     params["ssvs"] = ssd.ssv_ids
-    params["celltypes"] = ssd.load_numpy_data("celltype_cnn_e3")
+    if params.version == '72_seg_20210127_agglo2_syn_20220811_celltypes_20230822':
+        params["celltypes"] = ssd.load_numpy_data("celltype_pts_e3")
+    else:
+        params["celltypes"] = ssd.load_numpy_data("celltype_cnn_e3")
     params["mis"] = ssd.load_numpy_data("mi")
     params["sizes"] = ssd.load_numpy_data("size")
     params["neuron_partners"] = sd.load_numpy_data("neuron_partners")
@@ -261,6 +300,8 @@ def load_dataset(wd: str, global_params, logger):
         name = wd.split('/')[-1]
         if name == "rag_flat_Jan2019_v3":
             params['tpl_mask'] = np.load(f"/home/shared/j0251/j0251_{name}/tpl_mask.npy")
+        elif "_celltypes_20230822" in name:
+            params['tpl_mask'] = np.load(f"/home/shared/j0251/j0251_72_seg_20210127_agglo2_syn_20220811_celltypes_20230822/tpl_mask.npy")
         else:
             params['tpl_mask'] = ssd.load_numpy_data('total_edge_length_mask')
         
@@ -274,58 +315,53 @@ def initialize_server(dev: bool = False, dataset: str = None):
     
     params = NeuroConfig()
 
-    root = "/wholebrain/songbird"
+    root = "/new_mounts/wholebrain/songbird"
+    # logger.info("RUNNING THIS SCRIPT")
+    logger.info(
+         "Initializing segmentation datasets and property arrays for fw363-2021-11-02-full-nokd-nossv")
+    global_params.wd = os.path.join(root, "fw363-2021-11-02-full-nokd-nossv")
+    zf_params = {}
+    zf_params["working_dir"] = global_params.config.working_dir
+    sd_syn_ssv = SegmentationDataset("syn_ssv", working_dir=global_params.config.working_dir)
 
-    # logger.info(
-    #     "Initializing segmentation datasets and property arrays for fw363-2021-11-02-full-nokd-nossv")
-    # global_params.wd = os.path.join(root, "fw363-2021-11-02-full-nokd-nossv")
-    # zf_params = {}
-    # zf_params["working_dir"] = global_params.config.working_dir
-    # ssd = SuperSegmentationDataset(global_params.config.working_dir)
-    # ssd.load_mapping_dict()
-    # sd_sv = SegmentationDataset("sv", working_dir=global_params.config.working_dir)
-    # sd_syn_ssv = SegmentationDataset("syn_ssv", working_dir=global_params.config.working_dir)
+    with open(os.path.join(root, 'cs_lookup2.pickle'), 'rb') as handle:
+        cs_lookup = pickle.load(handle)
 
-    # with open(os.path.join(root, 'cs_lookup2.pickle'), 'rb') as handle:
-        # cs_lookup = pickle.load(handle)
-
-    # with open(os.path.join(root, 'ssv_lookup.pickle'), 'rb') as handle:
-    #     ssv_lookup = pickle.load(handle)
-
-    # zf_params["ssd"] = ssd
-    # zf_params["syn_ssv_ids"] = sd_syn_ssv.load_numpy_data("id")
-    # zf_params["cs_ids"] = sd_syn_ssv.load_numpy_data("cs_ids")
-    # zf_params["rep_coord"] = sd_syn_ssv.load_numpy_data("rep_coord")
-    # zf_params["sv_ids"] = sd_sv.load_numpy_data("id")
-    # zf_params["cs_lookup"] = cs_lookup
-    # zf_params["ssv_lookup"] = ssv_lookup
+    zf_params["cs_ids"] = sd_syn_ssv.load_numpy_data("cs_ids")
+    zf_params["rep_coord"] = sd_syn_ssv.load_numpy_data("rep_coord")
+    zf_params["cs_lookup"] = cs_lookup
 
     # map command line arguments to dataset names
     ds_key = {
         'v3': {
             'acq': 'j0251',
             'ver': 'rag_flat_Jan2019_v3',
-            'wd': '/ssdscratch/songbird/j0251/rag_flat_Jan2019_v3'
+            'wd': '/new_mounts/ssdscratch/songbird/j0251/rag_flat_Jan2019_v3'
         },
         'agglo2': {
             'acq': 'j0251',
             'ver': '72_seg_20210127_agglo2',
-            'wd': '/ssdscratch/songbird/j0251/j0251_72_seg_20210127_agglo2'
+            'wd': '/new_mounts/ssdscratch/songbird/j0251/j0251_72_seg_20210127_agglo2'
         },
+        'agglo2_syn': {
+            'acq': 'j0251',
+            'ver': '72_seg_20210127_agglo2_syn_20220811_celltypes_20230822',
+            'wd': '/new_mounts/wholebrain/songbird/j0251/j0251_72_seg_20210127_agglo2_syn_20220811_celltypes_20230822'    
+        },    
         'areaxfs': {
             'acq': 'j0126',
             'ver': 'areaxfs_v10',
-            'wd': '/wholebrain/songbird/j0126/ssdscratch_wds/areaxfs_v10_v4b_base_20180214_full_agglo_cbsplit'
+            'wd': '/new_mounts/wholebrain/songbird/j0126/ssdscratch_wds/areaxfs_v10_v4b_base_20180214_full_agglo_cbsplit'
         },
         'assembled': {
             'acq': 'j0126',
             'ver': 'assembled_core_relabeled',
-            'wd': '/wholebrain/songbird/j0126/ssdscratch_wds/assembled_core_relabeled_base_merges_relabeled_to_v4b_base_20180214_full_agglo_cbsplit_with_reconnects_no_soma_merger_manual_edges_removed'
+            'wd': '/new_mounts/wholebrain/songbird/j0126/ssdscratch_wds/assembled_core_relabeled_base_merges_relabeled_to_v4b_base_20180214_full_agglo_cbsplit_with_reconnects_no_soma_merger_manual_edges_removed'
         },
         'zf': {
             'acq': 'zf',
             'ver': 'fw363',
-            'wd': '/wholebrain/songbird/fw363-2021-11-02-full-nokd-nossv'
+            'wd': '/new_mounts/wholebrain/songbird/fw363-2021-11-02-full-nokd-nossv'
         }
     }
     
