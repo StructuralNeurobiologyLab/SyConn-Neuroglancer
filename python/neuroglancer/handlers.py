@@ -72,6 +72,10 @@ PRECOMPUTED_SEG_PROPS_INFO_REGEX = r'^/(?P<acquisition>[^/]+)/(?P<version>[^/]+)
 ZEBRAFISH_SYN_COORD_REGEX_HTML = r'^/zf/html'
 
 ZEBRAFISH_SYN_COORD_REGEX_JSON = r'^/zf/json'
+J0251_SYNAPSES_REGEX_JSON = r"^/j0251/synapses/json"
+J0251_NEURONS_REGEX_JSON = r"^/j0251/neurons/json"
+J0251_SKELETON_REGEX = r"^/j0251/skeleton"
+J0251_MESH_REGEX = r"^/j0251/mesh"
 
 EVENTS_PATH_REGEX = r'^/events/(?P<viewer_token>[^/]+)$'
 
@@ -801,6 +805,316 @@ class ZebraFishSyn2CoordHandlerHTML(BaseRequestHandler):
             self.finish(html_table)
             
             
+
+
+
+class J0251SynapsesHandlerJSON(BaseRequestHandler):
+
+    @asynchronous
+    def get(self):
+
+        logger.debug('J0251 synapses requested')
+
+        # Get query parameters
+        pre_celltype = self.get_argument('pre_celltype', default=None)
+        post_celltype = self.get_argument('post_celltype', default=None)
+        pre_neuron_ids_str = self.get_argument('pre_neuron_ids', default=None)
+        post_neuron_ids_str = self.get_argument('post_neuron_ids', default=None)
+        prob_min = float(self.get_argument('prob_min', default='0.6'))
+        post_morph = int(self.get_argument('post_morph', default='-1'))
+        size_min = float(self.get_argument('size_min', default='0.0'))
+        min_pre_axon = float(self.get_argument('min_pre_axon', default='0.0'))
+        min_pre_soma = float(self.get_argument('min_pre_soma', default='0.0'))
+        min_pre_dend = float(self.get_argument('min_pre_dend', default='0.0'))
+        min_post_axon = float(self.get_argument('min_post_axon', default='0.0'))
+        min_post_soma = float(self.get_argument('min_post_soma', default='0.0'))
+        min_post_dend = float(self.get_argument('min_post_dend', default='0.0'))
+        method = self.get_argument('method', default='auto')
+        return_fields_str = self.get_argument('return_fields', default='size')
+        max_results = self.get_argument('max_results', default=None)
+
+        # Cell types are now optional - if both omitted, query all synapses
+        # When querying all synapses, ensure pre_celltype and post_celltype are in return_fields
+        if pre_celltype is None and post_celltype is None:
+            # Ensure cell type fields are returned when querying all synapses
+            fields_list = [f.strip() for f in return_fields_str.split(',')]
+            if 'pre_celltype' not in fields_list:
+                fields_list.insert(0, 'pre_celltype')
+            if 'post_celltype' not in fields_list:
+                fields_list.insert(1, 'post_celltype')
+            return_fields_str = ','.join(fields_list)
+
+        # Parse return fields
+        return_fields = tuple(f.strip() for f in return_fields_str.split(','))
+
+        # Parse max_results
+        if max_results is not None:
+            try:
+                max_results = int(max_results)
+            except ValueError:
+                logger.error("Invalid max_results parameter")
+                self.send_error(400, message="max_results must be an integer")
+                return
+
+        # Parse neuron IDs if provided
+        pre_neuron_ids = None
+        post_neuron_ids = None
+
+        if pre_neuron_ids_str:
+            try:
+                pre_neuron_ids = [int(x.strip()) for x in pre_neuron_ids_str.split(',')]
+            except ValueError as e:
+                logger.error(f"Invalid pre_neuron_ids: {e}")
+                self.send_error(400, message=f"Invalid pre_neuron_ids: {e}")
+                return
+
+        if post_neuron_ids_str:
+            try:
+                post_neuron_ids = [int(x.strip()) for x in post_neuron_ids_str.split(',')]
+            except ValueError as e:
+                logger.error(f"Invalid post_neuron_ids: {e}")
+                self.send_error(400, message=f"Invalid post_neuron_ids: {e}")
+                return
+
+        # Import backend and query synapses
+        try:
+            from neuroglancer import j0251_connectome_backend
+
+            # Use new function that supports multiple fields
+            data = j0251_connectome_backend.get_synapses_with_fields(
+                pre_celltype=pre_celltype,
+                post_celltype=post_celltype,
+                pre_neuron_ids=pre_neuron_ids,
+                post_neuron_ids=post_neuron_ids,
+                method=method,
+                return_fields=return_fields,
+                prob_min=prob_min,
+                post_morph=post_morph,
+                size_min=size_min,
+                min_pre_axon=min_pre_axon,
+                min_pre_soma=min_pre_soma,
+                min_pre_dend=min_pre_dend,
+                min_post_axon=min_post_axon,
+                min_post_soma=min_post_soma,
+                min_post_dend=min_post_dend,
+                max_results=max_results
+            )
+
+            # Convert numpy arrays to lists for JSON serialization
+            result = {
+                field: data[field].tolist() for field in return_fields
+            }
+
+            # Add metadata
+            result['count'] = len(data[return_fields[0]])
+
+            # Add summary stats for 'size' if requested
+            if 'size' in return_fields:
+                sizes = data['size']
+                result['total_size'] = float(sizes.sum()) if len(sizes) > 0 else 0.0
+                result['mean_size'] = float(sizes.mean()) if len(sizes) > 0 else 0.0
+
+            self.set_header('Content-Type', 'application/json')
+            self.set_header('Access-Control-Allow-Origin', '*')
+            self.finish(json.dumps(result))
+
+        except Exception as e:
+            logger.error(f"Error querying synapses: {e}")
+            import traceback
+            traceback.print_exc()
+            self.send_error(500, message=str(e))
+            return
+            return
+
+
+class J0251NeuronsHandlerJSON(BaseRequestHandler):
+    """
+    Handler for neuron filtering queries.
+    Returns neurons matching specified criteria including synapse count thresholds.
+    """
+
+    @asynchronous
+    def get(self):
+
+        logger.debug('J0251 neurons filter requested')
+
+        # Get query parameters
+        celltype = self.get_argument('celltype', default=None)
+        target_celltype = self.get_argument('target_celltype', default=None)
+        direction = self.get_argument('direction', default='outgoing')
+        min_synapses = int(self.get_argument('min_synapses', default='0'))
+        min_celltype_certainty = float(self.get_argument('min_celltype_certainty', default='0.0'))
+        min_axon_length = float(self.get_argument('min_axon_length', default='0.0'))
+        min_soma_length = float(self.get_argument('min_soma_length', default='0.0'))
+        min_dendrite_length = float(self.get_argument('min_dendrite_length', default='0.0'))
+        prob_min = float(self.get_argument('prob_min', default='0.6'))
+
+        if celltype is None:
+            m = "Query parameter 'celltype' is required"
+            logger.error(m)
+            self.send_error(400, message=m)
+            return
+
+        # Import backend and query neurons
+        try:
+            from neuroglancer import j0251_connectome_backend
+
+            data = j0251_connectome_backend.get_filtered_neurons(
+                celltype=celltype,
+                target_celltype=target_celltype,
+                direction=direction,
+                min_synapses=min_synapses,
+                min_celltype_certainty=min_celltype_certainty,
+                min_axon_length=min_axon_length,
+                min_soma_length=min_soma_length,
+                min_dendrite_length=min_dendrite_length,
+                prob_min=prob_min
+            )
+
+            # Convert numpy arrays to lists for JSON serialization
+            result = {
+                'neuron_ids': data['neuron_ids'].tolist(),
+                'synapse_counts': data['synapse_counts'].tolist(),
+                'count': len(data['neuron_ids'])
+            }
+
+            self.set_header('Content-Type', 'application/json')
+            self.set_header('Access-Control-Allow-Origin', '*')
+            self.finish(json.dumps(result))
+
+        except Exception as e:
+            logger.error(f"Error querying neurons: {e}")
+            import traceback
+            traceback.print_exc()
+            self.send_error(500, message=str(e))
+            return
+
+
+class J0251SkeletonHandlerJSON(BaseRequestHandler):
+    """
+    Handler for fetching neuron skeletons.
+    Returns skeleton data in neuroglancer precomputed format.
+    """
+
+    @asynchronous
+    def get(self):
+        logger.debug("J0251 skeleton requested")
+
+        neuron_id = self.get_argument("neuron_id", default=None)
+        
+        if neuron_id is None:
+            m = "Query parameter 'neuron_id' is required"
+            logger.error(m)
+            self.send_error(400, message=m)
+            return
+
+        try:
+            neuron_id = int(neuron_id)
+        except ValueError:
+            m = "neuron_id must be an integer"
+            logger.error(m)
+            self.send_error(400, message=m)
+            return
+
+        try:
+            from neuroglancer.config import params
+            from syconn.analysis.utils import get_encoded_skeleton
+            
+            # Get skeleton for the neuron
+            future = self.server.thread_executor.submit(
+                get_encoded_skeleton, params["ssd"], neuron_id
+            )
+
+            tornado.concurrent.future_add_done_callback(
+                future,
+                lambda f: self.server.ioloop.add_callback(lambda: handle_result(f))
+            )
+
+            def handle_result(f):
+                try:
+                    encoded_skeleton = f.result()
+                except Exception as e:
+                    logger.error(f"Error getting skeleton: {e}")
+                    self.send_error(500, message=str(e))
+                    return
+
+                if len(encoded_skeleton) == 0:
+                    logger.error(f"Skeleton not available for neuron_id: {neuron_id}")
+                    self.send_error(404, message=f"Skeleton not found for neuron {neuron_id}")
+                    return
+
+                # Return gzip-compressed binary data (neuroglancer format)
+                self.set_header("Access-Control-Allow-Origin", "*")
+                self.set_header("Content-Type", "application/octet-stream")
+                self.set_header("Content-Encoding", "gzip")
+                self.finish(gzip.compress(encoded_skeleton, compresslevel=6))
+
+        except Exception as e:
+            logger.error(f"Error processing skeleton request: {e}")
+
+
+class J0251MeshHandlerJSON(BaseRequestHandler):
+    @asynchronous
+    def get(self):
+        logger.debug('J0251 mesh requested')
+        neuron_id = self.get_argument('neuron_id', default=None)
+        obj_type = self.get_argument('obj_type', default='ax')
+        
+        if neuron_id is None:
+            m = "Query parameter 'neuron_id' is required"
+            logger.error(m)
+            self.send_error(400, message=m)
+            return
+
+        try:
+            neuron_id = int(neuron_id)
+        except ValueError:
+            m = "neuron_id must be an integer"
+            logger.error(m)
+            self.send_error(400, message=m)
+            return
+
+        try:
+            from neuroglancer.config import params
+            from syconn.analysis.utils import get_encoded_mesh
+            
+            future = self.server.thread_executor.submit(
+                get_encoded_mesh, params["ssd"], neuron_id, obj_type
+            )
+
+            tornado.concurrent.future_add_done_callback(
+                future,
+                lambda f: self.server.ioloop.add_callback(lambda: handle_result(f))
+            )
+
+            def handle_result(f):
+                try:
+                    encoded_mesh = f.result()
+                except Exception as e:
+                    logger.error(f"Error getting mesh: {e}")
+                    self.send_error(500, message=str(e))
+                    return
+
+                if len(encoded_mesh) == 0:
+                    logger.error(f'Mesh not available for neuron_id: {neuron_id}, obj_type: {obj_type}')
+                    self.send_error(404, message=f'Mesh not found for neuron {neuron_id}, type {obj_type}')
+                    return
+
+                self.set_header('Access-Control-Allow-Origin', '*')
+                self.set_header('Content-Type', 'application/octet-stream')
+                self.finish(encoded_mesh)
+
+        except Exception as e:
+            logger.error(f"Error processing mesh request: {e}")
+            import traceback
+            traceback.print_exc()
+            self.send_error(500, message=str(e))
+            return
+
+            import traceback
+            traceback.print_exc()
+            self.send_error(500, message=str(e))
+            return
 
 class ActionHandler(BaseRequestHandler):
     def post(self, viewer_token):
