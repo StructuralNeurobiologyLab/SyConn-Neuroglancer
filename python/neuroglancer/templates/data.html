@@ -26,6 +26,7 @@
               <a class="nav-link" aria-current="page" href="index.html">Home</a>
               <a class="nav-link" href="tutorials.html">Tutorials</a>
               <a class="nav-link active" href="data.html">Data</a>
+              <a class="nav-link" href="interactive/index.html">SyConn interactive</a>
               <a class="nav-link" href="about.html">About</a>
             </div>
           </div>
@@ -40,38 +41,43 @@
       <div>
         <div class="container m-3">
             <h3 class="display-6 header" id="dataset">Data</h3>
-            <h4>j0251 - adult zebra finch area X</h4>
+            <h4>j0251 – adult zebra finch area X</h4>
             <p class="lead" style="text-align: justify;">
             EM data acquisition: <i>J. Kornfeld</i> <br>
             Alignment: <i>J. Kornfeld & A. Pope (V. Jain's team, Google Research)</i> <br>
-            SyConn processing: <i>P. Schubert</i> <br>
+            SyConn processing: <i>P. Schubert, A. Rother, H. Ahmad, J. Kornfeld</i> <br>
             Cell & ultrastructure segmentation: <i>M. Januszewski (V. Jain's team, Google Research)</i>
             </p>
-            <h4>j0126 - adult zebra finch area X</h4>
+            <h4>j0126 – adult zebra finch area X</h4>
             <p class="lead" style="text-align: justify;">
               EM data acquisition: <i>J. Kornfeld</i> <br>
               Alignment: <i>J. Kornfeld & A. Pope (V. Jain's team, Google Research)</i> <br>
-              SyConn processing: <i>P. Schubert</i> <br>
+              SyConn processing: <i>P. Schubert, J. Kornfeld, S. Dorkenwald</i> <br>
               Cell & ultrastructure segmentation: <i>M. Januszewski (V. Jain's team, Google Research), S. Dorkenwald, P. Schubert</i>
             </p>
             <p class="lead" style="text-align: justify;">
-              Please note that the neuron reconstructions, synapse predictions and cell type classifications are best effort. We would appreciate feedback if you think you have discovered a systematic problem that deserves more attention! We are also currently working on creating a downloadable version of the data for offline analysis. If you are interested in running the SyConn analysis steps (
-	      cf. <a href="https://www.nature.com/articles/s41592-022-01624-x">SyConn2 paper</a>
-	      ), you can find the example data and models 
-	      <a href="https://datashare.mpcdf.mpg.de/s/OuP4ST7AbNo8qYE">here</a>.
-
+              Please note that neuron reconstructions, synapse predictions, and cell-type classifications are best‑effort. We welcome feedback if you think you have discovered a systematic issue that deserves more attention. We are also working on a downloadable version of the data for offline analysis.
             </p>
             <p class="lead" style="text-align: justify;">
-                The currently available data sets, j0251 (256 x 256 x 384 µm) and j0126 (96 x 98 x 114 µm), were acquired from adult male zebra finch area X, a basal ganglia area responsible for song learning that contains striatal and pallidal-like cell types. Both data sets were acquired in the department of Winfried Denk at the MPI for Medical Research, Heidelberg.
+                The currently available datasets, j0251 (256 × 256 × 384 µm) and j0126 (96 × 98 × 114 µm), were acquired from adult male zebra finch area X, a basal ganglia area responsible for song learning that contains striatal- and pallidal‑like cell types. Both datasets were acquired in the department of Winfried Denk at the MPI for Medical Research, Heidelberg.
             </p>
         </div>
       <div>
         <hr class="border border-dark rounded border-1 mx-3">
+
+        <div class="container m-3">
+          <h3 class="header display-6">Connectome analysis</h3>
+          <p class="lead" style="text-align: justify;">
+            For interactive analyses of the connectome, use SyConn interactive in the browser. See the
+            <a href="https://syconn.esc.mpcdf.mpg.de/interactive/" target="_blank">API notebook</a> for examples and guidance.
+          </p>
+        </div>
+
         <!-- <div class="row"> -->
-          <div class="container m-3">
+        <div class="container m-3">
         <!-- <div class="lead" style="text-align: justify;" > -->
           <div class="col-12 col-md-8 col-lg-6 text-md-start text-center mb-3">
-            <h3 class="header display-6">Get Started</h3>
+            <h3 class="header display-6">Connectome viewer</h3>
             <form action="/_generate_token" method="post">
               <div class="form-floating">
                   <select class="form-select my-4" name="acq_name" aria-label="Floating select example" id="acquisition">
@@ -95,7 +101,7 @@
               </div>
             </form>
           </div>
-      </div>
+        </div>
         <!-- </div> -->
         <!-- </div> -->
         <!-- <hr class="border border-dark rounded border-1"> -->
