@@ -296,14 +296,14 @@ def load_dataset(wd: str, global_params, logger):
     if params.acquisition != 'zf':
         params["info"] = generate_info(params["segmentation"])
         
-    if 'j0251' in wd:
-        name = wd.split('/')[-1]
-        if name == "rag_flat_Jan2019_v3":
-            params['tpl_mask'] = np.load(f"/home/shared/j0251/j0251_{name}/tpl_mask.npy")
-        elif "_celltypes_20230822" in name:
-            params['tpl_mask'] = np.load(f"/home/shared/j0251/j0251_72_seg_20210127_agglo2_syn_20220811_celltypes_20230822/tpl_mask.npy")
-        else:
-            params['tpl_mask'] = ssd.load_numpy_data('total_edge_length_mask')
+#    if 'j0251' in wd:
+#        name = wd.split('/')[-1]
+#        if name == "rag_flat_Jan2019_v3":
+#            params['tpl_mask'] = np.load(f"/home/shared/j0251/j0251_{name}/tpl_mask.npy")
+#        elif "_celltypes_20230822" in name:
+#            params['tpl_mask'] = np.load(f"/home/shared/j0251/j0251_72_seg_20210127_agglo2_syn_20220811_celltypes_20230822/tpl_mask.npy")
+#        else:
+#            params['tpl_mask'] = ssd.load_numpy_data('total_edge_length_mask')
         
 
 def initialize_server(dev: bool = False, dataset: str = None):
@@ -378,6 +378,11 @@ def initialize_server(dev: bool = False, dataset: str = None):
             params.acquisition = acq
             params.version = ver
             load_dataset(wd, global_params, logger)
+
+        # Set default dataset context for standalone API endpoints
+        params.acquisition = 'j0251'
+        params.version = '72_seg_20210127_agglo2_syn_20220811_celltypes_20230822'
+        logger.info(f"Default dataset context set to {params.acquisition} {params.version}")
 
     global segment_properties_info
 
